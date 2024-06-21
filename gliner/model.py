@@ -129,9 +129,10 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
         return model_input, raw_batch
     
     def predict_entities(self, text, labels, flat_ner=True, threshold=0.5, multi_label=False):
-        return self.batch_predict_entities(
+        all_entities, model_output = self.batch_predict_entities(
             [text], labels, flat_ner=flat_ner, threshold=threshold, multi_label=multi_label
-        )[0]
+        )
+        return all_entities[0]
 
     @torch.no_grad()
     def batch_predict_entities(self, texts, labels, flat_ner=True, threshold=0.5, multi_label=False):
@@ -144,7 +145,8 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
 
         model_input, raw_batch = self.prepare_model_inputs(texts, labels)
 
-        model_output = self.model(**model_input)[0]
+        model_output_raw = self.model(**model_input)
+        model_output = model_output_raw[0]
 
         if not isinstance(model_output, torch.Tensor):
             model_output = torch.from_numpy(model_output)
@@ -169,7 +171,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
                 })
             all_entities.append(entities)
 
-        return all_entities
+        return all_entities, model_output_raw
 
     def evaluate(self, test_data, flat_ner=False, multi_label=False, threshold=0.5, batch_size=12, entity_types=None):
         """
