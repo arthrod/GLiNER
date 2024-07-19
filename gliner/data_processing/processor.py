@@ -17,7 +17,7 @@ class BaseProcessor(ABC):
     def __init__(self, config, tokenizer, words_splitter, preprocess_text=False):
         self.config = config
         self.transformer_tokenizer = tokenizer
-
+        self.transformer_tokenizer.add_prefix_space=True
         self.words_splitter = words_splitter
         self.ent_token = config.ent_token
         self.sep_token = config.sep_token
@@ -117,8 +117,8 @@ class BaseProcessor(ABC):
         if self.preprocess_text:
             input_texts = self.prepare_texts(input_texts)
             
-        tokenized_inputs = self.transformer_tokenizer(input_texts, is_split_into_words = True, return_tensors='pt',
-                                                                                truncation=True, padding="longest")
+        tokenized_inputs = self.transformer_tokenizer(input_texts, is_split_into_words = True, 
+                                                            return_tensors='pt', padding="longest")
         words_masks = []
         for id in range(len(texts)):
             prompt_length = prompt_lengths[id]

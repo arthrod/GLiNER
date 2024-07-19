@@ -3,7 +3,7 @@ import re
 import json
 import warnings
 from pathlib import Path
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union, Dict, List, Any
 
 from transformers import AutoTokenizer, AutoConfig
 
@@ -426,6 +426,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             onnx_model_file: Optional[str] = 'model.onnx',
             compile_torch_model: Optional[bool] = False,
             session_options: Optional[ort.SessionOptions] = None,
+            onnx_execution_providers: Optional[List[Any]] = ['CPUExecutionProvider'],
             **model_kwargs,
     ):
         """
@@ -448,6 +449,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             onnx_model_file (Optional[str]): Filename for ONNX model. Defaults to 'model.onnx'.
             compile_torch_model (Optional[bool]): Compile the PyTorch model. Defaults to False.
             session_options (Optional[onnxruntime.SessionOptions]): ONNX Runtime session options. Defaults to None.
+            onnx_execution_providers [Optional[List[Any]]]: ONNX execution providers list.
             **model_kwargs: Additional keyword arguments for model initialization.
 
         Returns:
@@ -502,11 +504,12 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             if session_options is None:
                 session_options = ort.SessionOptions()
                 session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            ort_session = ort.InferenceSession(model_file, session_options)
+            print('onnx providers: ', onnx_execution_providers)
+            ort_session = ort.InferenceSession(model_file, session_options, providers = onnx_execution_providers)
             if config.span_mode=='token_level':
-                model = TokenORTModel(ort_session)
+                model = TokenORTModel(config, ort_session)
             else:
-                model = SpanORTModel(ort_session)
+                model = SpanORTModel(config, ort_session)
 
             gliner = cls(config, tokenizer=tokenizer, model=model)
             if (config.class_token_index==-1 or config.vocab_size == -1) and resize_token_embeddings:
