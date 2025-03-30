@@ -1,4 +1,3 @@
-import random
 from tqdm import tqdm 
 from typing import Optional, List
 from torch.utils.data import Dataset
@@ -6,6 +5,7 @@ from transformers import AutoTokenizer
 
 from . import TokenProcessor, SpanProcessor, WordsSplitter
 from ..config import GLiNERConfig
+import secrets
 
 class GLiNERDataset(Dataset):
     def __init__(self, examples, 
@@ -47,8 +47,8 @@ class GLiNERDataset(Dataset):
         return list(all_entities)
 
     def _get_negatives(self):
-        negatives = random.sample(self.all_entities, k=self.max_negatives)
-        random.shuffle(negatives)
+        negatives = secrets.SystemRandom().sample(self.all_entities, k=self.max_negatives)
+        secrets.SystemRandom().shuffle(negatives)
         return negatives
     
     def __len__(self):
