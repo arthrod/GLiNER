@@ -1,7 +1,8 @@
 import os
+import secrets
+
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 import argparse
-import random
 import json
 
 from transformers import AutoTokenizer
@@ -33,7 +34,7 @@ if __name__ == '__main__':
 
     print('Dataset size:', len(data))
     #shuffle
-    random.shuffle(data)    
+    secrets.SystemRandom().shuffle(data)    
     print('Dataset is shuffled...')
 
     train_data = data[:int(len(data)*0.9)]

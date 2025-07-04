@@ -1,4 +1,3 @@
-import random
 import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -11,6 +10,7 @@ from torch.nn.utils.rnn import pad_sequence
 import torch.nn.functional as F
 
 from .utils import pad_2d_tensor
+import secrets
 
 # Abstract base class for handling data processing
 class BaseProcessor(ABC):
@@ -77,7 +77,7 @@ class BaseProcessor(ABC):
             types = set([el[-1] for el in b['ner']])
             ent_types.extend(list(types))
         ent_types = list(set(ent_types))
-        random.shuffle(ent_types)
+        secrets.SystemRandom().shuffle(ent_types)
         return ent_types[:sampled_neg]
 
     def prepare_text(self, text):
@@ -164,7 +164,7 @@ class BaseProcessor(ABC):
         id_to_classes = []
         for b in batch_list:
             max_neg_type_ratio = int(self.config.max_neg_type_ratio)
-            neg_type_ratio = random.randint(0, max_neg_type_ratio) if max_neg_type_ratio else 0
+            neg_type_ratio = secrets.SystemRandom().randint(0, max_neg_type_ratio) if max_neg_type_ratio else 0
             
             if "negatives" in b: # manually setting negative types
                 negs_i = b["negatives"]
@@ -172,7 +172,7 @@ class BaseProcessor(ABC):
                 negs_i = negatives[:len(b["ner"]) * neg_type_ratio] if neg_type_ratio else []
 
             types = list(set([el[-1] for el in b["ner"]] + negs_i))
-            random.shuffle(types)
+            secrets.SystemRandom().shuffle(types)
             types = types[:int(self.config.max_types)]
 
             if "label" in b: # labels are predefined
@@ -263,7 +263,7 @@ class BaseBiEncoderProcessor(BaseProcessor):
         classes = []
         for b in batch_list:
             max_neg_type_ratio = int(self.config.max_neg_type_ratio)
-            neg_type_ratio = random.randint(0, max_neg_type_ratio) if max_neg_type_ratio else 0
+            neg_type_ratio = secrets.SystemRandom().randint(0, max_neg_type_ratio) if max_neg_type_ratio else 0
             
             if "negatives" in b: # manually setting negative types
                 negs_i = b["negatives"]
@@ -277,7 +277,7 @@ class BaseBiEncoderProcessor(BaseProcessor):
                 types = b["label"]
 
             classes.extend(types)
-        random.shuffle(classes)
+        secrets.SystemRandom().shuffle(classes)
         classes = list(set(classes))[:int(self.config.max_types*len(batch_list))]
         class_to_id = {k: v for v, k in enumerate(classes, start=1)}
         id_to_class = {k: v for v, k in class_to_id.items()}

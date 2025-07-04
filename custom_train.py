@@ -2,7 +2,6 @@ import argparse
 import json
 import os
 import re
-import random
 from tqdm import tqdm
 
 from transformers import (
@@ -32,6 +31,7 @@ from gliner.data_processing.tokenizer import WordsSplitter
 from gliner.data_processing.collator import DataCollatorWithPadding, DataCollator
 from gliner.utils import load_config_as_namespace
 from gliner.evaluation import get_for_all_path
+import secrets
 
 
 def save_top_k_checkpoints(model: GLiNER, save_path: str, checkpoint: int, top_k: int = 5):
@@ -320,7 +320,7 @@ class Trainer:
     def run(self):
         with open(self.config.train_data, 'r') as f:
             data = json.load(f)
-        random.shuffle(data) 
+        secrets.SystemRandom().shuffle(data) 
         if torch.cuda.device_count() > 1 and self.allow_distributed:
             world_size = torch.cuda.device_count()
             mp.spawn(self.train_dist, args=(world_size, data), nprocs=world_size, join=True)
