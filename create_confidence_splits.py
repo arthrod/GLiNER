@@ -1,156 +1,285 @@
-import json
-import torch
-from functools import partial
-from gliner.decoding.utils import has_overlapping, has_overlapping_nested
-from gliner import GLiNER
-from gliner.data_processing.collator import DataCollator
-from sklearn.model_selection import KFold
+import os, json, glob
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Iterable
 from tqdm import tqdm
-import os
-import glob
 
-def gliner_format(example):
-    annotations = [(span["start"], span["end"] - 1, span["tag"]) for span in example["token_spans"]]
-    return {"tokenized_text": example["tokens"], "ner": annotations}
+@dataclass(frozen=True)
+class Span:
+    token_start: int
+    token_end: int
+    char_start: int
+    char_end: int
+    text: str
+    label: str
 
-def greedy_search(spans, flat_ner=True, multi_label=False):
-    if flat_ner:
-        has_ov = partial(has_overlapping, multi_label=multi_label)
-    else:
-        has_ov = partial(has_overlapping_nested, multi_label=multi_label)
+def iou(a: Span, b: Span) -> float:
+    """IoU in token space; only meaningful when labels match (we gate by label elsewhere)."""
+    inter = max(0, min(a.token_end, b.token_end) - max(a.token_start, b.token_start))
+    union = (a.token_end - a.token_start) + (b.token_end - b.token_start) - inter
+    return inter / union if union > 0 else 0.0
 
-    new_list = []
-    span_prob = sorted(spans, key=lambda x: -x[-1])
+def overlaps(a: Span, b: Span) -> bool:
+    return max(0, min(a.token_end, b.token_end) - max(a.token_start, b.token_start)) > 0
 
-    for i in range(len(spans)):
-        b = span_prob[i]
-        flag = False
-        for new in new_list:
-            if has_ov(b[:-1], new):
-                flag = True
-                break
-        if not flag:
-            new_list.append(b)
+def to_exclusive(s_incl: int, e_incl: int) -> tuple[int, int]:
+    return s_incl, e_incl + 1
 
-    new_list = sorted(new_list, key=lambda x: x[0])
-    return new_list
+def cluster_spans(spans: Iterable[tuple[Span, float]], iou_thresh: float = 0.5) -> dict[Span, list[float]]:
+    """
+    Merge near-duplicates with SAME label and IoU>=iou_thresh into a canonical span.
+    Canonical boundaries = median start/end for stability.
+    Returns {canonical_span: [confidences]}.
+    """
+    items = list(spans)
+    used = [False]*len(items)
+    clusters = []
 
-def get_indices_above_threshold(scores, threshold):
-    scores = torch.sigmoid(scores)
-    return [k.tolist() for k in torch.where(scores > threshold)]
+    for i, (si, _) in enumerate(items):
+        if used[i]:
+            continue
+        bucket = [i]
+        used[i] = True
+        for j in range(i+1, len(items)):
+            if used[j]: 
+                continue
+            sj, _ = items[j]
+            if si.label == sj.label and iou(si, sj) >= iou_thresh:
+                used[j] = True
+                bucket.append(j)
+        clusters.append(bucket)
 
-def calculate_span_score(start_idx, end_idx, scores_inside_i, start_i, end_i, id_to_classes, threshold):
-    span_i = []
-    for st, cls_st in zip(*start_idx):
-        for ed, cls_ed in zip(*end_idx):
-            if ed >= st and cls_st == cls_ed:
-                ins = scores_inside_i[st:ed + 1, cls_st]
-                if (ins < threshold).any():
-                    continue
-                # Get the start and end scores for this span
-                start_score = start_i[st, cls_st]
-                end_score = end_i[ed, cls_st]
-                # Concatenate the inside scores with start and end scores
-                combined = torch.cat([ins, start_score.unsqueeze(0), end_score.unsqueeze(0)])
-                # The span score is the minimum value among these scores
-                spn_score = combined.min().item()
-                span_i.append((st, ed, id_to_classes[cls_st + 1], None, spn_score))
-    return span_i
+    def median_int(vals: list[int]) -> int:
+        s = sorted(vals)
+        n = len(s)
+        return s[n//2] if n % 2 else (s[n//2 - 1] + s[n//2]) // 2
 
-def main():
-    for fold in range(5):
-        model_path = f"/vol/tmp/goldejon/multilingual_ner/gliner_logs/fold_{fold+1}/checkpoint-50000/"
-        model = GLiNER.from_pretrained(model_path)
-        model.eval()
-        model.to("cuda")
+    canon: dict[Span, list[float]] = {}
+    for idxs in clusters:
+        token_starts = [items[k][0].token_start for k in idxs]
+        token_ends   = [items[k][0].token_end   for k in idxs]
+        char_starts = [items[k][0].char_start for k in idxs]
+        char_ends   = [items[k][0].char_end   for k in idxs]
+        texts = {items[k][0].text for k in idxs}
+        labels = {items[k][0].label for k in idxs}
+        assert len(labels) == 1
+        can = Span(median_int(token_starts), median_int(token_ends), median_int(char_starts), median_int(char_ends), next(iter(texts)), next(iter(labels)))
+        confs = [items[k][1] for k in idxs]
+        canon.setdefault(can, []).extend(confs)
+    return canon
 
-        data = []
-        for lang_path in glob.glob(f"/vol/tmp2/goldejon/multilingual_ner/data/singlelabel/finerweb_merged_jsonl/*.jsonl"):
-            with open(lang_path, 'r') as f:
-                lang_data = [
-                    {'original': json.loads(item), 'gliner_format': gliner_format(json.loads(item))} for item in f.readlines()]
-            data.extend(lang_data)
+def shrink_char_spans_to_gold(gold_spans_with_conf: list, char_spans: list) -> list:
+    """
+    Given gold spans (subset, same order) and a longer list of predicted char_spans,
+    return the subsequence of char_spans that matches the gold sequence by label.
 
-        k_folds = 5
-        kf = KFold(n_splits=k_folds, shuffle=True, random_state=42)
-        print('Dataset size:', len(data))
-        splits = list(kf.split(data))
-        print(f'Dataset is split into {k_folds} folds...')
+    Example:
+      gold labels: ['x','z','x']
+      char labels: ['x','y','z','x']  -> returns the items for ['x','z','x']
+    """
+    if not gold_spans_with_conf:
+        return []
 
-        for fold in range(k_folds):
-            test_indices = splits[fold][1]
-            test_data = [data[i] for i in test_indices]
+    filtered_char_spans = []
+    i, j = 0, 0
+    n_gold, n_char = len(gold_spans_with_conf), len(char_spans)
 
-            collator = DataCollator(
-                model.config,
-                data_processor=model.data_processor,
-                return_tokens=True,
-                return_entities=True,
-                return_id_to_classes=True,
-                prepare_labels=False,
+    while i < n_gold and j < n_char:
+        gold_label = gold_spans_with_conf[i][2]
+        char_label = char_spans[j]["tag"]
+        if char_label == gold_label:
+            filtered_char_spans.append(char_spans[j])  
+            i += 1
+            j += 1
+        else:
+            j += 1
+
+    return filtered_char_spans
+
+def priority_gold_merge_singlefold(
+    gold_spans_with_conf: list[list],
+    tokens: list[str],
+    thresholds=(0.99, 0.90, 0.70, 0.50),
+    iou_thresh: float = 0.5,
+    treat_missing_gold_as: float = 0.0,
+):
+    """
+    Single-prediction-set variant of Option 1 (K=1):
+      score(gold-match) = max(gold_conf, pred_conf)
+      score(non-gold)   = pred_conf   (agreement==1 if predicted, 0 otherwise)
+    Conflict resolution: gold > higher score > longer span > earlier start.
+    Returns dict with tiers per threshold and per-span scores.
+    """
+    # Map each token index to its (char_start, char_end) span in the text, including whitespace after each token
+    token_to_char = {}
+    char_pos = 0
+    for i, token in enumerate(tokens):
+        start = char_pos
+        end = start + len(token)
+        token_to_char[i] = (start, end)
+        char_pos = end + 1
+
+    # Parse gold to canonical
+    gold_items = []
+    for idx, (s_incl, e_incl, label, conf) in enumerate(gold_spans_with_conf):
+        s, e = to_exclusive(s_incl, e_incl)
+        text = " ".join(tokens[s:e])
+        char_start, char_end = token_to_char[s][0], token_to_char[e-1][1]
+        cg = float(conf) if conf is not None else treat_missing_gold_as
+        gold_items.append((Span(s, e, char_start, char_end, text, label), cg))
+    gold_can = cluster_spans(gold_items, iou_thresh=iou_thresh)
+
+    candidates = set(gold_can.keys())
+    is_gold = set(gold_can.keys())
+
+    # Scores
+    scores: dict[Span, float] = {}
+    for z in candidates:
+        cg = max(gold_can.get(z, [treat_missing_gold_as]))
+        scores[z] = cg
+
+    def select(t: float) -> list[Span]:
+        pool = [z for z in candidates if scores[z] >= t]
+        pool.sort(key=lambda z: (z in is_gold, scores[z], (z.token_end - z.token_start), -z.token_start), reverse=True)
+        chosen: list[Span] = []
+        for z in pool:
+            conflict = any(overlaps(z, q) and z.label != q.label for q in chosen)
+            if not conflict:
+                chosen.append(z)
+        return chosen
+
+    tiers = {t: select(t) for t in thresholds}
+
+    # Monotonicity sanity
+    t_sorted = sorted(thresholds, reverse=True)
+    for hi, lo in zip(t_sorted, t_sorted[1:]):
+        assert set(tiers[hi]).issubset(set(tiers[lo])), "Non-nested tiers; check inputs."
+
+    # Pack for output
+    def span_to_obj(s: Span):
+        return {
+            "token_start": s.token_start, 
+            "token_end": s.token_end, 
+            "char_start": s.char_start, 
+            "char_end": s.char_end, 
+            "label": s.label, 
+            "score": scores[s], 
+            "text": s.text, 
+            "is_gold": s in is_gold
+        }
+
+    def remove_overlaps_and_sort(spans_list):
+        """Remove overlapping spans, filter out non-gold predictions, and sort by start position."""
+        if not spans_list:
+            return spans_list
+        
+        # Filter out non-gold predictions (is_gold == False)
+        gold_spans = [span for span in spans_list if span["is_gold"]]
+        
+        # Sort by start position first
+        gold_spans.sort(key=lambda x: x["token_start"])
+        
+        # Remove overlaps - keep the first span when there's an overlap
+        filtered_spans = {"token_spans": [], "char_spans": []}
+        for span in gold_spans:
+            has_overlap = False
+            for existing_span in filtered_spans["token_spans"]:
+                # Check if spans overlap (end is exclusive, so end==start is not overlap)
+                if (span["token_start"] < existing_span["end"] and 
+                    span["token_end"] > existing_span["start"]):
+                    has_overlap = True
+                    break
+            
+            if not has_overlap:
+                filtered_spans["token_spans"].append({
+                    "start": span["token_start"],
+                    "end": span["token_end"],
+                    "tag": span["label"],
+                    "confidence": span["score"],
+                    "text": span["text"],
+                })
+                filtered_spans["char_spans"].append({
+                    "start": span["char_start"],
+                    "end": span["char_end"],
+                    "tag": span["label"],
+                    "confidence": span["score"],
+                    "text": span["text"],
+                })
+        
+        return filtered_spans
+
+    out = {t: remove_overlaps_and_sort([span_to_obj(s) for s in spans]) for t, spans in tiers.items()}
+    return out
+
+
+def build_splits(
+    input_glob: str,
+    out_root: str = "out",
+    thresholds=(0.99, 0.90, 0.70, 0.50),
+    iou_thresh: float = 0.5,
+):
+    os.makedirs(out_root, exist_ok=True)
+    tier_dirs = {t: os.path.join(out_root, f"conf{int(t*100):02d}") for t in thresholds}
+    for d in tier_dirs.values():
+        os.makedirs(d, exist_ok=True)
+
+    # Buffers per language per tier: we will write one JSONL per language per tier
+    buffers: dict[float, dict[str, list[dict]]] = {t: defaultdict(list) for t in thresholds}
+
+    for file in glob.glob(input_glob):
+        if "errors" in file:
+            continue
+        with open(file, "r") as f:
+            data = json.load(f)
+
+        for dp in tqdm(data):
+            # language from id like "uz_12345"
+            lang = dp["id"].split("_")[0]
+
+            gold = dp.get("gold_spans_with_confidence", [])
+            tokens = dp.get("tokens", [])
+
+            tiers = priority_gold_merge_singlefold(
+                gold_spans_with_conf=gold,
+                tokens=tokens,
+                thresholds=thresholds,
+                iou_thresh=iou_thresh,
             )
 
-            data_loader = torch.utils.data.DataLoader(
-                test_data, batch_size=1, shuffle=False, collate_fn=collator
-            )
+            if not tiers[thresholds[0]]:
+                del tiers[thresholds[0]]
+            if not tiers[thresholds[1]]:
+                del tiers[thresholds[1]]
+            if not tiers[thresholds[2]]:
+                del tiers[thresholds[2]]
+            if not tiers[thresholds[3]]:
+                del tiers[thresholds[3]]
 
-            annotations = []
-            for batch in tqdm(data_loader):
-                original_input = batch.pop('original')
-                # Move the batch to the appropriate device
-                for key in batch:
-                    if isinstance(batch[key], torch.Tensor):
-                        batch[key] = batch[key].to(model.device)
+            for t in tiers.keys():
+                rec = {
+                    "id": dp["id"],
+                    "tokens": tokens,
+                    "text": " ".join(tokens),
+                    "token_spans": tiers[t]["token_spans"],
+                    "char_spans": tiers[t]["char_spans"],
+                }
+                buffers[t][lang].append(rec)
 
-                # Perform predictions
-                with torch.no_grad():
-                    model_output = model(**batch)[0]
+    # Write JSONL files per tier per language
+    for t, langs in buffers.items():
+        for lang, records in langs.items():
+            out_path = os.path.join(tier_dirs[t], f"{lang}.jsonl")
+            with open(out_path, "w", encoding="utf-8") as w:
+                for r in records:
+                    w.write(json.dumps(r, ensure_ascii=False) + "\n")
+    print("Done. Wrote:", {t: tier_dirs[t] for t in thresholds})
 
-                if not isinstance(model_output, torch.Tensor):
-                    model_output = torch.from_numpy(model_output)
-
-                model_output = model_output.permute(3, 0, 1, 2)
-                scores_start, scores_end, scores_inside = model_output
-                threshold = 0.4
-                id_to_classes = batch["id_to_classes"]
-                for batch_idx, _ in enumerate(batch["tokens"]):
-                    gold_spans = batch["entities"][batch_idx]
-                    id_to_class_i = id_to_classes[batch_idx] if isinstance(id_to_classes, list) else id_to_classes
-                    class_to_id_i = {v: k for k, v in id_to_class_i.items()}
-                    start_tuple = [[], []]
-                    end_tuple = [[], []]
-                    for span in gold_spans:
-                        start_tuple[0].append(span[0])
-                        start_tuple[1].append(class_to_id_i[span[2]] - 1)
-                        end_tuple[0].append(span[1])
-                        end_tuple[1].append(class_to_id_i[span[2]] - 1)
-
-                    gold_spans = calculate_span_score(
-                        start_tuple,
-                        end_tuple,
-                        torch.sigmoid(scores_inside[batch_idx]),
-                        torch.sigmoid(scores_start[batch_idx]),
-                        torch.sigmoid(scores_end[batch_idx]),
-                        id_to_class_i,
-                        threshold
-                    )
-                    gold_spans = greedy_search(gold_spans, True, False)
-
-                    pred_spans = calculate_span_score(
-                        get_indices_above_threshold(scores_start[batch_idx], threshold),
-                        get_indices_above_threshold(scores_end[batch_idx], threshold),
-                        torch.sigmoid(scores_inside[batch_idx]),
-                        torch.sigmoid(scores_start[batch_idx]),
-                        torch.sigmoid(scores_end[batch_idx]),
-                        id_to_class_i,
-                        threshold
-                    )
-                    pred_spans = greedy_search(pred_spans, True, False)
-                    annotations.append({**original_input[0], "gold_spans_with_confidence": gold_spans, "pred_spans_with_confidence": pred_spans})
-
-            os.makedirs(f"/vol/tmp/goldejon/multilingual_ner/data/confidence_annotations", exist_ok=True)
-            with open(f"/vol/tmp/goldejon/multilingual_ner/data/confidence_annotations/fold_{fold+1}.json", "w") as f:
-                json.dump(annotations, f)
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--input_glob", default="/vol/tmp/goldejon/multilingual_ner/data/confidence_annotations/*.json", help="Glob to input JSON files")
+    ap.add_argument("--out_root", default="/vol/tmp/goldejon/multilingual_ner/data/confidence_splits", help="Output root directory")
+    ap.add_argument("--iou", type=float, default=0.5, help="IoU threshold for merging dup spans")
+    args = ap.parse_args()
+    build_splits(args.input_glob, out_root=args.out_root, thresholds=(0.99, 0.90, 0.70, 0.50), iou_thresh=args.iou)

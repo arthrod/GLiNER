@@ -26,9 +26,7 @@ class DataCollator:
         self.entity_types = entity_types
 
     def __call__(self, input_x):
-        if len(input_x) == 1 and 'gliner_format' in input_x[0]:
-            gliner_input = [input_x[0]['gliner_format']]
-        raw_batch = self.data_processor.collate_raw_batch(gliner_input, entity_types = self.entity_types)
+        raw_batch = self.data_processor.collate_raw_batch(input_x, entity_types = self.entity_types)
         
         model_input = self.data_processor.collate_fn(raw_batch, prepare_labels=self.prepare_labels)
         model_input.update({"span_idx": raw_batch['span_idx'] if 'span_idx' in raw_batch else None, 
@@ -41,8 +39,6 @@ class DataCollator:
         if self.return_entities:
             model_input['entities'] = raw_batch['entities']
         model_input = {k:v for k, v in model_input.items() if v is not None}
-        if len(input_x) == 1 and 'original' in input_x[0]:
-            model_input['original'] = [input_x[0]['original']]
         return model_input
 
 class DataCollatorWithPadding:

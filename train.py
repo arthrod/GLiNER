@@ -3,6 +3,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 import argparse
 import random
 import json
+import glob
 
 from transformers import AutoTokenizer
 import torch
@@ -12,12 +13,16 @@ from gliner.training import Trainer, TrainingArguments
 from gliner.data_processing.collator import DataCollatorWithPadding, DataCollator
 from gliner.utils import load_config_as_namespace
 from gliner.data_processing import WordsSplitter, GLiNERDataset
+from sklearn.model_selection import KFold
 
+def gliner_format(example):
+    annotations = [(span["start"], span["end"] - 1, span["tag"]) for span in example["token_spans"]]
+    return {"tokenized_text": example["tokens"], "ner": annotations}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default= "configs/config.yaml")
-    parser.add_argument('--log_dir', type=str, default = 'models/')
+    parser.add_argument('--log_dir', type=str, default = '/vol/tmp/goldejon/multilingual_ner/gliner_logs/')
     parser.add_argument('--compile_model', type=bool, default = False)
     parser.add_argument('--freeze_text_encoder', type=bool, default = False)
     parser.add_argument('--freeze_decoder', type=bool, default = False)
@@ -26,21 +31,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     config = load_config_as_namespace(args.config)
+
+    data = []
+    for lang_path in glob.glob(f"/vol/tmp2/goldejon/multilingual_ner/data/singlelabel/{config.train_data}/*.jsonl"):
+        with open(lang_path, 'r') as f:
+            lang_data = [gliner_format(json.loads(item)) for item in f.readlines()]
+        data.extend(lang_data)
+
     config.log_dir = args.log_dir
-
-    with open(config.train_data, 'r') as f:
-        data = [item for item in json.load(f) if len(item['tokenized_text']) and len(item['ner'])]
-
-    print('Dataset size:', len(data))
-    #shuffle
     random.shuffle(data)    
     print('Dataset is shuffled...')
 
-    train_data = data[:int(len(data)*0.9)]
-    test_data = data[int(len(data)*0.9):]
-
-    print('Dataset is splitted...')
-
+    train_data = data[:int(len(data)*0.985)]
+    test_data = data[int(len(data)*0.985):]
 
     if config.prev_path is not None:
         tokenizer = AutoTokenizer.from_pretrained(config.prev_path, add_prefix_space=True)
@@ -111,10 +114,11 @@ if __name__ == '__main__':
         save_steps = config.eval_every,
         save_total_limit=config.save_total_limit,
         dataloader_num_workers = 1,
+        logging_steps = 20,
         use_cpu = False,
         report_to="none",
         bf16=True,
-        )
+    )
 
     trainer = Trainer(
         model=model,

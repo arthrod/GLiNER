@@ -153,9 +153,8 @@ class BaseProcessor(ABC):
                 prev_word_id = word_id
             words_masks.append(words_mask)
         return words_masks
-    
-    def tokenize_inputs(self, texts, entities, prepare_labels: bool = False, blank = None):
 
+    def tokenize_inputs(self, texts, entities, prepare_labels: bool = False, blank = None):
         input_texts, prompt_lengths = self.prepare_inputs(texts, entities, blank=blank)
 
         if self.preprocess_text:

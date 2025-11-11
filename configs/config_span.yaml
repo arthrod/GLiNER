@@ -1,5 +1,5 @@
 # Model Configuration
-model_name: jhu-clsp/mmBERT-base  # Hugging Face model
+model_name: knowledgator/gliner-x-base  # Hugging Face model
 labels_encoder: null
 name: "span level gliner"
 max_width: 12
@@ -12,14 +12,14 @@ post_fusion_schema: null #"l2l-l2t-t2t"
 span_mode: token_level #token_level | markerV0
 
 # Training Parameters
-num_steps: 50000
+num_steps: 30000
 train_batch_size: 10
-eval_every: 5000
+eval_every: 2500
 warmup_ratio: 0.05
 scheduler_type: "cosine"
 
 # loss function
-loss_alpha: 0.75 # focal loss alpha, if -1, no focal loss
+loss_alpha: -1 # focal loss alpha, if -1, no focal loss
 loss_gamma: 0 # focal loss gamma, if 0, no focal loss
 loss_prob_margin: 0
 label_smoothing: 0
@@ -34,7 +34,7 @@ weight_decay_other: 0.01
 max_grad_norm: 10.0
 
 # Directory Paths
-root_dir: span_gliner_logs
+root_dir: /vol/tmp/goldejon/multilingual_ner/gliner_from_scratch/
 train_data: finerweb_merged_jsonl # see https://github.com/urchade/GLiNER/tree/main/data
 val_data_dir: "none"
 # "NER_datasets": val data from the paper can be obtained from "https://drive.google.com/file/d/1T-5IbocGka35I7X3CE6yKe5N_Xg2lVKT/view"
@@ -51,5 +51,5 @@ max_types: 50
 shuffle_types: true
 random_drop: true
 max_neg_type_ratio: 1
-max_len: 1024
+max_len: 512
 freeze_token_rep: false
