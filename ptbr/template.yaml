@@ -1,0 +1,330 @@
+# =============================================================================
+# GLiNER Fine-Tuning Configuration Template (pt-BR / General)
+# =============================================================================
+#
+# This YAML file is the single source of truth for configuring a GLiNER
+# fine-tuning run. It is consumed by `config_cli.py`, which validates every
+# field, prints a rich summary, and returns a config object ready for the
+# trainer.
+#
+# Sections:
+#   1. gliner_config  - Architecture & model hyper-parameters
+#   2. lora_config    - LoRA / PEFT adapter settings (only when full_or_lora=lora)
+#
+# Notes on notation used in comments:
+#   REQUIRED  = must be set; the validator will error if missing / null
+#   DEFAULT   = a sane default is provided; the validator will warn when used
+#   range     = acceptable numeric interval  [min, max]
+#   literals  = set of accepted string values {"a", "b", "c"}
+#
+# =============================================================================
+
+
+# ---------------------------------------------------------------------------
+# 1. GLiNER MODEL / ARCHITECTURE CONFIGURATION
+# ---------------------------------------------------------------------------
+# These parameters map directly to the fields accepted by the GLiNER config
+# classes (BaseGLiNERConfig, UniEncoder*, BiEncoder*, Decoder*, Relex*).
+# ---------------------------------------------------------------------------
+
+gliner_config:
+
+  # -------------------------------------------------------------------------
+  # 1.1 Backbone / Encoder
+  # -------------------------------------------------------------------------
+
+  # REQUIRED - Hugging Face model name or local path for the primary encoder.
+  # Common choices for Portuguese:
+  #   "neuralmind/bert-base-portuguese-cased"
+  #   "microsoft/deberta-v3-small"
+  #   "microsoft/deberta-v3-base"
+  #   "microsoft/deberta-v3-large"
+  #   "google/mt5-small"   (T5 encoder-only)
+  #   "answerdotai/ModernBERT-base"
+  model_name: "microsoft/deberta-v3-small"
+
+  # Human-readable name for this configuration (for logging only).
+  # DEFAULT = "gliner"
+  name: "gliner"
+
+  # Whether to fine-tune the backbone encoder weights.
+  # Set to false to freeze the backbone and only train GLiNER-specific heads.
+  # DEFAULT = true   |  literals: {true, false}
+  fine_tune: true
+
+  # -------------------------------------------------------------------------
+  # 1.2 Architecture / Method Selection
+  # -------------------------------------------------------------------------
+  # The combination of these fields determines the model architecture:
+  #
+  #   method=span   + labels_encoder=null  + labels_decoder=null  => UniEncoderSpanModel
+  #   method=token  + labels_encoder=null  + labels_decoder=null  => UniEncoderTokenModel
+  #   method=span   + labels_encoder=<model>                      => BiEncoderSpanModel
+  #   method=token  + labels_encoder=<model>                      => BiEncoderTokenModel
+  #   method=decoder + labels_decoder=<model>                     => UniEncoderSpanDecoderModel
+  #   method=relex  + relations_layer=<layer>                     => UniEncoderSpan/TokenRelexModel
+  #
+  # NOTE: The CLI --method flag sets span_mode and architecture selectors
+  #       accordingly; you can also set them here directly.
+  # -------------------------------------------------------------------------
+
+  # Span representation mode. Determines how entity spans are encoded.
+  # For method=token the CLI forces this to "token_level".
+  # For method=span (or biencoder/decoder/relex) choose from the span modes.
+  # DEFAULT = "markerV0"
+  # literals: {"markerV0", "markerV1", "marker", "query", "mlp", "cat",
+  #            "conv_conv", "conv_max", "conv_mean", "conv_sum", "conv_share",
+  #            "token_level"}
+  span_mode: "markerV0"
+
+  # Maximum span width in tokens. Only relevant when span_mode != "token_level".
+  # DEFAULT = 12   |  range: [1, 128]
+  max_width: 12
+
+  # -------------------------------------------------------------------------
+  # 1.3 BiEncoder Settings (method=biencoder)
+  # -------------------------------------------------------------------------
+
+  # Hugging Face model name for a separate labels encoder.
+  # Set to a model name to enable BiEncoder architecture.
+  # Set to null for UniEncoder (single encoder for text + entity types).
+  # DEFAULT = null (UniEncoder)
+  labels_encoder: null
+
+  # -------------------------------------------------------------------------
+  # 1.4 Decoder Settings (method=decoder)
+  # -------------------------------------------------------------------------
+
+  # Hugging Face model name for a label-generation decoder.
+  # Set to a model name to enable Encoder-Decoder architecture.
+  # e.g. "HuggingFaceTB/SmolLM2-135M-Instruct", "openai-community/gpt2"
+  # DEFAULT = null (no decoder)
+  labels_decoder: null
+
+  # Decoder operating mode.
+  # DEFAULT = "span"   |  literals: {"span", "prompt"}
+  decoder_mode: "span"
+
+  # Whether the decoder sees the full encoder context.
+  # DEFAULT = true   |  literals: {true, false}
+  full_decoder_context: true
+
+  # Probability of inserting blank entities during training (decoder only).
+  # DEFAULT = 0.1   |  range: [0.0, 1.0]
+  blank_entity_prob: 0.1
+
+  # Loss coefficient for the decoder branch.
+  # DEFAULT = 0.5   |  range: [0.0, 10.0]
+  decoder_loss_coef: 0.5
+
+  # -------------------------------------------------------------------------
+  # 1.5 Relation Extraction Settings (method=relex)
+  # -------------------------------------------------------------------------
+
+  # Name of the relations layer class (see gliner.modeling.multitask.relations_layers).
+  # Set to a layer name to enable relation extraction.
+  # DEFAULT = null (no relation extraction)
+  relations_layer: null
+
+  # Name of the triples layer class (see gliner.modeling.multitask.triples_layers).
+  # DEFAULT = null
+  triples_layer: null
+
+  # Whether to embed relation tokens in the input.
+  # DEFAULT = true   |  literals: {true, false}
+  embed_rel_token: true
+
+  # Index of the relation token in the vocabulary (-1 = auto-assign).
+  # DEFAULT = -1   |  range: [-1, 100000]
+  rel_token_index: -1
+
+  # Special token string used to mark relations.
+  # DEFAULT = "<<REL>>"
+  rel_token: "<<REL>>"
+
+  # Loss coefficient for the adjacency modeling objective.
+  # DEFAULT = 1.0   |  range: [0.0, 10.0]
+  adjacency_loss_coef: 1.0
+
+  # Loss coefficient for the relation representation objective.
+  # DEFAULT = 1.0   |  range: [0.0, 10.0]
+  relation_loss_coef: 1.0
+
+  # -------------------------------------------------------------------------
+  # 1.6 Hidden Dimensions & Projection
+  # -------------------------------------------------------------------------
+
+  # Internal hidden dimension for GLiNER projection/fusion layers.
+  # If this differs from the backbone hidden size, a linear projection is added.
+  # DEFAULT = 512   |  range: [64, 4096]
+  hidden_size: 512
+
+  # Dropout probability applied in GLiNER-specific layers.
+  # DEFAULT = 0.4   |  range: [0.0, 0.9]
+  dropout: 0.4
+
+  # -------------------------------------------------------------------------
+  # 1.7 Subtoken Handling
+  # -------------------------------------------------------------------------
+
+  # How to pool subtokens back to word-level representations.
+  # DEFAULT = "first"   |  literals: {"first", "mean", "max"}
+  subtoken_pooling: "first"
+
+  # How input text is split into words before subword tokenization.
+  # DEFAULT = "whitespace"   |  literals: {"whitespace", "spacy", "stanza", "mecab", "jieba", "janome", "camel"}
+  words_splitter_type: "whitespace"
+
+  # -------------------------------------------------------------------------
+  # 1.8 Sequence & Entity Limits
+  # -------------------------------------------------------------------------
+
+  # Maximum input sequence length in subword tokens.
+  # DEFAULT = 384   |  range: [32, 8192]
+  max_len: 384
+
+  # Maximum number of entity types per sample.
+  # DEFAULT = 25   |  range: [1, 1000]
+  max_types: 25
+
+  # Maximum ratio of negative to positive entity types during training.
+  # DEFAULT = 1   |  range: [0, 100]
+  max_neg_type_ratio: 1
+
+  # -------------------------------------------------------------------------
+  # 1.9 Post-Fusion & Layer Settings
+  # -------------------------------------------------------------------------
+
+  # Post-fusion processing schema string (e.g. "l2l-l2t-t2t").
+  # Defines cross-attention layers between text and entity type representations.
+  # DEFAULT = "" (no post-fusion)
+  post_fusion_schema: ""
+
+  # Number of post-fusion cross-attention layers.
+  # DEFAULT = 1   |  range: [1, 12]
+  num_post_fusion_layers: 1
+
+  # Whether to fuse representations from multiple transformer layers.
+  # DEFAULT = false   |  literals: {true, false}
+  fuse_layers: false
+
+  # Number of BiLSTM layers applied on top of transformer output.
+  # Set to 0 to disable the LSTM. Values >= 1 add LSTM layers.
+  # DEFAULT = 1   |  range: [0, 4]
+  num_rnn_layers: 1
+
+  # -------------------------------------------------------------------------
+  # 1.10 Special Tokens
+  # -------------------------------------------------------------------------
+
+  # Whether to embed entity type tokens in the input sequence.
+  # DEFAULT = true   |  literals: {true, false}
+  embed_ent_token: true
+
+  # Index of the class token in the vocabulary (-1 = auto-assign after resize).
+  # DEFAULT = -1   |  range: [-1, 100000]
+  class_token_index: -1
+
+  # Vocabulary size override. -1 = auto-detect from tokenizer.
+  # DEFAULT = -1   |  range: [-1, 1000000]
+  vocab_size: -1
+
+  # Entity marker token string.
+  # DEFAULT = "<<ENT>>"
+  ent_token: "<<ENT>>"
+
+  # Separator token string used between entity types.
+  # DEFAULT = "<<SEP>>"
+  sep_token: "<<SEP>>"
+
+  # -------------------------------------------------------------------------
+  # 1.11 Loss Coefficients
+  # -------------------------------------------------------------------------
+
+  # Loss coefficient for the token-level loss branch.
+  # DEFAULT = 1.0   |  range: [0.0, 10.0]
+  token_loss_coef: 1.0
+
+  # Loss coefficient for the span-level loss branch.
+  # DEFAULT = 1.0   |  range: [0.0, 10.0]
+  span_loss_coef: 1.0
+
+  # Whether to compute explicit span representations (needed for some decoder configs).
+  # DEFAULT = false   |  literals: {true, false}
+  represent_spans: false
+
+  # Ratio of negative spans sampled during training.
+  # DEFAULT = 1.0   |  range: [0.0, 10.0]
+  neg_spans_ratio: 1.0
+
+  # -------------------------------------------------------------------------
+  # 1.12 Attention Implementation
+  # -------------------------------------------------------------------------
+
+  # Override the attention implementation used by the backbone.
+  # null = use the model's default.
+  # literals: {null, "eager", "sdpa", "flash_attention_2"}
+  _attn_implementation: null
+
+
+# ---------------------------------------------------------------------------
+# 2. LoRA / PEFT ADAPTER CONFIGURATION
+# ---------------------------------------------------------------------------
+# Only used when --full-or-lora lora is specified on the CLI.
+# When full_or_lora=full, this entire section is ignored.
+#
+# These parameters are passed to peft.LoraConfig. See:
+#   https://huggingface.co/docs/peft/package_reference/lora
+# ---------------------------------------------------------------------------
+
+lora_config:
+
+  # LoRA rank (dimension of the low-rank matrices).
+  # Higher rank = more capacity but more parameters.
+  # DEFAULT = 8   |  range: [1, 256]
+  r: 8
+
+  # LoRA scaling factor.  Effective weight = (lora_alpha / r) * delta_W.
+  # Common practice: set lora_alpha = 2*r for stable training.
+  # DEFAULT = 16   |  range: [1, 512]
+  lora_alpha: 16
+
+  # Dropout applied to LoRA layers during training.
+  # DEFAULT = 0.1   |  range: [0.0, 0.9]
+  lora_dropout: 0.1
+
+  # Target modules to apply LoRA adapters to.
+  # These are matched against named modules in the backbone transformer.
+  # Common targets for DeBERTa:  ["query_proj", "value_proj", "key_proj"]
+  # Common targets for BERT-like: ["query", "value", "key"]
+  # Common targets for LLaMA:     ["q_proj", "v_proj", "k_proj", "o_proj"]
+  # DEFAULT = ["query_proj", "value_proj"]
+  target_modules:
+    - "query_proj"
+    - "value_proj"
+
+  # LoRA bias mode.
+  # DEFAULT = "none"   |  literals: {"none", "all", "lora_only"}
+  bias: "none"
+
+  # Task type for PEFT. For GLiNER fine-tuning this is always feature extraction.
+  # DEFAULT = "FEATURE_EXTRACTION"
+  # literals: {"FEATURE_EXTRACTION", "TOKEN_CLS", "SEQ_CLS", "CAUSAL_LM", "SEQ_2_SEQ_LM"}
+  task_type: "FEATURE_EXTRACTION"
+
+  # Whether to apply LoRA to the output/dense layers as well.
+  # DEFAULT = false   |  literals: {true, false}
+  modules_to_save: null
+
+  # Fan-in/fan-out setting for the target modules.
+  # DEFAULT = false   |  literals: {true, false}
+  fan_in_fan_out: false
+
+  # Enable RSLoRA (Rank-Stabilized LoRA) scaling.
+  # When true, uses 1/sqrt(r) scaling instead of 1/r.
+  # DEFAULT = false   |  literals: {true, false}
+  use_rslora: false
+
+  # Initialize LoRA B matrix to zero (recommended for stable training start).
+  # DEFAULT = true   |  literals: {true, false}
+  init_lora_weights: true
