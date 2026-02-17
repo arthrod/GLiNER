@@ -53,14 +53,28 @@ MINIMAL_VALID_CONFIG = {
 
 @pytest.fixture()
 def valid_cfg() -> dict:
-    """Return a deep copy of the minimal valid config."""
+    """
+    Return a deep copy of the module's minimal valid configuration.
+    
+    Returns:
+        dict: A deep-copied dictionary of MINIMAL_VALID_CONFIG suitable for use in tests.
+    """
     import copy
     return copy.deepcopy(MINIMAL_VALID_CONFIG)
 
 
 @pytest.fixture()
 def cfg_file(tmp_path: Path, valid_cfg: dict) -> Path:
-    """Write the valid config to a temp YAML file and return its path."""
+    """
+    Write a configuration dictionary to a temporary YAML file and return its path.
+    
+    Parameters:
+        tmp_path (Path): Directory in which to create the temporary config file (typically pytest's tmp_path).
+        valid_cfg (dict): Configuration dictionary to serialize to YAML.
+    
+    Returns:
+        Path: Path to the created YAML file named "config.yaml".
+    """
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "train.json").write_text("[]", encoding="utf-8")
@@ -110,6 +124,9 @@ class TestCheckType:
 
     def test_bool_not_int(self) -> None:
         # bool is a subclass of int, but we don't want bools matching int
+        """
+        Ensure _check_type does not treat boolean values as integers.
+        """
         assert _check_type(True, int) is False
 
     def test_bool_matches_bool(self) -> None:
@@ -128,6 +145,12 @@ class TestCheckType:
 
 class TestValidateConfig:
     def test_minimal_valid(self, valid_cfg: dict) -> None:
+        """
+        Verifies that a minimal valid configuration passes validation.
+        
+        Parameters:
+            valid_cfg (dict): A minimal configuration dictionary expected to conform to the validator's schema.
+        """
         result = validate_config(valid_cfg)
         assert result.ok, f"Errors: {result.errors}"
 
@@ -240,6 +263,14 @@ class TestSemanticChecks:
         assert any("hub_model_id" in e for e in result.errors)
 
     def test_positive_num_steps(self, valid_cfg: dict) -> None:
+        """
+        Checks that semantic validation reports an error when training.num_steps is not positive.
+        
+        Sets training.num_steps to 0 on the provided configuration, runs semantic_checks, and asserts that an error referencing "num_steps" is present in the ValidationResult.
+        
+        Parameters:
+            valid_cfg (dict): A baseline valid configuration dictionary used for the test.
+        """
         valid_cfg["training"]["num_steps"] = 0
         result = ValidationResult()
         semantic_checks(valid_cfg, result)
@@ -490,6 +521,33 @@ class TestCLI:
         (out / "summary_20260101T000000Z.txt").write_text("ok")
         result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
         assert result.exit_code == 0
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_empty_ok(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """An empty output folder should be accepted for a new training run."""
+        out = tmp_path / "output"
+        out.mkdir()
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
+        assert result.exit_code == 0
+        mock_launch.assert_called_once()
+
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_allows_validation_artifacts(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "validation_20260101T000000Z.log").write_text("ok")
+        (out / "summary_20260101T000000Z.txt").write_text("ok")
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
+        assert result.exit_code == 0
         mock_launch.assert_called_once()
 
     def test_validate_writes_summary(self, cfg_file: Path, tmp_path: Path) -> None:
@@ -505,7 +563,11 @@ class TestCLI:
         assert len(logs) >= 1
 
     def test_resume_without_output_folder(self, cfg_file: Path) -> None:
-        """--resume without --output-folder should still work for --validate."""
+        """
+        Allow validation to run when `--resume` is supplied without `--output-folder`.
+        
+        Invokes the CLI with `--validate` and `--resume` for the provided config file and asserts the command exits with code 0.
+        """
         result = runner.invoke(
             app, [str(cfg_file), "--validate", "--resume"]
         )
