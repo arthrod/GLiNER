@@ -1,0 +1,23 @@
+[
+  {
+    "id": "no-ner",
+    "tokenized_text": ["Hello", "world", "."]
+  },
+  {
+    "id": "no-text",
+    "ner": [[0, 1, "Greeting"]]
+  },
+  {
+    "id": "has-text-but-wrong-key",
+    "text": ["Hello", "world", "."],
+    "ner": [[0, 1, "Greeting"]]
+  },
+  {
+    "id": "has-ner-but-wrong-key",
+    "tokenized_text": ["Hello", "world", "."],
+    "entities": [[0, 1, "Greeting"]]
+  },
+  {
+    "id": "completely-empty"
+  }
+]

@@ -75,7 +75,12 @@ class DecoderTransformer(nn.Module):
     """
 
     def __init__(
-        self, model_name: str, config: Any, from_pretrained: bool = False, cache_dir: Optional[Union[str, Path]] = None
+        self,
+        model_name: str,
+        config: Any,
+        from_pretrained: bool = False,
+        cache_dir: Optional[Union[str, Path]] = None,
+        trust_remote_code: Optional[bool] = None,
     ) -> None:
         """Initializes the decoder transformer.
 
@@ -86,23 +91,32 @@ class DecoderTransformer(nn.Module):
             from_pretrained: If True, loads pretrained weights. If False, initializes
                 from config only. Defaults to False.
             cache_dir: Optional directory for caching downloaded models. Defaults to None.
+            trust_remote_code: Whether to allow execution of custom code from
+                remote repositories when loading decoder models. If None,
+                falls back to ``config.trust_remote_code`` (default False).
 
         Raises:
             Warning: If adapter config is found but PEFT package is not installed.
         """
         super().__init__()
+        if trust_remote_code is None:
+            trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         decoder_config = config.labels_decoder_config
         if decoder_config is None:
-            decoder_config = AutoConfig.from_pretrained(model_name, cache_dir=cache_dir)
+            decoder_config = AutoConfig.from_pretrained(
+                model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
 
         kwargs = {}
         custom = False
         ModelClass = AutoModelForCausalLM
 
         if from_pretrained:
-            self.model = ModelClass.from_pretrained(model_name, trust_remote_code=True)
+            self.model = ModelClass.from_pretrained(model_name, trust_remote_code=trust_remote_code)
         elif not custom:
-            self.model = ModelClass.from_config(decoder_config, trust_remote_code=True)
+            self.model = ModelClass.from_config(decoder_config, trust_remote_code=trust_remote_code)
         else:
             self.model = ModelClass(decoder_config, **kwargs)
 
@@ -149,7 +163,11 @@ class Decoder(nn.Module):
     """
 
     def __init__(
-        self, config: Any, from_pretrained: bool = False, cache_dir: Optional[Union[str, Path]] = None
+        self,
+        config: Any,
+        from_pretrained: bool = False,
+        cache_dir: Optional[Union[str, Path]] = None,
+        trust_remote_code: Optional[bool] = None,
     ) -> None:
         """Initializes the decoder.
 
@@ -159,10 +177,19 @@ class Decoder(nn.Module):
             from_pretrained: If True, loads pretrained weights for the decoder.
                 Defaults to False.
             cache_dir: Optional directory for caching downloaded models. Defaults to None.
+            trust_remote_code: Whether to allow execution of custom code from
+                remote repositories when loading decoder models. If None,
+                falls back to ``config.trust_remote_code`` (default False).
         """
         super().__init__()
 
-        self.decoder_layer = DecoderTransformer(config.labels_decoder, config, from_pretrained, cache_dir=cache_dir)
+        self.decoder_layer = DecoderTransformer(
+            config.labels_decoder,
+            config,
+            from_pretrained,
+            cache_dir=cache_dir,
+            trust_remote_code=trust_remote_code,
+        )
 
         self.decoder_hidden_size = self.decoder_layer.model.config.hidden_size
 

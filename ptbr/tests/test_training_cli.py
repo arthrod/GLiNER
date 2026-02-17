@@ -19,6 +19,7 @@ from ptbr.training_cli import (
     check_huggingface,
     check_wandb,
     check_resume,
+    print_summary,
     semantic_checks,
     validate_config,
     ValidationResult,
@@ -75,6 +76,9 @@ def cfg_file(tmp_path: Path, valid_cfg: dict) -> Path:
     Returns:
         Path: Path to the created YAML file named "config.yaml".
     """
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "train.json").write_text("[]", encoding="utf-8")
     p = tmp_path / "config.yaml"
     p.write_text(yaml.dump(valid_cfg, default_flow_style=False))
     return p
@@ -101,6 +105,11 @@ class TestDeepGetSet:
         d: dict = {}
         _deep_set(d, "a.b.c", 99)
         assert d == {"a": {"b": {"c": 99}}}
+
+    def test_deep_set_raises_when_parent_not_mapping(self) -> None:
+        d = {"a": "not-a-dict"}
+        with pytest.raises(ValueError):
+            _deep_set(d, "a.b.c", 99)
 
 
 # ------------------------------------------------------------------ #
@@ -152,6 +161,12 @@ class TestValidateConfig:
         assert not result.ok
         assert any("run.name" in e for e in result.errors)
 
+    def test_required_field_set_to_none(self, valid_cfg: dict) -> None:
+        valid_cfg["run"]["name"] = None
+        result = validate_config(valid_cfg)
+        assert not result.ok
+        assert any("run.name" in e for e in result.errors)
+
     def test_wrong_type_errors(self, valid_cfg: dict) -> None:
         valid_cfg["training"]["num_steps"] = "not_an_int"
         result = validate_config(valid_cfg)
@@ -190,6 +205,20 @@ class TestValidateConfig:
         valid_cfg["model"]["labels_encoder"] = None
         result = validate_config(valid_cfg)
         assert result.ok
+
+    def test_sensitive_values_are_redacted(self, valid_cfg: dict) -> None:
+        valid_cfg.setdefault("environment", {})["hf_token"] = "hf_secret_token"
+        valid_cfg["environment"]["wandb_api_key"] = "wandb_secret_key"
+        result = validate_config(valid_cfg)
+        assert result.ok
+
+        info_by_key = {key: value for key, _, value in result.info}
+        assert info_by_key["environment.hf_token"] == "***REDACTED***"
+        assert info_by_key["environment.wandb_api_key"] == "***REDACTED***"
+
+        summary = print_summary(result)
+        assert "hf_secret_token" not in summary
+        assert "wandb_secret_key" not in summary
 
 
 # ------------------------------------------------------------------ #
@@ -253,6 +282,13 @@ class TestSemanticChecks:
         result = ValidationResult()
         semantic_checks(valid_cfg, result)
         assert any("lr_encoder" in e for e in result.errors)
+
+    @pytest.mark.parametrize("value", [-0.1, 1.1])
+    def test_warmup_ratio_out_of_bounds(self, valid_cfg: dict, value: float) -> None:
+        valid_cfg["training"]["warmup_ratio"] = value
+        result = ValidationResult()
+        semantic_checks(valid_cfg, result)
+        assert any("warmup_ratio" in e for e in result.errors)
 
     def test_valid_enums_pass(self, valid_cfg: dict) -> None:
         valid_cfg["training"]["scheduler_type"] = "cosine"
@@ -350,7 +386,7 @@ class TestCheckWandB:
             "data": {"viewer": {"username": "testuser"}}
         }
 
-        with mock.patch("requests.get", return_value=mock_resp):
+        with mock.patch("requests.post", return_value=mock_resp):
             check_wandb(valid_cfg, result)
         assert result.ok
 
@@ -363,7 +399,7 @@ class TestCheckWandB:
         mock_resp.status_code = 403
         mock_resp.text = "Forbidden"
 
-        with mock.patch("requests.get", return_value=mock_resp):
+        with mock.patch("requests.post", return_value=mock_resp):
             check_wandb(valid_cfg, result)
         assert not result.ok
 
@@ -373,6 +409,16 @@ class TestCheckWandB:
 # ------------------------------------------------------------------ #
 
 class TestCheckResume:
+    def test_missing_run_name_in_current_config(
+        self, valid_cfg: dict, tmp_path: Path
+    ) -> None:
+        valid_cfg["run"].pop("name", None)
+        (tmp_path / "checkpoint-100").mkdir()
+        result = ValidationResult()
+        check_resume(valid_cfg, tmp_path, result)
+        assert not result.ok
+        assert any("cannot resume: 'run.name' is missing" in e.lower() for e in result.errors)
+
     def test_no_checkpoints(self, valid_cfg: dict, tmp_path: Path) -> None:
         result = ValidationResult()
         check_resume(valid_cfg, tmp_path, result)
@@ -414,6 +460,20 @@ class TestCLI:
         result = runner.invoke(app, [str(cfg_file), "--validate"])
         assert result.exit_code == 0
 
+    def test_validate_fails_when_train_data_missing(self, cfg_file: Path) -> None:
+        cfg = yaml.safe_load(cfg_file.read_text())
+        cfg["data"]["train_data"] = "data/missing_train.json"
+        cfg_file.write_text(yaml.dump(cfg, default_flow_style=False))
+        result = runner.invoke(app, [str(cfg_file), "--validate"])
+        assert result.exit_code == 1
+
+    def test_validate_fails_when_val_data_missing(self, cfg_file: Path) -> None:
+        cfg = yaml.safe_load(cfg_file.read_text())
+        cfg["data"]["val_data_dir"] = "data/missing_val.json"
+        cfg_file.write_text(yaml.dump(cfg, default_flow_style=False))
+        result = runner.invoke(app, [str(cfg_file), "--validate"])
+        assert result.exit_code == 1
+
     def test_validate_invalid_config(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.yaml"
         bad.write_text(yaml.dump({"run": {"seed": 42}}))
@@ -449,6 +509,34 @@ class TestCLI:
             app, [str(cfg_file), "--validate"]
         )
         assert result.exit_code == 0
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_empty_ok(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """An empty output folder should be accepted for a new training run."""
+        out = tmp_path / "output"
+        out.mkdir()
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
+        assert result.exit_code == 0
+        mock_launch.assert_called_once()
+
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_allows_validation_artifacts(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "validation_20260101T000000Z.log").write_text("ok")
+        (out / "summary_20260101T000000Z.txt").write_text("ok")
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
+        assert result.exit_code == 0
+        mock_launch.assert_called_once()
 
     def test_validate_writes_summary(self, cfg_file: Path, tmp_path: Path) -> None:
         result = runner.invoke(app, [str(cfg_file), "--validate"])
