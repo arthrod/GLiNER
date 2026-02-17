@@ -1,0 +1,12 @@
+[
+  {
+    "id": "oops-forgot-to-tokenize",
+    "tokenized_text": "Barack Obama was born in Honolulu.",
+    "ner": [[0, 1, "Person"], [5, 5, "City"]]
+  },
+  {
+    "id": "also-raw",
+    "tokenized_text": "Apple Inc. reported earnings on Tuesday.",
+    "ner": [[0, 2, "Company"]]
+  }
+]

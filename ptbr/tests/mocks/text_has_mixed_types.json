@@ -1,0 +1,17 @@
+[
+  {
+    "id": "mixed-1",
+    "tokenized_text": ["The", "price", "is", 100, "dollars", "."],
+    "ner": [[3, 4, "Money"]]
+  },
+  {
+    "id": "mixed-2",
+    "tokenized_text": ["Score", ":", 3.5, "out", "of", 5],
+    "ner": [[0, 0, "Metric"]]
+  },
+  {
+    "id": "mixed-3",
+    "tokenized_text": ["Name", ":", null, "unknown"],
+    "ner": [[2, 3, "Person"]]
+  }
+]

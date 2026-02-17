@@ -1,5 +1,28 @@
-"""ptbr - GLiNER fine-tuning configuration for pt-BR and general use."""
+"""ptbr - GLiNER fine-tuning toolkit for pt-BR and general use.
 
-from ptbr.config_cli import load_and_validate_config, GLiNERConfigResult
+Submodules:
+    ptbr.data          - Data loading, validation, and preparation
+    ptbr.config_cli    - YAML configuration validation
+    ptbr.training_cli  - Training launch and validation
 
-__all__ = ["load_and_validate_config", "GLiNERConfigResult"]
+CLI usage:
+    python -m ptbr data      --file-or-repo data.json --validate
+    python -m ptbr config    --file config.yaml --validate
+    python -m ptbr train     config.yaml --output-folder ./runs
+"""
+
+from ptbr.data import (
+    GLiNERData,
+    extract_labels,
+    load_data,
+    prepare,
+    validate_data,
+)
+
+__all__ = [
+    "GLiNERData",
+    "extract_labels",
+    "load_data",
+    "prepare",
+    "validate_data",
+]
