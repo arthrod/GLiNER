@@ -84,6 +84,10 @@ def main(cfg_path: str):
         save_steps=cfg.training.eval_every,
         logging_steps=cfg.training.eval_every,
         save_total_limit=cfg.training.save_total_limit,
+        # Evaluation — run eval at the same cadence as checkpointing when
+        # an eval dataset is available.
+        **({"eval_strategy": "steps", "eval_steps": cfg.training.eval_every}
+           if eval_dataset is not None else {}),
         # Freezing
         freeze_components=freeze_components,
 
