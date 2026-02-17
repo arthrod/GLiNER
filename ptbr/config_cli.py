@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -26,17 +25,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from gliner.config import (
-    GLiNERConfig,
-    BiEncoderSpanConfig,
-    BiEncoderTokenConfig,
-    UniEncoderSpanConfig,
-    UniEncoderTokenConfig,
-    UniEncoderSpanDecoderConfig,
-    UniEncoderTokenDecoderConfig,
-    UniEncoderSpanRelexConfig,
-    UniEncoderTokenRelexConfig,
-)
+from gliner.config import GLiNERConfig
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -126,20 +115,6 @@ _LORA_RULES: List[Tuple[str, type, bool, Any, Any]] = [
     ("init_lora_weights",  bool,  False, True,             ("literals", {True, False})),
 ]
 
-
-# Method -> config class mapping
-_METHOD_CONFIG_CLASS = {
-    ("span",      False, False): UniEncoderSpanConfig,
-    ("token",     False, False): UniEncoderTokenConfig,
-    ("biencoder", True,  False): BiEncoderSpanConfig,     # span variant
-    ("biencoder_token", True, False): BiEncoderTokenConfig,
-    ("decoder",   False, True):  UniEncoderSpanDecoderConfig,
-    ("decoder_token", False, True): UniEncoderTokenDecoderConfig,
-    ("relex",     False, False): UniEncoderSpanRelexConfig,
-    ("relex_token", False, False): UniEncoderTokenRelexConfig,
-}
-
-
 # ============================================================================
 # Validation Issue Tracking
 # ============================================================================
@@ -185,14 +160,16 @@ class GLiNERConfigResult:
     """Validated configuration result returned when used as a module.
 
     Attributes:
-        gliner_config: A GLiNERConfig (or subclass) instance ready for the trainer.
+        gliner_config: A GLiNERConfig instance ready for the trainer, or None when invalid.
+        validated_gliner: The fully validated/coerced gliner_config dictionary.
         lora_config: A dict of LoRA parameters (or None when full fine-tuning).
         raw_yaml: The original parsed YAML dictionary.
         report: The ValidationReport with all warnings/errors.
         full_or_lora: Whether this is a "full" or "lora" configuration.
         method: The resolved method string.
     """
-    gliner_config: GLiNERConfig
+    gliner_config: Optional[GLiNERConfig]
+    validated_gliner: Dict[str, Any]
     lora_config: Optional[Dict[str, Any]]
     raw_yaml: Dict[str, Any]
     report: ValidationReport
@@ -253,7 +230,7 @@ def _validate_section(
         # --- Missing / None handling ---
         if raw_value is None:
             if required:
-                report.add_error(field_path, f"REQUIRED field is missing or null.")
+                report.add_error(field_path, "REQUIRED field is missing or null.")
                 continue
             else:
                 if default is not None:
@@ -314,8 +291,13 @@ def _validate_cross_constraints(
     method: str,
     full_or_lora: str,
     report: ValidationReport,
+    raw_gliner_section: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Check cross-field constraints that depend on method and mode."""
+    if isinstance(raw_gliner_section, dict):
+        explicit_keys = set(raw_gliner_section.keys())
+    else:
+        explicit_keys = {k for k, v in gliner_data.items() if v is not None}
 
     # --- Method-specific requirements ---
     if method == "biencoder":
@@ -352,69 +334,46 @@ def _validate_cross_constraints(
             f"for a token-level variant. If not, change span_mode.",
         )
 
-    # --- decoder fields when no decoder ---
+    # --- decoder fields when method is not decoder ---
     if method != "decoder":
-        for fld in ("decoder_mode", "full_decoder_context", "blank_entity_prob", "decoder_loss_coef"):
-            if gliner_data.get(fld) is not None and fld in ("decoder_mode",) and gliner_data.get("labels_decoder") is None:
-                pass  # defaults are fine
+        if "labels_decoder" in explicit_keys and gliner_data.get("labels_decoder") is not None:
+            report.add_warning(
+                "gliner_config.labels_decoder",
+                "Field 'labels_decoder' is set while method is not 'decoder'; "
+                "decoder architecture may still be selected.",
+            )
+        if gliner_data.get("labels_decoder") is None:
+            for fld in ("decoder_mode", "full_decoder_context", "blank_entity_prob", "decoder_loss_coef"):
+                if fld in explicit_keys:
+                    report.add_warning(
+                        f"gliner_config.{fld}",
+                        f"Field {fld!r} is set but labels_decoder is not set; it will be ignored.",
+                    )
 
-    # --- relex fields when no relex ---
+    # --- relex fields when method is not relex ---
     if method != "relex":
-        for fld in ("relations_layer", "triples_layer"):
-            if gliner_data.get(fld) is not None:
-                report.add_warning(
-                    f"gliner_config.{fld}",
-                    f"Field {fld!r} is set but method is not 'relex'; it will be ignored.",
-                )
+        if "relations_layer" in explicit_keys and gliner_data.get("relations_layer") is not None:
+            report.add_warning(
+                "gliner_config.relations_layer",
+                "Field 'relations_layer' is set while method is not 'relex'; "
+                "relex architecture may still be selected.",
+            )
+        if (
+            "triples_layer" in explicit_keys
+            and gliner_data.get("triples_layer") is not None
+            and gliner_data.get("relations_layer") is None
+        ):
+            report.add_warning(
+                "gliner_config.triples_layer",
+                "Field 'triples_layer' is set but relations_layer is not set; it will be ignored.",
+            )
 
 
 def _build_gliner_config(
     gliner_data: Dict[str, Any],
-    method: str,
 ) -> GLiNERConfig:
-    """Build the appropriate GLiNERConfig subclass from validated data."""
-    # Filter out keys not accepted by BaseGLiNERConfig or the subclass
-    # Use GLiNERConfig which auto-detects model_type
-    cfg_kwargs = {}
-    for key, value in gliner_data.items():
-        if value is not None or key in (
-            "labels_encoder", "labels_decoder", "relations_layer",
-            "triples_layer", "_attn_implementation", "post_fusion_schema",
-            "modules_to_save",
-        ):
-            cfg_kwargs[key] = value
-
-    # Remove relex-specific fields from non-relex builds to avoid __init__ errors
-    base_fields = {
-        "model_name", "name", "max_width", "hidden_size", "dropout", "fine_tune",
-        "subtoken_pooling", "span_mode", "post_fusion_schema", "num_post_fusion_layers",
-        "vocab_size", "max_neg_type_ratio", "max_types", "max_len",
-        "words_splitter_type", "num_rnn_layers", "fuse_layers", "embed_ent_token",
-        "class_token_index", "encoder_config", "ent_token", "sep_token",
-        "_attn_implementation", "token_loss_coef", "span_loss_coef",
-        "represent_spans", "neg_spans_ratio",
-    }
-
-    biencoder_fields = base_fields | {"labels_encoder", "labels_encoder_config"}
-
-    decoder_fields = base_fields | {
-        "labels_decoder", "decoder_mode", "full_decoder_context",
-        "blank_entity_prob", "labels_decoder_config", "decoder_loss_coef",
-    }
-
-    relex_fields = base_fields | {
-        "relations_layer", "triples_layer", "embed_rel_token",
-        "rel_token_index", "rel_token", "adjacency_loss_coef", "relation_loss_coef",
-    }
-
-    # Legacy GLiNERConfig accepts a broad set
-    gliner_legacy_fields = base_fields | {
-        "labels_encoder", "labels_decoder", "relations_layer",
-    }
-
-    # Use the legacy GLiNERConfig which auto-detects the right model_type
-    filtered = {k: v for k, v in cfg_kwargs.items() if k in gliner_legacy_fields}
-    return GLiNERConfig(**filtered)
+    """Build a GLiNERConfig from validated data."""
+    return GLiNERConfig(**gliner_data)
 
 
 # ============================================================================
@@ -455,25 +414,51 @@ def load_and_validate_config(
     report = ValidationReport()
 
     # --- Validate gliner_config section ---
-    gliner_section = raw.get("gliner_config", {})
-    if not gliner_section:
+    if "gliner_config" not in raw:
         report.add_error("gliner_config", "Missing 'gliner_config' section in YAML file.")
         gliner_section = {}
+    else:
+        gliner_section = raw.get("gliner_config")
+        if gliner_section is None:
+            report.add_error("gliner_config", "'gliner_config' must be a YAML mapping, got null.")
+            gliner_section = {}
+        elif not isinstance(gliner_section, dict):
+            report.add_error(
+                "gliner_config",
+                f"'gliner_config' must be a YAML mapping, got {type(gliner_section).__name__}.",
+            )
+            gliner_section = {}
 
     validated_gliner = _validate_section(
         gliner_section, _GLINER_RULES, "gliner_config", report,
     )
 
     # --- Cross-field validation ---
-    _validate_cross_constraints(validated_gliner, method, full_or_lora, report)
+    _validate_cross_constraints(
+        validated_gliner,
+        method,
+        full_or_lora,
+        report,
+        raw_gliner_section=gliner_section,
+    )
 
     # --- Validate lora_config section (only for lora mode) ---
     validated_lora: Optional[Dict[str, Any]] = None
     if full_or_lora == "lora":
-        lora_section = raw.get("lora_config", {})
-        if not lora_section:
+        if "lora_config" not in raw:
             report.add_warning("lora_config", "LoRA mode selected but 'lora_config' section is missing; using all defaults.")
             lora_section = {}
+        else:
+            lora_section = raw.get("lora_config")
+            if lora_section is None:
+                report.add_error("lora_config", "'lora_config' must be a YAML mapping, got null.")
+                lora_section = {}
+            elif not isinstance(lora_section, dict):
+                report.add_error(
+                    "lora_config",
+                    f"'lora_config' must be a YAML mapping, got {type(lora_section).__name__}.",
+                )
+                lora_section = {}
         validated_lora = _validate_section(
             lora_section, _LORA_RULES, "lora_config", report,
         )
@@ -481,10 +466,11 @@ def load_and_validate_config(
     # --- Build GLiNERConfig object ---
     gliner_config = None
     if report.is_valid:
-        gliner_config = _build_gliner_config(validated_gliner, method)
+        gliner_config = _build_gliner_config(validated_gliner)
 
     result = GLiNERConfigResult(
         gliner_config=gliner_config,
+        validated_gliner=validated_gliner,
         lora_config=validated_lora,
         raw_yaml=raw,
         report=report,
@@ -499,6 +485,11 @@ def load_and_validate_config(
 # Rich Output: Summary Printing
 # ============================================================================
 
+def _is_default_warning(issue: ValidationIssue) -> bool:
+    """Return True when a warning indicates a default value was applied."""
+    return "using default" in issue.message.lower()
+
+
 def _make_gliner_table(validated: Dict[str, Any], report: ValidationReport) -> Table:
     """Build a rich table showing each gliner_config field and its status."""
     table = Table(title="GLiNER Configuration", show_lines=True)
@@ -506,14 +497,18 @@ def _make_gliner_table(validated: Dict[str, Any], report: ValidationReport) -> T
     table.add_column("Value", style="white", min_width=30)
     table.add_column("Status", style="white", min_width=20)
 
-    warning_fields = {i.field.split(".")[-1] for i in report.warnings}
-    error_fields = {i.field.split(".")[-1] for i in report.errors}
-
     for key, _type, required, default, _constraint in _GLINER_RULES:
+        full_field = f"gliner_config.{key}"
+        field_errors = [i for i in report.errors if i.field == full_field]
+        field_warnings = [i for i in report.warnings if i.field == full_field]
+        has_default_warning = any(_is_default_warning(i) for i in field_warnings)
+        has_other_warning = any(not _is_default_warning(i) for i in field_warnings)
         value = validated.get(key, "[missing]")
-        if key in error_fields:
+        if field_errors:
             status = "[bold red]ERROR[/]"
-        elif key in warning_fields:
+        elif has_other_warning:
+            status = "[yellow]WARNING[/]"
+        elif has_default_warning:
             status = "[yellow]DEFAULT[/]"
         elif required:
             status = "[green]SET (required)[/]"
@@ -531,14 +526,18 @@ def _make_lora_table(validated: Dict[str, Any], report: ValidationReport) -> Tab
     table.add_column("Value", style="white", min_width=30)
     table.add_column("Status", style="white", min_width=20)
 
-    warning_fields = {i.field.split(".")[-1] for i in report.warnings}
-    error_fields = {i.field.split(".")[-1] for i in report.errors}
-
     for key, _type, required, default, _constraint in _LORA_RULES:
+        full_field = f"lora_config.{key}"
+        field_errors = [i for i in report.errors if i.field == full_field]
+        field_warnings = [i for i in report.warnings if i.field == full_field]
+        has_default_warning = any(_is_default_warning(i) for i in field_warnings)
+        has_other_warning = any(not _is_default_warning(i) for i in field_warnings)
         value = validated.get(key, "[missing]")
-        if key in error_fields:
+        if field_errors:
             status = "[bold red]ERROR[/]"
-        elif key in warning_fields:
+        elif has_other_warning:
+            status = "[yellow]WARNING[/]"
+        elif has_default_warning:
             status = "[yellow]DEFAULT[/]"
         else:
             status = "[green]SET[/]"
@@ -565,11 +564,12 @@ def _print_issues(report: ValidationReport) -> None:
 def _save_validation_log(
     result: GLiNERConfigResult,
     log_path: Path,
+    source_file: Optional[Path] = None,
 ) -> None:
     """Save a structured JSON log of the validation run."""
     log_data = {
         "timestamp": datetime.now().isoformat(),
-        "file": str(result.raw_yaml.get("_source_file", "unknown")),
+        "file": str(source_file) if source_file is not None else "unknown",
         "full_or_lora": result.full_or_lora,
         "method": result.method,
         "valid": result.report.is_valid,
@@ -616,17 +616,7 @@ def print_and_log_result(
     ))
     console.print()
 
-    # Re-validate to get section data for tables
-    raw = result.raw_yaml
-    gliner_section = raw.get("gliner_config", {})
-    validated_gliner = {}
-    for key, _type, _req, _def, _con in _GLINER_RULES:
-        val = gliner_section.get(key)
-        if val is None:
-            val = _def
-        validated_gliner[key] = val
-
-    console.print(_make_gliner_table(validated_gliner, result.report))
+    console.print(_make_gliner_table(result.validated_gliner, result.report))
     console.print()
 
     if result.full_or_lora == "lora" and result.lora_config is not None:
@@ -645,8 +635,7 @@ def print_and_log_result(
         log_dir = file_path.parent
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = log_dir / f"config_validation_{timestamp}.json"
-    result.raw_yaml["_source_file"] = str(file_path)
-    _save_validation_log(result, log_path)
+    _save_validation_log(result, log_path, source_file=file_path)
     console.print(f"\nLog saved to: [cyan]{log_path}[/]")
     console.print()
 

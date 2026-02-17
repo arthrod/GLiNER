@@ -415,6 +415,42 @@ class TestLoadAndValidateConfig:
         with pytest.raises(ValueError, match="YAML mapping"):
             load_and_validate_config(p)
 
+    def test_gliner_config_null(self, tmp_path):
+        data = {"gliner_config": None}
+        cfg_path = _write_yaml(tmp_path, data)
+        result = load_and_validate_config(cfg_path, full_or_lora="full", method="span")
+        assert not result.report.is_valid
+        assert any(e.field == "gliner_config" for e in result.report.errors)
+
+    def test_gliner_config_non_mapping(self, tmp_path):
+        for value in (["not", "a", "mapping"], "not-a-mapping"):
+            data = {"gliner_config": value}
+            cfg_path = _write_yaml(tmp_path, data)
+            result = load_and_validate_config(cfg_path, full_or_lora="full", method="span")
+            assert not result.report.is_valid
+            assert any(e.field == "gliner_config" for e in result.report.errors)
+
+    def test_lora_config_null_when_lora(self, tmp_path):
+        data = {
+            "gliner_config": _minimal_gliner_config(),
+            "lora_config": None,
+        }
+        cfg_path = _write_yaml(tmp_path, data)
+        result = load_and_validate_config(cfg_path, full_or_lora="lora", method="span")
+        assert not result.report.is_valid
+        assert any(e.field == "lora_config" for e in result.report.errors)
+
+    def test_lora_config_non_mapping_when_lora(self, tmp_path):
+        for value in (["not", "a", "mapping"], "not-a-mapping"):
+            data = {
+                "gliner_config": _minimal_gliner_config(),
+                "lora_config": value,
+            }
+            cfg_path = _write_yaml(tmp_path, data)
+            result = load_and_validate_config(cfg_path, full_or_lora="lora", method="span")
+            assert not result.report.is_valid
+            assert any(e.field == "lora_config" for e in result.report.errors)
+
     def test_missing_gliner_config_section(self, tmp_path):
         data = {"some_other_key": 42}
         cfg_path = _write_yaml(tmp_path, data)
@@ -535,14 +571,14 @@ class TestTemplateYaml:
     def test_template_validates_span(self, template_path):
         result = load_and_validate_config(template_path, full_or_lora="full", method="span")
         assert result.report.is_valid, (
-            f"Template failed validation:\n"
+            "Template failed validation:\n"
             + "\n".join(f"  {e.field}: {e.message}" for e in result.report.errors)
         )
 
     def test_template_validates_lora(self, template_path):
         result = load_and_validate_config(template_path, full_or_lora="lora", method="span")
         assert result.report.is_valid, (
-            f"Template failed lora validation:\n"
+            "Template failed lora validation:\n"
             + "\n".join(f"  {e.field}: {e.message}" for e in result.report.errors)
         )
 
