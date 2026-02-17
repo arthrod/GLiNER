@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import textwrap
 from pathlib import Path
 from unittest import mock
 
@@ -495,19 +494,32 @@ class TestCLI:
         )
         assert result.exit_code == 1
 
-    def test_output_folder_empty_ok_but_no_data(
-        self, cfg_file: Path, tmp_path: Path
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_empty_ok(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
     ) -> None:
-        """An empty output folder passes folder checks but training will fail
-        because the dataset file doesn't exist.  We just verify the CLI gets
-        past the validation stage (exit code 1 from training error, not from
-        validation error)."""
+        """An empty output folder should be accepted for a new training run."""
         out = tmp_path / "output"
         out.mkdir()
-        # The CLI should pass validation (exit 0 for --validate)
-        result = runner.invoke(
-            app, [str(cfg_file), "--validate"]
-        )
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
+        assert result.exit_code == 0
+        mock_launch.assert_called_once()
+
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_allows_validation_artifacts(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "validation_20260101T000000Z.log").write_text("ok")
+        (out / "summary_20260101T000000Z.txt").write_text("ok")
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
         assert result.exit_code == 0
     @mock.patch("ptbr.training_cli._launch_training")
     def test_output_folder_empty_ok(
