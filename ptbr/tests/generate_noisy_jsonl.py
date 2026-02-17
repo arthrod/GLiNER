@@ -82,7 +82,7 @@ def random_valid_entry(idx: int) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 23 noise injection functions -- each corrupts exactly one thing
+# 30 noise injection functions -- each corrupts exactly one thing
 # ---------------------------------------------------------------------------
 
 def noise_text_as_string(e):
