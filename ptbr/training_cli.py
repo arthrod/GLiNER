@@ -13,10 +13,9 @@ Usage:
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
-import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -221,7 +220,19 @@ def _deep_set(d: dict, dotted_key: str, value: Any) -> None:
     keys = dotted_key.split(".")
     current = d
     for k in keys[:-1]:
-        current = current.setdefault(k, {})
+        if not isinstance(current, dict):
+            raise ValueError(
+                f"Cannot set '{dotted_key}': parent object for '{k}' is not a mapping"
+            )
+        if k not in current:
+            current[k] = {}
+        elif not isinstance(current[k], dict):
+            raise ValueError(
+                f"Cannot set '{dotted_key}': '{k}' exists but is not a mapping"
+            )
+        current = current[k]
+    if not isinstance(current, dict):
+        raise ValueError(f"Cannot set '{dotted_key}': parent is not a mapping")
     current[keys[-1]] = value
 
 
@@ -246,6 +257,27 @@ def _check_type(value: Any, expected: type | tuple[type, ...]) -> bool:
         return True
 
     return isinstance(value, types)
+
+
+def _is_sensitive_config_key(dotted_key: str) -> bool:
+    """Return True for config keys that should be redacted in logs/summaries."""
+    lower = dotted_key.lower()
+    if not lower.startswith("environment."):
+        return False
+    leaf = lower.split(".")[-1]
+    return any(
+        marker in leaf
+        for marker in ("token", "api_key", "apikey", "secret", "password")
+    )
+
+
+def _sanitize_for_display(dotted_key: str, value: Any) -> Any:
+    """Redact sensitive config values before logging or persisting summaries."""
+    if not _is_sensitive_config_key(dotted_key):
+        return value
+    if value in (None, ""):
+        return value
+    return "***REDACTED***"
 
 
 # ======================================================================== #
@@ -289,10 +321,22 @@ def validate_config(cfg: dict) -> ValidationResult:
                 result.info.append((dotted_key, "ERROR", "MISSING"))
                 logger.error(msg)
             else:
-                _deep_set(cfg, dotted_key, default)
-                msg = f"[DEFAULT]  '{dotted_key}' not set -- using default: {default!r}"
+                default_value = copy.deepcopy(default)
+                try:
+                    _deep_set(cfg, dotted_key, default_value)
+                except ValueError as exc:
+                    msg = (
+                        f"[TYPE]     '{dotted_key}' cannot be defaulted because "
+                        f"a parent key is not a mapping ({exc})"
+                    )
+                    result.errors.append(msg)
+                    result.info.append((dotted_key, "ERROR", "PARENT_NOT_MAPPING"))
+                    logger.error(msg)
+                    continue
+                display_default = _sanitize_for_display(dotted_key, default_value)
+                msg = f"[DEFAULT]  '{dotted_key}' not set -- using default: {display_default!r}"
                 result.warnings.append(msg)
-                result.info.append((dotted_key, "DEFAULT", default))
+                result.info.append((dotted_key, "DEFAULT", display_default))
                 logger.warning(msg)
             continue
 
@@ -303,13 +347,15 @@ def validate_config(cfg: dict) -> ValidationResult:
                 f"but expected {_type_name(expected_type)} ({description})"
             )
             result.errors.append(msg)
-            result.info.append((dotted_key, "ERROR", value))
+            display_value = _sanitize_for_display(dotted_key, value)
+            result.info.append((dotted_key, "ERROR", display_value))
             logger.error(msg)
             continue
 
         # Valid
-        result.info.append((dotted_key, "OK", value))
-        logger.info(f"[OK]       '{dotted_key}' = {value!r}")
+        display_value = _sanitize_for_display(dotted_key, value)
+        result.info.append((dotted_key, "OK", display_value))
+        logger.info(f"[OK]       '{dotted_key}' = {display_value!r}")
 
     # Detect extra keys
     _check_extra_keys(cfg, known_keys, result)
@@ -483,7 +529,7 @@ def check_wandb(cfg: dict, result: ValidationResult) -> None:
 
     try:
         import requests
-        resp = requests.get(
+        resp = requests.post(
             "https://api.wandb.ai/graphql",
             headers={"Authorization": f"Bearer {key}"},
             json={"query": "{ viewer { username } }"},
@@ -573,6 +619,7 @@ def print_summary(result: ValidationResult) -> str:
     lines.append("=" * 80)
 
     for key, status, value in result.info:
+        value = _sanitize_for_display(key, value)
         val_str = repr(value) if not isinstance(value, str) else value
         if status == "OK":
             style = "green"
@@ -711,7 +758,10 @@ def main(
             # Allow the log file we just created
             non_log = [
                 p for p in existing
-                if not p.name.startswith("validation_")
+                if not (
+                    p.name.startswith("validation_")
+                    or p.name.startswith("summary_")
+                )
             ]
             if non_log:
                 msg = (
@@ -755,14 +805,27 @@ def main(
     logger.info(f"Resolved config saved to {resolved_path}")
 
     # ---- Launch training ----
-    _launch_training(cfg, output_folder, resume=resume)
+    _launch_training(cfg, output_folder, resume=resume, config_dir=config.parent)
 
 
 # ======================================================================== #
 #  TRAINING LAUNCHER                                                        #
 # ======================================================================== #
 
-def _launch_training(cfg: dict, output_folder: Path, resume: bool) -> None:
+def _resolve_data_path(path_value: str, config_dir: Path) -> Path:
+    """Resolve dataset paths relative to the YAML config directory."""
+    path = Path(path_value).expanduser()
+    if not path.is_absolute():
+        path = config_dir / path
+    return path
+
+
+def _launch_training(
+    cfg: dict,
+    output_folder: Path,
+    resume: bool,
+    config_dir: Path,
+) -> None:
     """Build the GLiNER model and start training."""
     logger.info("Preparing training run ...")
 
@@ -770,7 +833,6 @@ def _launch_training(cfg: dict, output_folder: Path, resume: bool) -> None:
     import json
     import torch
     from gliner import GLiNER
-    from gliner.training import TrainingArguments, Trainer
 
     # -- Seed --
     seed = cfg["run"]["seed"]
@@ -814,7 +876,7 @@ def _launch_training(cfg: dict, output_folder: Path, resume: bool) -> None:
         _apply_lora(model, cfg["lora"])
 
     # -- Load data --
-    train_data_path = cfg["data"]["train_data"]
+    train_data_path = _resolve_data_path(cfg["data"]["train_data"], config_dir)
     logger.info(f"Loading training data from {train_data_path}")
     with open(train_data_path) as f:
         train_dataset = json.load(f)
@@ -823,8 +885,9 @@ def _launch_training(cfg: dict, output_folder: Path, resume: bool) -> None:
     eval_dataset = None
     val_path = cfg["data"].get("val_data_dir", "none")
     if val_path and val_path.lower() not in ("none", "null", ""):
-        logger.info(f"Loading validation data from {val_path}")
-        with open(val_path) as f:
+        val_data_path = _resolve_data_path(val_path, config_dir)
+        logger.info(f"Loading validation data from {val_data_path}")
+        with open(val_data_path) as f:
             eval_dataset = json.load(f)
         logger.info(f"Validation samples: {len(eval_dataset)}")
 
@@ -875,6 +938,7 @@ def _launch_training(cfg: dict, output_folder: Path, resume: bool) -> None:
         save_total_limit=train_cfg["save_total_limit"],
         # Precision
         bf16=train_cfg.get("bf16", False),
+        fp16=train_cfg.get("fp16", False),
         # Hardware
         use_cpu=train_cfg.get("use_cpu", False),
         dataloader_num_workers=train_cfg.get("dataloader_num_workers", 2),

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import textwrap
 from pathlib import Path
 from unittest import mock
 
@@ -19,6 +18,7 @@ from ptbr.training_cli import (
     check_huggingface,
     check_wandb,
     check_resume,
+    print_summary,
     semantic_checks,
     validate_config,
     ValidationResult,
@@ -88,6 +88,11 @@ class TestDeepGetSet:
         _deep_set(d, "a.b.c", 99)
         assert d == {"a": {"b": {"c": 99}}}
 
+    def test_deep_set_raises_when_parent_not_mapping(self) -> None:
+        d = {"a": "not-a-dict"}
+        with pytest.raises(ValueError):
+            _deep_set(d, "a.b.c", 99)
+
 
 # ------------------------------------------------------------------ #
 # _check_type                                                         #
@@ -125,6 +130,12 @@ class TestValidateConfig:
 
     def test_missing_required_field(self, valid_cfg: dict) -> None:
         del valid_cfg["run"]["name"]
+        result = validate_config(valid_cfg)
+        assert not result.ok
+        assert any("run.name" in e for e in result.errors)
+
+    def test_required_field_set_to_none(self, valid_cfg: dict) -> None:
+        valid_cfg["run"]["name"] = None
         result = validate_config(valid_cfg)
         assert not result.ok
         assert any("run.name" in e for e in result.errors)
@@ -167,6 +178,20 @@ class TestValidateConfig:
         valid_cfg["model"]["labels_encoder"] = None
         result = validate_config(valid_cfg)
         assert result.ok
+
+    def test_sensitive_values_are_redacted(self, valid_cfg: dict) -> None:
+        valid_cfg.setdefault("environment", {})["hf_token"] = "hf_secret_token"
+        valid_cfg["environment"]["wandb_api_key"] = "wandb_secret_key"
+        result = validate_config(valid_cfg)
+        assert result.ok
+
+        info_by_key = {key: value for key, _, value in result.info}
+        assert info_by_key["environment.hf_token"] == "***REDACTED***"
+        assert info_by_key["environment.wandb_api_key"] == "***REDACTED***"
+
+        summary = print_summary(result)
+        assert "hf_secret_token" not in summary
+        assert "wandb_secret_key" not in summary
 
 
 # ------------------------------------------------------------------ #
@@ -319,7 +344,7 @@ class TestCheckWandB:
             "data": {"viewer": {"username": "testuser"}}
         }
 
-        with mock.patch("requests.get", return_value=mock_resp):
+        with mock.patch("requests.post", return_value=mock_resp):
             check_wandb(valid_cfg, result)
         assert result.ok
 
@@ -332,7 +357,7 @@ class TestCheckWandB:
         mock_resp.status_code = 403
         mock_resp.text = "Forbidden"
 
-        with mock.patch("requests.get", return_value=mock_resp):
+        with mock.patch("requests.post", return_value=mock_resp):
             check_wandb(valid_cfg, result)
         assert not result.ok
 
@@ -342,6 +367,16 @@ class TestCheckWandB:
 # ------------------------------------------------------------------ #
 
 class TestCheckResume:
+    def test_missing_run_name_in_current_config(
+        self, valid_cfg: dict, tmp_path: Path
+    ) -> None:
+        valid_cfg["run"].pop("name", None)
+        (tmp_path / "checkpoint-100").mkdir()
+        result = ValidationResult()
+        check_resume(valid_cfg, tmp_path, result)
+        assert not result.ok
+        assert any("cannot resume: 'run.name' is missing" in e.lower() for e in result.errors)
+
     def test_no_checkpoints(self, valid_cfg: dict, tmp_path: Path) -> None:
         result = ValidationResult()
         check_resume(valid_cfg, tmp_path, result)
@@ -404,20 +439,34 @@ class TestCLI:
         )
         assert result.exit_code == 1
 
-    def test_output_folder_empty_ok_but_no_data(
-        self, cfg_file: Path, tmp_path: Path
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_empty_ok(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
     ) -> None:
-        """An empty output folder passes folder checks but training will fail
-        because the dataset file doesn't exist.  We just verify the CLI gets
-        past the validation stage (exit code 1 from training error, not from
-        validation error)."""
+        """An empty output folder should be accepted for a new training run."""
         out = tmp_path / "output"
         out.mkdir()
-        # The CLI should pass validation (exit 0 for --validate)
-        result = runner.invoke(
-            app, [str(cfg_file), "--validate"]
-        )
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
         assert result.exit_code == 0
+        mock_launch.assert_called_once()
+
+    @mock.patch("ptbr.training_cli._launch_training")
+    def test_output_folder_allows_validation_artifacts(
+        self,
+        mock_launch: mock.MagicMock,
+        cfg_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "validation_20260101T000000Z.log").write_text("ok")
+        (out / "summary_20260101T000000Z.txt").write_text("ok")
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
+        assert result.exit_code == 0
+        mock_launch.assert_called_once()
 
     def test_validate_writes_summary(self, cfg_file: Path, tmp_path: Path) -> None:
         result = runner.invoke(app, [str(cfg_file), "--validate"])
