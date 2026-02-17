@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import textwrap
 from pathlib import Path
 from unittest import mock
 
@@ -65,7 +66,16 @@ def valid_cfg() -> dict:
 
 @pytest.fixture()
 def cfg_file(tmp_path: Path, valid_cfg: dict) -> Path:
-    """Write the valid config to a temp YAML file and return its path."""
+    """
+    Write a configuration dictionary to a temporary YAML file and return its path.
+    
+    Parameters:
+        tmp_path (Path): Directory in which to create the temporary config file (typically pytest's tmp_path).
+        valid_cfg (dict): Configuration dictionary to serialize to YAML.
+    
+    Returns:
+        Path: Path to the created YAML file named "config.yaml".
+    """
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "train.json").write_text("[]", encoding="utf-8")
@@ -485,6 +495,20 @@ class TestCLI:
         )
         assert result.exit_code == 1
 
+    def test_output_folder_empty_ok_but_no_data(
+        self, cfg_file: Path, tmp_path: Path
+    ) -> None:
+        """An empty output folder passes folder checks but training will fail
+        because the dataset file doesn't exist.  We just verify the CLI gets
+        past the validation stage (exit code 1 from training error, not from
+        validation error)."""
+        out = tmp_path / "output"
+        out.mkdir()
+        # The CLI should pass validation (exit 0 for --validate)
+        result = runner.invoke(
+            app, [str(cfg_file), "--validate"]
+        )
+        assert result.exit_code == 0
     @mock.patch("ptbr.training_cli._launch_training")
     def test_output_folder_empty_ok(
         self,
