@@ -59,7 +59,7 @@ def random_valid_entry(idx: int) -> dict:
     filler1 = random.choice(FILLERS)
     filler2 = random.choice(FILLERS)
 
-    tokens = [name, verb, filler1] + org + [filler2] + city + ["."]
+    tokens = [name, verb, filler1, *org, filler2, *city, "."]
     n = len(tokens)
 
     name_end = 0
@@ -319,14 +319,12 @@ def main():
     print(f"  is_valid = {is_valid}")
     print(f"  Total errors found: {len(errors)}")
 
-    # Parse error indices from messages like "[123] ..."
-    error_indices = set()
-    for err in errors:
-        if err.startswith("["):
-            idx_str = err[1:err.index("]")]
-            # Handle sub-indices like "[5].ner[0]"
-            top_idx = idx_str.split("]")[0]
-            error_indices.add(int(top_idx))
+     # Parse error indices from messages like "[123] ..."
+     error_indices = set()
+     for err in errors:
+         if err.startswith("["):
+            # Extract top-level index from "[123] ..." or "[123].ner[0] ..."
+            error_indices.add(int(err[1:err.index("]")]))
 
     detected = error_indices & corrupt_indices
     missed = corrupt_indices - error_indices
