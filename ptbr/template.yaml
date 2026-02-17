@@ -1,0 +1,540 @@
+# =============================================================================
+# GLiNER Training Configuration Template
+# =============================================================================
+#
+# This YAML file controls every aspect of a GLiNER training run. It is read by
+# training_cli.py which validates every field before training starts.
+#
+# Conventions:
+#   - null  = the field is optional and will be omitted / use a library default
+#   - REQUIRED fields have no default; the CLI will error if they are missing
+#   - Fields that fall back to a default will emit a WARNING at validation time
+#
+# Sections:
+#   1. run          - Run metadata (name, tags, seed, resume)
+#   2. model        - GLiNER / backbone architecture settings
+#   3. data         - Dataset paths
+#   4. training     - Optimiser, schedule, loss, checkpointing
+#   5. lora         - LoRA / PEFT adapter settings (optional)
+#   6. environment  - HuggingFace Hub, WandB, hardware
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 1. RUN  -  High-level metadata for this experiment
+# -----------------------------------------------------------------------------
+run:
+  # A human-readable name for this run.  Also used as the WandB run name
+  # and the checkpoint sub-folder inside output_folder.
+  # REQUIRED - the CLI will refuse to start without it.
+  name: "gliner-ptbr-ner-v1"
+
+  # Free-form description saved in the training log.
+  description: "Fine-tune GLiNER for Portuguese NER"
+
+  # Tags (list of strings) forwarded to WandB and saved in the log.
+  tags:
+    - "ptbr"
+    - "ner"
+    - "gliner"
+
+  # Global random seed.  Set to an integer for reproducibility.
+  # Default: 42
+  seed: 42
+
+
+# -----------------------------------------------------------------------------
+# 2. MODEL  -  Architecture & backbone configuration
+# -----------------------------------------------------------------------------
+model:
+  # ---- Backbone (text encoder) ----
+
+  # HuggingFace model id or local path for the text encoder.
+  # REQUIRED.  Examples:
+  #   microsoft/deberta-v3-small
+  #   microsoft/deberta-v3-base
+  #   microsoft/deberta-v3-large
+  #   roberta-base
+  #   bert-base-cased
+  #   google/electra-base-discriminator
+  model_name: "microsoft/deberta-v3-small"
+
+  # Human-readable model name stored in config.json.
+  # Default: "gliner"
+  name: "gliner-ptbr"
+
+  # ---- Bi-encoder (optional) ----
+  # When non-null a separate encoder is created for entity label embeddings.
+  # Set to a HuggingFace model id (e.g. "microsoft/deberta-v3-small").
+  # Leave null for uni-encoder architectures.
+  labels_encoder: null
+
+  # ---- Decoder (optional, generative label prediction) ----
+  # Set to a HuggingFace model id (e.g. "HuggingFaceTB/SmolLM2-135M-Instruct", "gpt2").
+  # Leave null to disable the decoder head.
+  labels_decoder: null
+
+  # Decoder mode: "span" or "prompt".  Only used when labels_decoder is set.
+  # Default: null
+  decoder_mode: null
+
+  # Use full encoder context in decoder.  Only used when labels_decoder is set.
+  # Default: true
+  full_decoder_context: true
+
+  # Probability of blank entities during decoder training.
+  # Only used when labels_decoder is set.
+  # Default: 0.1
+  blank_entity_prob: 0.1
+
+  # Loss coefficient for the decoder loss term.
+  # Only used when labels_decoder is set.
+  # Default: 0.5
+  decoder_loss_coef: 0.5
+
+  # ---- Relation extraction (optional) ----
+  # Name of the relation extraction layer.  Leave null to disable.
+  # See gliner/modeling/multitask/relations_layers.py for options.
+  relations_layer: null
+
+  # Name of the triples layer.  Leave null to disable.
+  # See gliner/modeling/multitask/triples_layers.py for options.
+  triples_layer: null
+
+  # Whether to embed relation tokens.
+  # Default: true
+  embed_rel_token: true
+
+  # Relation token index.
+  # Default: -1
+  rel_token_index: -1
+
+  # Relation marker token string.
+  # Default: "<<REL>>"
+  rel_token: "<<REL>>"
+
+  # Loss coefficient for the adjacency loss (relation extraction).
+  # Default: 1.0
+  adjacency_loss_coef: 1.0
+
+  # Loss coefficient for the relation representation loss.
+  # Default: 1.0
+  relation_loss_coef: 1.0
+
+  # ---- Span representation ----
+
+  # Span detection mode.
+  # "markerV0" = span-based with special marker tokens (default).
+  # "token_level" = sequence-labeling / token-level NER.
+  # REQUIRED.
+  span_mode: "markerV0"
+
+  # Maximum entity span width (in tokens).  Ignored for token_level mode.
+  # Default: 12
+  max_width: 12
+
+  # Whether to represent spans explicitly (used in some decoder/relex modes).
+  # Default: false
+  represent_spans: false
+
+  # Ratio of negative spans sampled during training.
+  # Default: 1.0
+  neg_spans_ratio: 1.0
+
+  # ---- Hidden dimensions ----
+
+  # Intermediate projection dimension after the encoder.
+  # Default: 512
+  hidden_size: 768
+
+  # Dropout probability applied in projection / fusion layers.
+  # Default: 0.4
+  dropout: 0.3
+
+  # ---- Encoder tuning ----
+
+  # Whether to fine-tune the backbone encoder weights.
+  # Set to false to freeze the encoder (head-only training).
+  # Default: true
+  fine_tune: true
+
+  # Sub-token pooling strategy: "first" (take first sub-token) or "mean".
+  # Default: "first"
+  subtoken_pooling: "first"
+
+  # ---- Fusion layers ----
+
+  # Enable fuse layers between text and label representations.
+  # Default: false
+  fuse_layers: false
+
+  # Post-fusion schema string, e.g. "l2l-l2t-t2t".  Leave empty to skip.
+  # Default: ""
+  post_fusion_schema: ""
+
+  # Number of post-fusion transformer layers.
+  # Default: 1
+  num_post_fusion_layers: 1
+
+  # ---- RNN layers ----
+
+  # Number of bi-LSTM layers on top of the encoder.
+  # 0 = no LSTM.  1 = one bi-LSTM layer.
+  # Default: 1
+  num_rnn_layers: 1
+
+  # ---- Tokenisation ----
+
+  # Maximum sequence length (tokens) the model can handle.
+  # REQUIRED.  Common values: 256, 384, 512.
+  max_len: 384
+
+  # Maximum number of entity types per example.
+  # Default: 25
+  max_types: 25
+
+  # Maximum ratio of negative to positive entity types per example.
+  # Default: 1
+  max_neg_type_ratio: 1
+
+  # Word splitter: "whitespace" or a spaCy model name.
+  # Default: "whitespace"
+  words_splitter_type: "whitespace"
+
+  # ---- Special tokens ----
+
+  # Whether to embed the entity marker token.
+  # Default: true
+  embed_ent_token: true
+
+  # Class token index.  -1 = auto-detect from tokenizer.
+  # Default: -1
+  class_token_index: -1
+
+  # Entity marker token string.
+  # Default: "<<ENT>>"
+  ent_token: "<<ENT>>"
+
+  # Separator token string.
+  # Default: "<<SEP>>"
+  sep_token: "<<SEP>>"
+
+  # ---- Loss coefficients ----
+
+  # Loss coefficient for token-level loss (used in token_level mode).
+  # Default: 1.0
+  token_loss_coef: 1.0
+
+  # Loss coefficient for span-level loss.
+  # Default: 1.0
+  span_loss_coef: 1.0
+
+  # ---- Misc ----
+
+  # Encoder config override (dict).  null = auto from model_name.
+  # Only set this if you need to override specific backbone hyper-parameters.
+  encoder_config: null
+
+  # Attention implementation override.  null = default for the backbone.
+  # Options: "eager", "sdpa", "flash_attention_2"
+  _attn_implementation: null
+
+  # Vocab size override.  -1 = auto from tokenizer.
+  vocab_size: -1
+
+
+# -----------------------------------------------------------------------------
+# 3. DATA  -  Dataset paths
+# -----------------------------------------------------------------------------
+data:
+  # Root directory where logs, checkpoints and artefacts are written.
+  # The CLI will create it if it does not exist.
+  # REQUIRED.
+  root_dir: "gliner_logs"
+
+  # Path to the training data JSON file.
+  # REQUIRED.  The file must exist at validation time.
+  # Expected format: list of dicts with "tokenized_text" and "ner" keys.
+  train_data: "data/train.json"
+
+  # Path to validation data.  Set to "none" to skip validation.
+  # Default: "none"
+  val_data_dir: "none"
+
+
+# -----------------------------------------------------------------------------
+# 4. TRAINING  -  Optimiser, schedule, loss, checkpointing
+# -----------------------------------------------------------------------------
+training:
+  # ---- Resume / fine-tune from checkpoint ----
+
+  # Path or HuggingFace repo id of a previously trained GLiNER model.
+  # null = train from scratch using the backbone in model.model_name.
+  # Default: null
+  prev_path: null
+
+  # ---- Schedule ----
+
+  # Total number of optimiser steps.
+  # REQUIRED.
+  num_steps: 15000
+
+  # Learning-rate scheduler type.
+  # Options: "linear", "cosine", "constant", "constant_with_warmup",
+  #          "polynomial", "inverse_sqrt"
+  # Default: "cosine"
+  scheduler_type: "cosine"
+
+  # Proportion of num_steps used for linear warm-up.
+  # Default: 0.1
+  warmup_ratio: 0.1
+
+  # ---- Batch size ----
+
+  # Per-device training batch size.
+  # REQUIRED.
+  train_batch_size: 8
+
+  # Per-device evaluation batch size.
+  # Uses train_batch_size if not set.
+  # Default: null (falls back to train_batch_size)
+  eval_batch_size: null
+
+  # ---- Gradient ----
+
+  # Gradient accumulation steps.  Effective batch = batch_size * grad_accum.
+  # Default: 1
+  gradient_accumulation_steps: 1
+
+  # Maximum gradient norm for clipping.
+  # Default: 1.0
+  max_grad_norm: 10.0
+
+  # ---- Optimiser ----
+
+  # Optimiser algorithm.
+  # Options: "adamw_torch", "adamw_hf", "adafactor", "sgd"
+  # Default: "adamw_torch"
+  optimizer: "adamw_torch"
+
+  # ---- Learning rates ----
+
+  # Learning rate for the encoder (backbone) parameters.
+  # REQUIRED.
+  lr_encoder: 1.0e-5
+
+  # Learning rate for all other parameters (projection heads, fusion layers).
+  # REQUIRED.
+  lr_others: 3.0e-5
+
+  # Weight decay applied to encoder parameters.
+  # Default: 0.01
+  weight_decay_encoder: 0.01
+
+  # Weight decay applied to non-encoder parameters.
+  # Default: 0.01
+  weight_decay_other: 0.01
+
+  # ---- Loss function ----
+
+  # Focal loss alpha (class weighting).  Set to -1 to disable.
+  # Default: -1
+  loss_alpha: -1
+
+  # Focal loss gamma (focusing parameter).  0 = standard cross-entropy.
+  # Default: 0
+  loss_gamma: 0
+
+  # Probability margin for focal loss hard-negative mining.
+  # Default: 0
+  loss_prob_margin: 0
+
+  # Label smoothing factor.  0.0 = no smoothing.
+  # Default: 0
+  label_smoothing: 0
+
+  # Loss reduction method: "sum", "mean", or "none".
+  # Default: "sum"
+  loss_reduction: "sum"
+
+  # Ratio of negative samples included in loss computation.
+  # Default: 1.0
+  negatives: 1.0
+
+  # Masking strategy during training.
+  # Options: "none", "global"
+  # Default: "none"
+  masking: "none"
+
+  # ---- Checkpointing & logging ----
+
+  # Evaluate and save a checkpoint every N steps.
+  # REQUIRED.
+  eval_every: 500
+
+  # Maximum number of checkpoints kept on disk.
+  # Default: 3
+  save_total_limit: 3
+
+  # Log training metrics every N steps.
+  # Default: same as eval_every
+  logging_steps: null
+
+  # ---- Precision ----
+
+  # Use bfloat16 mixed precision.  Requires Ampere+ GPU.
+  # Default: false
+  bf16: false
+
+  # Use float16 mixed precision.
+  # Default: false
+  fp16: false
+
+  # ---- Hardware ----
+
+  # Force CPU training even if a GPU is available.
+  # Default: false
+  use_cpu: false
+
+  # Number of dataloader worker processes.
+  # Default: 2
+  dataloader_num_workers: 2
+
+  # Pin memory for faster GPU transfer.
+  # Default: true
+  dataloader_pin_memory: true
+
+  # Keep dataloader workers alive between epochs.
+  # Default: false
+  dataloader_persistent_workers: false
+
+  # Number of batches prefetched per worker.
+  # Default: 2
+  dataloader_prefetch_factor: 2
+
+  # ---- Component freezing ----
+
+  # List of model components to freeze during training.
+  # null = train everything.
+  # Examples:
+  #   - ["text_encoder"]                          # head-only training
+  #   - ["text_encoder", "labels_encoder"]        # freeze both encoders
+  #   - ["decoder"]                               # freeze decoder
+  freeze_components: null
+
+  # ---- torch.compile ----
+
+  # Compile the model with torch.compile() for potential speedup.
+  # Requires PyTorch >= 2.0.
+  # Default: false
+  compile_model: false
+
+  # ---- Advanced / legacy ----
+
+  # Maximum number of supervised examples.  -1 = use all.
+  # Default: -1
+  size_sup: -1
+
+  # Shuffle entity types within each example during training.
+  # Default: true
+  shuffle_types: true
+
+  # Randomly drop entity types from examples during training.
+  # Default: true
+  random_drop: true
+
+
+# -----------------------------------------------------------------------------
+# 5. LORA  -  LoRA / PEFT adapter configuration (optional)
+# -----------------------------------------------------------------------------
+# GLiNER does not ship with native PEFT integration but the backbone is a
+# standard HuggingFace transformer, so you can apply LoRA via the peft
+# library before calling train_model().  These parameters drive that
+# optional wrapping step.
+#
+# Set lora.enabled to true to activate.  When false the entire section
+# is ignored.
+# -----------------------------------------------------------------------------
+lora:
+  # Master switch.  false = ignore everything in this section.
+  # Default: false
+  enabled: false
+
+  # LoRA rank (r).  Lower = fewer parameters.  Typical: 4, 8, 16, 32, 64.
+  # Default: 8
+  r: 8
+
+  # LoRA alpha scaling factor.  Effective weight = alpha / r.
+  # Default: 16
+  lora_alpha: 16
+
+  # Dropout applied to the LoRA matrices.
+  # Default: 0.05
+  lora_dropout: 0.05
+
+  # Bias handling: "none", "all", "lora_only".
+  # Default: "none"
+  bias: "none"
+
+  # Which linear modules to adapt.
+  # Use ["q_proj", "v_proj"] for attention-only or ["all-linear"] for all.
+  # Default: ["q_proj", "v_proj"]
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+
+  # Task type for PEFT.
+  # Default: "TOKEN_CLS"
+  task_type: "TOKEN_CLS"
+
+  # Modules to exclude from LoRA (regex list).
+  # Default: null
+  modules_to_save: null
+
+
+# -----------------------------------------------------------------------------
+# 6. ENVIRONMENT  -  HuggingFace Hub, WandB, hardware
+# -----------------------------------------------------------------------------
+environment:
+  # ---- HuggingFace Hub ----
+
+  # Whether to push the final model to the HuggingFace Hub after training.
+  # Default: false
+  push_to_hub: false
+
+  # HuggingFace Hub repository id.  Required if push_to_hub is true.
+  # Example: "my-org/gliner-ptbr-v1"
+  # Default: null
+  hub_model_id: null
+
+  # HuggingFace access token.  Read from HF_TOKEN env var if null.
+  # The CLI validates connectivity at startup when push_to_hub is true.
+  # Default: null  (reads HF_TOKEN)
+  hf_token: null
+
+  # ---- Weights & Biases ----
+
+  # Where to report training metrics.
+  # Options: "none", "wandb", "tensorboard", "all"
+  # Default: "none"
+  report_to: "none"
+
+  # WandB project name.  Required when report_to includes "wandb".
+  # Default: null
+  wandb_project: null
+
+  # WandB entity (team or username).  null = default entity.
+  # Default: null
+  wandb_entity: null
+
+  # WandB API key.  Read from WANDB_API_KEY env var if null.
+  # The CLI validates connectivity at startup when report_to includes "wandb".
+  # Default: null  (reads WANDB_API_KEY)
+  wandb_api_key: null
+
+  # ---- Hardware ----
+
+  # CUDA device ids to use.  null = auto-detect.
+  # Example: "0" or "0,1" for multi-GPU.
+  # Default: null
+  cuda_visible_devices: null
