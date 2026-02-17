@@ -61,6 +61,9 @@ def valid_cfg() -> dict:
 @pytest.fixture()
 def cfg_file(tmp_path: Path, valid_cfg: dict) -> Path:
     """Write the valid config to a temp YAML file and return its path."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "train.json").write_text("[]", encoding="utf-8")
     p = tmp_path / "config.yaml"
     p.write_text(yaml.dump(valid_cfg, default_flow_style=False))
     return p
@@ -248,6 +251,13 @@ class TestSemanticChecks:
         semantic_checks(valid_cfg, result)
         assert any("lr_encoder" in e for e in result.errors)
 
+    @pytest.mark.parametrize("value", [-0.1, 1.1])
+    def test_warmup_ratio_out_of_bounds(self, valid_cfg: dict, value: float) -> None:
+        valid_cfg["training"]["warmup_ratio"] = value
+        result = ValidationResult()
+        semantic_checks(valid_cfg, result)
+        assert any("warmup_ratio" in e for e in result.errors)
+
     def test_valid_enums_pass(self, valid_cfg: dict) -> None:
         valid_cfg["training"]["scheduler_type"] = "cosine"
         valid_cfg["training"]["optimizer"] = "adamw_torch"
@@ -417,6 +427,20 @@ class TestCLI:
     def test_validate_valid_config(self, cfg_file: Path) -> None:
         result = runner.invoke(app, [str(cfg_file), "--validate"])
         assert result.exit_code == 0
+
+    def test_validate_fails_when_train_data_missing(self, cfg_file: Path) -> None:
+        cfg = yaml.safe_load(cfg_file.read_text())
+        cfg["data"]["train_data"] = "data/missing_train.json"
+        cfg_file.write_text(yaml.dump(cfg, default_flow_style=False))
+        result = runner.invoke(app, [str(cfg_file), "--validate"])
+        assert result.exit_code == 1
+
+    def test_validate_fails_when_val_data_missing(self, cfg_file: Path) -> None:
+        cfg = yaml.safe_load(cfg_file.read_text())
+        cfg["data"]["val_data_dir"] = "data/missing_val.json"
+        cfg_file.write_text(yaml.dump(cfg, default_flow_style=False))
+        result = runner.invoke(app, [str(cfg_file), "--validate"])
+        assert result.exit_code == 1
 
     def test_validate_invalid_config(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.yaml"

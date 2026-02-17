@@ -453,6 +453,22 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
             result.errors.append(msg)
             logger.error(msg)
 
+    bounded_numeric_checks = {
+        "training.warmup_ratio": (0.0, 1.0),
+        "model.dropout": (0.0, 1.0),
+        "model.blank_entity_prob": (0.0, 1.0),
+        "training.label_smoothing": (0.0, 1.0),
+        "lora.lora_dropout": (0.0, 1.0),
+    }
+    for key, (low, high) in bounded_numeric_checks.items():
+        _, val = _deep_get(cfg, key)
+        if val is None or isinstance(val, bool) or not isinstance(val, (int, float)):
+            continue
+        if not (low <= float(val) <= high):
+            msg = f"'{key}' must be in [{low}, {high}], got {val}"
+            result.errors.append(msg)
+            logger.error(msg)
+
     # bf16 and fp16 mutual exclusivity
     _, bf16 = _deep_get(cfg, "training.bf16")
     _, fp16 = _deep_get(cfg, "training.fp16")
@@ -470,6 +486,27 @@ def _check_enum(
         msg = f"'{key}' = {val!r} is not one of {sorted(valid)}"
         result.errors.append(msg)
         logger.error(msg)
+
+
+def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> None:
+    """Validate dataset paths after schema/type checks and before training."""
+    _, train_data = _deep_get(cfg, "data.train_data")
+    if isinstance(train_data, str) and train_data.strip():
+        train_path = _resolve_data_path(train_data.strip(), config_dir)
+        if not train_path.exists() or not train_path.is_file():
+            msg = f"'data.train_data' not found or not a file: {train_path}"
+            result.errors.append(msg)
+            logger.error(msg)
+
+    _, val_data = _deep_get(cfg, "data.val_data_dir")
+    if isinstance(val_data, str):
+        val_data = val_data.strip()
+        if val_data and val_data.lower() not in ("none", "null"):
+            val_path = _resolve_data_path(val_data, config_dir)
+            if not val_path.exists() or not val_path.is_file():
+                msg = f"'data.val_data_dir' not found or not a file: {val_path}"
+                result.errors.append(msg)
+                logger.error(msg)
 
 
 # ======================================================================== #
@@ -741,6 +778,9 @@ def main(
 
     # ---- Semantic checks ----
     semantic_checks(cfg, result)
+
+    # ---- Data path checks ----
+    _check_data_paths(cfg, config.parent, result)
 
     # ---- API connectivity ----
     check_huggingface(cfg, result)
