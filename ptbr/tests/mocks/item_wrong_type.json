@@ -1,0 +1,7 @@
+[
+  ["Hello", "world", [[0, 1, "Greeting"]]],
+  "just a plain string",
+  42,
+  null,
+  {"tokenized_text": ["This", "one", "is", "valid"], "ner": [[0, 0, "Demonstrative"]]}
+]

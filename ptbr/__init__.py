@@ -53,7 +53,10 @@ def load_data(
     """
     if os.path.exists(file_or_repo):
         with open(file_or_repo, "r", encoding="utf-8") as f:
-            raw = json.load(f)
+            if file_or_repo.endswith(".jsonl"):
+                raw = [json.loads(line) for line in f if line.strip()]
+            else:
+                raw = json.load(f)
         if not isinstance(raw, list):
             raw = [raw]
         if text_column == "tokenized_text" and ner_column == "ner":

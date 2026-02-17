@@ -1,0 +1,22 @@
+[
+  {
+    "id": "empty-tokens-empty-ner",
+    "tokenized_text": [],
+    "ner": []
+  },
+  {
+    "id": "empty-tokens-nonempty-ner",
+    "tokenized_text": [],
+    "ner": [[0, 0, "Ghost"]]
+  },
+  {
+    "id": "single-token-valid",
+    "tokenized_text": ["Hello"],
+    "ner": [[0, 0, "Greeting"]]
+  },
+  {
+    "id": "single-token-oob",
+    "tokenized_text": ["Hello"],
+    "ner": [[0, 1, "Greeting"]]
+  }
+]
