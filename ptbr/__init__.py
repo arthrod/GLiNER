@@ -25,7 +25,7 @@ When used as a module:
 import os
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -74,6 +74,16 @@ def load_data(
     from datasets import load_dataset
 
     dataset = load_dataset(file_or_repo, split=split)
+    available_columns = getattr(dataset, "column_names", None)
+    if available_columns is not None:
+        missing_columns = [col for col in (text_column, ner_column) if col not in available_columns]
+        if missing_columns:
+            missing = ", ".join(repr(col) for col in missing_columns)
+            available = ", ".join(repr(col) for col in available_columns)
+            raise ValueError(
+                f"Missing required column(s): {missing}. "
+                f"Available columns for split '{split}': {available}"
+            )
     data = []
     for item in dataset:
         mapped = {"tokenized_text": item[text_column], "ner": item[ner_column]}
@@ -84,7 +94,7 @@ def load_data(
     return data
 
 
-def validate_data(data: List[Dict[str, Any]]) -> tuple:
+def validate_data(data: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
     """Validate that data conforms to GLiNER's native format.
 
     Checks the core fields required by all model variants (span, token,
@@ -155,6 +165,8 @@ def validate_data(data: List[Dict[str, Any]]) -> tuple:
                     head, tail, rel_type = rel
                     if not isinstance(head, int) or not isinstance(tail, int):
                         errors.append(f"[{i}].relations[{j}] head/tail must be integers")
+                    elif head < 0 or tail < 0:
+                        errors.append(f"[{i}].relations[{j}] head/tail must be non-negative")
                     elif head >= num_entities or tail >= num_entities:
                         errors.append(
                             f"[{i}].relations[{j}] index out of bounds "
@@ -170,9 +182,15 @@ def extract_labels(data: List[Dict[str, Any]], key: str = "ner") -> List[str]:
     """Extract all unique labels from the dataset."""
     labels = set()
     for item in data:
-        for span in item.get(key, []):
-            if len(span) >= 3:
-                labels.add(span[-1])
+        spans = item.get(key, [])
+        if not isinstance(spans, list):
+            continue
+        for span in spans:
+            if not isinstance(span, (list, tuple)) or len(span) < 3:
+                continue
+            label = span[2]
+            if isinstance(label, str):
+                labels.add(label)
     return sorted(labels)
 
 
@@ -197,12 +215,15 @@ def prepare(
         split: Dataset split when loading from HuggingFace.
     """
     data = load_data(file_or_repo, text_column, ner_column, split)
+    is_valid = False
+    errs: List[str] = []
+    if validate:
+        is_valid, errs = validate_data(data)
     labels = extract_labels(data)
 
     result = GLiNERData(data=data, labels=labels, source=file_or_repo)
 
     if validate:
-        is_valid, errs = validate_data(data)
         result.is_valid = is_valid
         result.validation_errors = errs
 

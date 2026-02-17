@@ -1,7 +1,7 @@
 """CLI entry point: python -m ptbr
 
 Uses typer to expose --validate, --file-or-repo, --text-column,
---ner-column, and --generate-label-embeddings.
+--ner-column, --split, and --generate-label-embeddings.
 """
 
 import json
@@ -19,14 +19,26 @@ def main(
     file_or_repo: str = typer.Option(..., help="Local JSON file path or HuggingFace dataset repo id."),
     text_column: str = typer.Option("tokenized_text", help="Source column name for tokenized text."),
     ner_column: str = typer.Option("ner", help="Source column name for NER annotations."),
+    split: str = typer.Option(
+        "train",
+        help="Dataset split to load from HuggingFace repo (e.g. train, validation, test).",
+    ),
     validate: bool = typer.Option(False, help="Validate the dataset against GLiNER native format."),
     generate_label_embeddings: Optional[str] = typer.Option(
         None,
         help="Model name/path to generate and save label embeddings (bi-encoder models).",
     ),
+    output_embeddings_path: str = typer.Option(
+        "label_embeddings.pt",
+        help="Output path for serialized label embeddings.",
+    ),
+    output_labels_path: str = typer.Option(
+        "labels.json",
+        help="Output path for extracted labels JSON.",
+    ),
 ):
     """Load GLiNER data from a file or HuggingFace repo, validate, or generate label embeddings."""
-    data = load_data(file_or_repo, text_column, ner_column)
+    data = load_data(file_or_repo, text_column, ner_column, split=split)
     labels = extract_labels(data)
 
     typer.echo(f"Loaded {len(data)} examples from {file_or_repo}")
@@ -53,11 +65,13 @@ def main(
         typer.echo(f"Encoding {len(labels)} labels...")
         embeddings = model.encode_labels(labels)
 
-        torch.save(embeddings, "label_embeddings.pt")
-        with open("labels.json", "w", encoding="utf-8") as f:
+        torch.save(embeddings, output_embeddings_path)
+        with open(output_labels_path, "w", encoding="utf-8") as f:
             json.dump(labels, f, ensure_ascii=False, indent=2)
 
-        typer.echo(f"Saved label_embeddings.pt ({tuple(embeddings.shape)}) and labels.json")
+        typer.echo(
+            f"Saved {output_embeddings_path} ({tuple(embeddings.shape)}) and {output_labels_path}"
+        )
 
 
 if __name__ == "__main__":
