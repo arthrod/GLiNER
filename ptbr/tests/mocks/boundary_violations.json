@@ -1,0 +1,27 @@
+[
+  {
+    "id": "start-gt-end",
+    "tokenized_text": ["The", "quick", "brown", "fox", "."],
+    "ner": [[3, 1, "Animal"]]
+  },
+  {
+    "id": "end-oob",
+    "tokenized_text": ["Hello", "world"],
+    "ner": [[0, 5, "Greeting"]]
+  },
+  {
+    "id": "negative-start",
+    "tokenized_text": ["One", "two", "three"],
+    "ner": [[-1, 2, "Number"]]
+  },
+  {
+    "id": "negative-end",
+    "tokenized_text": ["One", "two", "three"],
+    "ner": [[0, -1, "Number"]]
+  },
+  {
+    "id": "both-oob",
+    "tokenized_text": ["Short"],
+    "ner": [[0, 0, "OK"], [1, 3, "OOB"]]
+  }
+]

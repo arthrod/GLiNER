@@ -575,6 +575,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         load_onnx_model: Optional[bool] = False,
         onnx_model_file: Optional[str] = "model.onnx",
         session_options=None,
+        trust_remote_code: bool = False,
         # Config overrides
         max_length: Optional[int] = None,
         max_width: Optional[int] = None,
@@ -602,6 +603,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             load_onnx_model: Whether to load ONNX model instead of PyTorch.
             onnx_model_file: Path to ONNX model file.
             session_options: ONNX runtime session options.
+            trust_remote_code: Whether to allow execution of custom code from
+                model repositories when loading backbone/decoder models.
             max_length: Override max_length in config.
             max_width: Override max_width in config.
             post_fusion_schema: Override post_fusion_schema in config.
@@ -629,6 +632,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             post_fusion_schema=post_fusion_schema,
             _attn_implementation=_attn_implementation,
         )
+        # Propagate remote-code trust policy to downstream encoder/decoder loaders.
+        config.trust_remote_code = trust_remote_code
 
         # Load tokenizer
         if load_tokenizer is None:
@@ -3110,6 +3115,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
         compile_torch_model: Optional[bool] = False,
         load_onnx_model: Optional[bool] = False,
         onnx_model_file: Optional[str] = "model.onnx",
+        trust_remote_code: bool = False,
         # Config overrides
         max_length: Optional[int] = None,
         max_width: Optional[int] = None,
@@ -3138,6 +3144,8 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             compile_torch_model: Whether to compile with torch.compile.
             load_onnx_model: Whether to load ONNX model instead of PyTorch.
             onnx_model_file: Path to ONNX model file.
+            trust_remote_code: Whether to allow execution of custom code from
+                model repositories when loading backbone/decoder models.
             max_length: Override max_length in config.
             max_width: Override max_width in config.
             post_fusion_schema: Override post_fusion_schema in config.
@@ -3199,6 +3207,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             load_tokenizer=load_tokenizer,
             resize_token_embeddings=resize_token_embeddings,
             compile_torch_model=compile_torch_model,
+            trust_remote_code=trust_remote_code,
             max_length=max_length,
             max_width=max_width,
             post_fusion_schema=post_fusion_schema,

@@ -1,0 +1,27 @@
+[
+  {
+    "id": "label-is-int",
+    "tokenized_text": ["Barack", "Obama", "visited", "Paris", "."],
+    "ner": [[0, 1, 1], [3, 3, 2]]
+  },
+  {
+    "id": "label-is-null",
+    "tokenized_text": ["The", "dog", "ran", "."],
+    "ner": [[1, 1, null]]
+  },
+  {
+    "id": "label-is-list",
+    "tokenized_text": ["New", "York", "City"],
+    "ner": [[0, 2, ["City", "Location"]]]
+  },
+  {
+    "id": "label-is-bool",
+    "tokenized_text": ["True", "story"],
+    "ner": [[0, 1, true]]
+  },
+  {
+    "id": "label-is-float",
+    "tokenized_text": ["Pi", "is", "3.14"],
+    "ner": [[0, 0, 3.14]]
+  }
+]
