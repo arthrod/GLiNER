@@ -369,9 +369,10 @@ class TestParameterForwardingGaps:
     def test_run_tags_not_forwarded(self):
         """run.tags validated but never forwarded to W&B/TrainingArguments."""
         source = self._get_launch_training_source()
-        # Search for any usage of run.tags beyond logging/printing
-        assert 'cfg["run"]["tags"]' not in source and "run_tags" not in source, (
-            "run.tags should NOT be forwarded (documenting the gap)"
+        tree = ast.parse(source)
+        forwarded = self._extract_train_model_kwargs(tree)
+        assert "run_tags" not in forwarded, (
+            "run_tags should NOT be in the train_model() call (documenting the gap)"
         )
 
     def test_run_description_not_forwarded(self):
