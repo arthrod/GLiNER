@@ -1008,22 +1008,34 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         focal_loss_alpha: float = -1,
         focal_loss_gamma: float = 0.0,
         focal_loss_prob_margin: float = 0.0,
+        label_smoothing: float = 0.0,
         loss_reduction: str = "sum",
         negatives: float = 1.0,
-        masking: str = "none",
+        masking: str = "global",
         lr_scheduler_type: str = "linear",
         warmup_ratio: float = 0.1,
         per_device_train_batch_size: int = 8,
         per_device_eval_batch_size: int = 8,
         max_grad_norm: float = 1.0,
         max_steps: int = 10000,
+        eval_steps: Optional[int] = None,
         save_steps: int = 1000,
         save_total_limit: int = 10,
         logging_steps: int = 10,
         use_cpu: bool = False,
         bf16: bool = False,
+        fp16: bool = False,
+        seed: int = 42,
+        gradient_checkpointing: bool = False,
+        remove_unused_columns: bool = False,
         dataloader_num_workers: int = 1,
-        report_to: str = "none",
+        dataloader_pin_memory: bool = True,
+        dataloader_persistent_workers: bool = False,
+        dataloader_prefetch_factor: Optional[int] = 2,
+        report_to: Union[str, list] = "none",
+        run_name: Optional[str] = None,
+        push_to_hub: bool = False,
+        hub_model_id: Optional[str] = None,
         **kwargs,
     ) -> TrainingArguments:
         """Create training arguments with sensible defaults.
@@ -1037,22 +1049,35 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             focal_loss_alpha: Alpha for focal loss.
             focal_loss_gamma: Gamma for focal loss.
             focal_loss_prob_margin: Probability margin for focal loss.
+            label_smoothing: Label smoothing factor for GLiNER loss.
             loss_reduction: Loss reduction method.
             negatives: Negative sampling ratio.
-            masking: Masking strategy.
+            masking: Masking strategy ('global' or 'none').
             lr_scheduler_type: Learning rate scheduler type.
             warmup_ratio: Warmup ratio.
             per_device_train_batch_size: Training batch size.
             per_device_eval_batch_size: Evaluation batch size.
             max_grad_norm: Maximum gradient norm.
             max_steps: Maximum training steps.
+            eval_steps: Evaluate every N steps. Defaults to save_steps if None.
             save_steps: Save checkpoint every N steps.
             save_total_limit: Maximum number of checkpoints to keep.
             logging_steps: Log every N steps.
             use_cpu: Whether to use CPU.
             bf16: Whether to use bfloat16.
+            fp16: Whether to use float16.
+            seed: Random seed for reproducibility.
+            gradient_checkpointing: Whether to use gradient checkpointing.
+            remove_unused_columns: Whether to remove unused dataset columns.
+                Must be False for GLiNER's custom batch dictionaries.
             dataloader_num_workers: Number of dataloader workers.
-            report_to: Where to report metrics.
+            dataloader_pin_memory: Whether to pin memory in dataloaders.
+            dataloader_persistent_workers: Whether to use persistent workers.
+            dataloader_prefetch_factor: Number of batches to prefetch.
+            report_to: Where to report metrics (str or list of str).
+            run_name: Name for the training run (used by W&B, etc.).
+            push_to_hub: Whether to push model to HuggingFace Hub.
+            hub_model_id: HuggingFace Hub repository ID.
             **kwargs: Additional training arguments.
 
         Returns:
@@ -1067,6 +1092,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             focal_loss_gamma=focal_loss_gamma,
             focal_loss_alpha=focal_loss_alpha,
             focal_loss_prob_margin=focal_loss_prob_margin,
+            label_smoothing=label_smoothing,
             loss_reduction=loss_reduction,
             negatives=negatives,
             masking=masking,
@@ -1076,13 +1102,24 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             per_device_eval_batch_size=per_device_eval_batch_size,
             max_grad_norm=max_grad_norm,
             max_steps=max_steps,
+            eval_steps=eval_steps,
             save_steps=save_steps,
             save_total_limit=save_total_limit,
             dataloader_num_workers=dataloader_num_workers,
+            dataloader_pin_memory=dataloader_pin_memory,
+            dataloader_persistent_workers=dataloader_persistent_workers,
+            dataloader_prefetch_factor=dataloader_prefetch_factor,
             logging_steps=logging_steps,
             use_cpu=use_cpu,
             report_to=report_to,
+            run_name=run_name,
             bf16=bf16,
+            fp16=fp16,
+            seed=seed,
+            gradient_checkpointing=gradient_checkpointing,
+            remove_unused_columns=remove_unused_columns,
+            push_to_hub=push_to_hub,
+            hub_model_id=hub_model_id,
             **kwargs,
         )
 
@@ -1094,6 +1131,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         freeze_components: Optional[list[str]] = None,
         compile_model: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
+        resume_from_checkpoint: Optional[Union[str, Path, bool]] = None,
         **training_kwargs,
     ) -> Trainer:
         """Train the model.
@@ -1105,6 +1143,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             freeze_components: List of component names to freeze (e.g., ['text_encoder', 'decoder']).
             compile_model: Whether to compile model with torch.compile.
             output_dir: Output directory (required if training_args is None).
+            resume_from_checkpoint: Path to a checkpoint directory to resume
+                training from, or True to auto-detect the latest checkpoint.
             **training_kwargs: Additional kwargs for creating training args.
 
         Returns:
@@ -1158,8 +1198,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
         trainer = Trainer(**trainer_kwargs)
 
-        # Train
-        trainer.train()
+        # Train, optionally resuming from a checkpoint
+        if resume_from_checkpoint is not None:
+            trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            trainer.train()
 
         return trainer
 
