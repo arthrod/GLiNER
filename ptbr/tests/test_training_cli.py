@@ -722,13 +722,6 @@ class TestLaunchTrainingPropagation:
         assert kwargs["eval_strategy"] == "steps"
         assert kwargs["eval_steps"] == cfg["training"]["eval_every"]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "PR14 follow-up: _launch_training does not yet forward dataloader flags "
-            "or run metadata into train_model"
-        ),
-    )
     def test_launch_training_forwards_dataloader_flags_and_run_name(
         self,
         tmp_path: Path,

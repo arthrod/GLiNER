@@ -1132,8 +1132,12 @@ def _launch_training(
         # Hardware
         use_cpu=train_cfg.get("use_cpu", False),
         dataloader_num_workers=train_cfg.get("dataloader_num_workers", 2),
+        dataloader_pin_memory=train_cfg.get("dataloader_pin_memory", True),
+        dataloader_persistent_workers=train_cfg.get("dataloader_persistent_workers", False),
+        dataloader_prefetch_factor=train_cfg.get("dataloader_prefetch_factor", 2),
         # Reporting
         report_to=report_to,
+        run_name=cfg["run"]["name"],
         # Gradient accumulation
         gradient_accumulation_steps=train_cfg.get("gradient_accumulation_steps", 1),
     )
