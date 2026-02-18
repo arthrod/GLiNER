@@ -2,7 +2,7 @@
 
 **Status:** Completed successfully
 **Iterations:** 1
-**Duration:** 3m 40s
+**Duration:** 12m 36s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-35f3c52: chore: record continuation-loop closeout state
+caeb71e: fix(test): accept model/lora aliases in template validation tests
