@@ -44,6 +44,26 @@ def load_data(
             raw = [raw]
         if text_column == "tokenized_text" and ner_column == "ner":
             return raw
+        missing_columns = [
+            col
+            for col in (text_column, ner_column)
+            if any(not isinstance(item, dict) or col not in item for item in raw)
+        ]
+        if missing_columns:
+            missing = ", ".join(repr(col) for col in missing_columns)
+            available_columns = sorted(
+                {
+                    key
+                    for item in raw
+                    if isinstance(item, dict)
+                    for key in item
+                }
+            )
+            available = ", ".join(repr(col) for col in available_columns) or "<none>"
+            raise ValueError(
+                f"Missing required column(s): {missing}. "
+                f"Available columns in local file: {available}"
+            )
         data = []
         for item in raw:
             mapped = dict(item)
