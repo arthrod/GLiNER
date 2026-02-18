@@ -57,10 +57,10 @@ def _get_training_args_field_names():
     return {f.name for f in dataclass_fields(TrainingArguments)}
 
 
-def _make_training_args(**overrides):
-    """Create a TrainingArguments with a temporary output_dir and no reporting."""
+def _make_training_args(output_dir, **overrides):
+    """Create a TrainingArguments with a caller-provided output_dir."""
     defaults = {
-        "output_dir": "/tmp/gliner_test_output",
+        "output_dir": str(output_dir),
         "report_to": "none",
         "use_cpu": True,
     }
@@ -68,12 +68,12 @@ def _make_training_args(**overrides):
     return TrainingArguments(**defaults)
 
 
-def _create_training_args_via_classmethod(**overrides):
+def _create_training_args_via_classmethod(output_dir, **overrides):
     """Create TrainingArguments through BaseGLiNER.create_training_args."""
     from gliner.model import BaseGLiNER
 
     defaults = {
-        "output_dir": "/tmp/gliner_test_output",
+        "output_dir": str(output_dir),
         "report_to": "none",
     }
     defaults.update(overrides)
@@ -112,17 +112,17 @@ class TestSmoke:
 
         assert T is not None
 
-    def test_training_args_instantiation(self):
-        args = _make_training_args()
-        assert args.output_dir == "/tmp/gliner_test_output"
+    def test_training_args_instantiation(self, tmp_path):
+        args = _make_training_args(output_dir=tmp_path)
+        assert args.output_dir == str(tmp_path)
 
     def test_create_training_args_callable(self):
         from gliner.model import BaseGLiNER
 
         assert callable(BaseGLiNER.create_training_args)
 
-    def test_create_training_args_returns_training_args(self):
-        args = _create_training_args_via_classmethod()
+    def test_create_training_args_returns_training_args(self, tmp_path):
+        args = _create_training_args_via_classmethod(output_dir=tmp_path)
         assert isinstance(args, TrainingArguments)
 
 
@@ -134,21 +134,21 @@ class TestSmoke:
 class TestTrainingArgumentsDefaults:
     """Verify TrainingArguments field defaults match expected values."""
 
-    def test_masking_default_is_global(self):
+    def test_masking_default_is_global(self, tmp_path):
         """TrainingArguments.masking should default to 'global'."""
-        args = _make_training_args()
+        args = _make_training_args(output_dir=tmp_path)
         assert args.masking == "global"
 
     def test_label_smoothing_field_exists(self):
         field_names = _get_training_args_field_names()
         assert "label_smoothing" in field_names
 
-    def test_loss_reduction_default_is_sum(self):
-        args = _make_training_args()
+    def test_loss_reduction_default_is_sum(self, tmp_path):
+        args = _make_training_args(output_dir=tmp_path)
         assert args.loss_reduction == "sum"
 
-    def test_focal_loss_defaults(self):
-        args = _make_training_args()
+    def test_focal_loss_defaults(self, tmp_path):
+        args = _make_training_args(output_dir=tmp_path)
         assert args.focal_loss_alpha == -1
         assert args.focal_loss_gamma == 0
         assert args.focal_loss_prob_margin == 0
@@ -179,10 +179,10 @@ class TestTrainingArgumentsFieldCompleteness:
         missing = self.REQUIRED_GLINER_FIELDS - field_names
         assert not missing, f"Missing GLiNER-specific fields: {missing}"
 
-    def test_gliner_fields_have_defaults(self):
+    def test_gliner_fields_have_defaults(self, tmp_path):
         """All GLiNER-specific fields should have defaults (instantiation with only output_dir)."""
         try:
-            _make_training_args()
+            _make_training_args(output_dir=tmp_path)
         except TypeError as e:
             pytest.fail(f"TrainingArguments cannot be instantiated with defaults only: {e}")
 
@@ -242,16 +242,18 @@ class TestTrainerDataloaderWiring:
 class TestKwargsPassThrough:
     """Verify kwargs passed to create_training_args reach TrainingArguments."""
 
-    def test_label_smoothing_via_kwargs_reaches_training_args(self):
-        args = _create_training_args_via_classmethod(label_smoothing=0.1)
+    def test_label_smoothing_via_kwargs_reaches_training_args(self, tmp_path):
+        args = _create_training_args_via_classmethod(
+            output_dir=tmp_path, label_smoothing=0.1
+        )
         assert args.label_smoothing == 0.1
 
-    def test_fp16_via_kwargs_reaches_training_args(self):
-        args = _create_training_args_via_classmethod(fp16=True)
+    def test_fp16_via_kwargs_reaches_training_args(self, tmp_path):
+        args = _create_training_args_via_classmethod(output_dir=tmp_path, fp16=True)
         assert args.fp16 is True
 
-    def test_seed_via_kwargs_reaches_training_args(self):
-        args = _create_training_args_via_classmethod(seed=42)
+    def test_seed_via_kwargs_reaches_training_args(self, tmp_path):
+        args = _create_training_args_via_classmethod(output_dir=tmp_path, seed=42)
         assert args.seed == 42
 
 
@@ -263,19 +265,17 @@ class TestKwargsPassThrough:
 class TestHFDefaults:
     """Document HF default values that create risk for GLiNER."""
 
-    def test_hf_remove_unused_columns_defaults_to_true(self):
+    def test_hf_remove_unused_columns_defaults_to_true(self, tmp_path):
         """HF Trainer defaults remove_unused_columns to True.
 
         This is dangerous for GLiNER which uses custom batch dictionaries.
         """
-        hf_args = transformers.TrainingArguments(
-            output_dir="/tmp/test", report_to="none"
-        )
+        hf_args = transformers.TrainingArguments(output_dir=str(tmp_path), report_to="none")
         assert hf_args.remove_unused_columns is True
 
-    def test_hf_label_smoothing_factor_defaults_to_zero(self):
+    def test_hf_label_smoothing_factor_defaults_to_zero(self, tmp_path):
         """HF label_smoothing_factor defaults to 0 (no double smoothing by default)."""
-        args = _make_training_args(label_smoothing=0.1)
+        args = _make_training_args(output_dir=tmp_path, label_smoothing=0.1)
         hf_ls = getattr(args, "label_smoothing_factor", 0)
         assert hf_ls == 0
 
@@ -402,7 +402,6 @@ class TestMaskingDefaultMismatch:
         """The two defaults should agree so create_training_args doesn't
         silently override the GLiNER default.
         """
-        sig = inspect.signature(_create_training_args_via_classmethod)
         # Actually inspect the real method
         from gliner.model import BaseGLiNER
 
@@ -433,8 +432,8 @@ class TestRemoveUnusedColumns:
             "HF Trainer defaults to True which silently drops custom batch keys"
         ),
     )
-    def test_create_training_args_sets_remove_unused_columns_false(self):
-        args = _create_training_args_via_classmethod()
+    def test_create_training_args_sets_remove_unused_columns_false(self, tmp_path):
+        args = _create_training_args_via_classmethod(output_dir=tmp_path)
         assert args.remove_unused_columns is False, (
             f"remove_unused_columns is {args.remove_unused_columns}. "
             f"GLiNER needs False to preserve custom batch dictionary keys."
@@ -470,8 +469,8 @@ class TestEvaluationConfiguration:
             "evaluation never runs during training"
         ),
     )
-    def test_create_training_args_enables_evaluation(self):
-        args = _create_training_args_via_classmethod(save_steps=500)
+    def test_create_training_args_enables_evaluation(self, tmp_path):
+        args = _create_training_args_via_classmethod(output_dir=tmp_path, save_steps=500)
         eval_strategy = getattr(args, "eval_strategy", None) or getattr(
             args, "evaluation_strategy", None
         )
@@ -484,8 +483,8 @@ class TestEvaluationConfiguration:
         strict=True,
         reason="eval_steps is never set by create_training_args",
     )
-    def test_create_training_args_forwards_eval_steps(self):
-        args = _create_training_args_via_classmethod(save_steps=500)
+    def test_create_training_args_forwards_eval_steps(self, tmp_path):
+        args = _create_training_args_via_classmethod(output_dir=tmp_path, save_steps=500)
         eval_steps = getattr(args, "eval_steps", None)
         assert eval_steps is not None and eval_steps > 0, (
             f"eval_steps is {eval_steps}; evaluation won't run at a meaningful frequency"
@@ -551,12 +550,12 @@ class TestLabelSmoothingCollision:
             "adds label_smoothing; both can be active simultaneously"
         ),
     )
-    def test_no_dual_label_smoothing_fields(self):
+    def test_no_dual_label_smoothing_fields(self, tmp_path):
         """TrainingArguments should not have BOTH label_smoothing AND
         label_smoothing_factor, since they represent two different smoothing
         mechanisms that can accidentally combine.
         """
-        args = _make_training_args()
+        args = _make_training_args(output_dir=tmp_path)
         has_gliner_ls = hasattr(args, "label_smoothing")
         has_hf_ls = hasattr(args, "label_smoothing_factor")
         assert not (has_gliner_ls and has_hf_ls), (
@@ -643,22 +642,15 @@ class TestConfigYamlDeadFields:
     def config_training_fields(self, config_yaml_path):
         if not config_yaml_path.exists():
             pytest.skip("configs/config.yaml not found")
-        fields = []
-        in_training = False
-        content = config_yaml_path.read_text()
-        for line in content.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#") or not stripped:
-                continue
-            if not line.startswith(" ") and not line.startswith("\t") and ":" in stripped:
-                section = stripped.split(":")[0].strip()
-                in_training = section == "training"
-                continue
-            if in_training and ":" in stripped:
-                field_name = stripped.split(":")[0].strip()
-                if field_name and not field_name.startswith("#"):
-                    fields.append(field_name)
-        return fields
+        yaml = pytest.importorskip("yaml")
+        with config_yaml_path.open("r", encoding="utf-8") as handle:
+            config = yaml.safe_load(handle) or {}
+
+        training_config = config.get("training", {})
+        if not isinstance(training_config, dict):
+            return []
+
+        return [field_name for field_name in training_config if isinstance(field_name, str)]
 
     @pytest.mark.xfail(
         strict=True,
