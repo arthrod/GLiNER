@@ -17,6 +17,7 @@ app = typer.Typer(
     help="GLiNER fine-tuning toolkit: data preparation, config validation, and training.",
     add_completion=False,
 )
+_train_subcommand_attached = False
 
 
 # ── data subcommand ──────────────────────────────────────────────────────
@@ -114,14 +115,22 @@ def config_cmd(
         raise typer.Exit(code=1)
 
 
-# ── train subcommand ─────────────────────────────────────────────────────
-# training_cli.py already defines a full typer app with its own @app.command().
-# We import and add it as a sub-app so `python -m ptbr train ...` works.
+def _attach_train_subcommand() -> None:
+    """Attach the `train` subcommand app on demand to avoid import side effects."""
+    global _train_subcommand_attached
+    if _train_subcommand_attached:
+        return
+    from ptbr.training_cli import app as train_app
 
-from ptbr.training_cli import app as _train_app
+    app.add_typer(train_app, name="train")
+    _train_subcommand_attached = True
 
-app.add_typer(_train_app, name="train")
+
+def main() -> None:
+    """Entry point for `python -m ptbr`."""
+    _attach_train_subcommand()
+    app()
 
 
 if __name__ == "__main__":
-    app()
+    main()
