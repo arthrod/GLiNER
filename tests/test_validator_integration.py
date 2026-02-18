@@ -710,8 +710,8 @@ class TestConfigLoaderValidation:
         finally:
             os.unlink(tmp_path)
 
-    def test_empty_yaml_loads_without_error(self):
-        """An empty YAML causes issues downstream, not at load time."""
+    def test_empty_yaml_crashes_loader(self):
+        """An empty YAML file causes load_config_as_namespace to fail immediately."""
         import tempfile
         from gliner.utils import load_config_as_namespace
 
