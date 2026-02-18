@@ -264,6 +264,12 @@ class TestParameterForwarding:
 
     @staticmethod
     def _get_launch_training_source() -> str:
+        """
+        Read and return the source text of the project's training CLI module.
+        
+        Returns:
+            str: The contents of the file at <ROOT>/ptbr/training_cli.py.
+        """
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         return source
 
@@ -330,39 +336,35 @@ class TestParameterForwarding:
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "size_sup" not in forwarded, (
-            "size_sup should NOT be in the train_model() call (dead config)"
-        )
+        assert "shuffle_types" not in forwarded
 
-    def test_shuffle_types_not_forwarded(self):
-        """training.shuffle_types validated but never forwarded."""
+    def test_random_drop_removed_from_schema(self):
+        """training.random_drop is no longer in schema (dead config removed)."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "shuffle_types" not in forwarded, (
-            "shuffle_types should NOT be in the train_model() call"
-        )
+        assert "random_drop" not in forwarded
 
-    def test_random_drop_not_forwarded(self):
-        """training.random_drop validated but never forwarded."""
+    def test_run_name_forwarded(self):
+        """run.name is now forwarded as run_name to TrainingArguments."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "random_drop" not in forwarded, (
-            "random_drop should NOT be in the train_model() call"
-        )
+        assert "run_name" in forwarded
 
     def test_run_tags_not_forwarded(self):
-        """run.tags validated but never forwarded to W&B/TrainingArguments."""
+        """run.tags validated but not forwarded to W&B/TrainingArguments."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "run_tags" not in forwarded, (
-            "run_tags should NOT be in the train_model() call (documenting the gap)"
-        )
+        assert "run_tags" not in forwarded
 
     def test_run_description_not_forwarded(self):
-        """run.description validated but unused beyond logging."""
+        """
+        Asserts that the config's run.description is validated but not forwarded to train_model.
+        
+        Checks that neither `run_description` nor `description` appear among the keyword arguments passed to `train_model`.
+        """
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
@@ -380,12 +382,24 @@ class TestTrainPyForwarding:
 
     @staticmethod
     def _parse_train_py() -> ast.AST:
+        """
+        Parse the project's train.py source into an abstract syntax tree (AST).
+        
+        Returns:
+            tree (ast.AST): The parsed AST for the contents of TRAIN_PY.
+        """
         return ast.parse(TRAIN_PY.read_text())
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> dict[str, Any]:
-        """Extract keyword arguments from the model.train_model() call as
-        {name: ast_node} pairs."""
+        """
+        Extract the keyword arguments passed to any `*.train_model(...)` call in the given AST.
+        
+        Searches the AST for a call whose attribute name is `train_model` and returns a mapping from each keyword name to its corresponding AST node.
+        
+        Returns:
+            dict[str, ast.AST]: A dictionary mapping keyword argument names to their AST value nodes. Returns an empty dict if no `train_model` call is found.
+        """
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
@@ -465,9 +479,11 @@ class TestConfigFieldsReachTraining:
     }
 
     def test_all_training_fields_in_config_yaml_are_forwarded(self):
-        """Every field under ``training:`` in config.yaml should be forwarded
-        to model.train_model() by train.py.  Catch fields that are silently
-        ignored."""
+        """
+        Ensure every field under `training:` in config.yaml is forwarded to train_model() by train.py.
+        
+        Parses the project's `config.yaml` and `train.py` to compare `training.*` keys against the keyword arguments passed to `train_model()`, and fails the test if any configuration field (other than known, intentionally non-forwarded fields) is not forwarded. Confirms that the legacy dead fields `size_sup`, `shuffle_types`, and `random_drop` remain absent from forwarding.
+        """
         cfg = _load_config("config.yaml")
         training_fields = set(cfg.get("training", {}).keys())
 
@@ -522,7 +538,8 @@ class TestConfigFieldsReachTraining:
 
 class TestRemoveUnusedColumns:
     """GLiNER uses custom data collators.  HF TrainingArguments defaults
-    remove_unused_columns=True which strips columns the collator needs."""
+    remove_unused_columns=True which strips columns the collator needs.
+    Fixed: create_training_args now defaults to False, and training_cli forwards it."""
 
     def test_default_remove_unused_columns_is_true(self):
         """The HF default for remove_unused_columns is True."""
@@ -533,17 +550,20 @@ class TestRemoveUnusedColumns:
             "HF TrainingArguments defaults remove_unused_columns to True"
         )
 
-    def test_create_training_args_does_not_override_remove_unused_columns(self):
-        """create_training_args does not set remove_unused_columns=False."""
+    def test_create_training_args_overrides_remove_unused_columns(self):
+        """create_training_args now sets remove_unused_columns=False."""
         from gliner.model import BaseGLiNER
 
         sig = inspect.signature(BaseGLiNER.create_training_args)
-        assert "remove_unused_columns" not in sig.parameters, (
-            "create_training_args lacks a named 'remove_unused_columns' parameter"
+        assert "remove_unused_columns" in sig.parameters, (
+            "create_training_args should have a named 'remove_unused_columns' parameter"
+        )
+        assert sig.parameters["remove_unused_columns"].default is False, (
+            "remove_unused_columns should default to False for GLiNER"
         )
 
-    def test_training_cli_does_not_pass_remove_unused_columns(self):
-        """_launch_training doesn't pass remove_unused_columns to train_model."""
+    def test_training_cli_passes_remove_unused_columns(self):
+        """_launch_training now passes remove_unused_columns to train_model."""
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         tree = ast.parse(source)
         forwarded = set()
@@ -554,13 +574,12 @@ class TestRemoveUnusedColumns:
                     for kw in node.keywords:
                         if kw.arg:
                             forwarded.add(kw.arg)
-        assert "remove_unused_columns" not in forwarded, (
-            "_launch_training does not set remove_unused_columns=False "
-            "(dangerous for custom collators)"
+        assert "remove_unused_columns" in forwarded, (
+            "_launch_training should set remove_unused_columns=False"
         )
 
     def test_train_py_does_not_pass_remove_unused_columns(self):
-        """train.py also doesn't pass remove_unused_columns."""
+        """train.py (legacy) still doesn't pass remove_unused_columns."""
         tree = ast.parse(TRAIN_PY.read_text())
         forwarded = set()
         for node in ast.walk(tree):
@@ -578,41 +597,42 @@ class TestRemoveUnusedColumns:
 # ======================================================================== #
 
 
-class TestCreateTrainingArgsGaps:
-    """create_training_args has named params for some fields but relies on
-    **kwargs for others.  This makes the API inconsistent and fragile."""
+class TestCreateTrainingArgsFixed:
+    """create_training_args now has explicit named params for critical fields.
+    Previously these relied on **kwargs pass-through."""
 
-    def test_label_smoothing_not_named_parameter(self):
-        """label_smoothing is a custom TrainingArguments field but not a named
-        parameter of create_training_args -- goes through **kwargs."""
+    def test_label_smoothing_is_named_parameter(self):
+        """
+        Verify that `create_training_args` declares `label_smoothing` as a named parameter and that `TrainingArguments` exposes a `label_smoothing` attribute.
+        
+        This test asserts two things:
+        - The `TrainingArguments` class defines a `label_smoothing` attribute.
+        - `BaseGLiNER.create_training_args` includes `label_smoothing` in its signature parameters.
+        """
         from gliner.model import BaseGLiNER
 
         sig = inspect.signature(BaseGLiNER.create_training_args)
-        # label_smoothing exists on TrainingArguments (custom field)
         from gliner.training.trainer import TrainingArguments
         assert hasattr(TrainingArguments, "label_smoothing"), (
             "TrainingArguments should have label_smoothing"
         )
-        # but it's not a named parameter of create_training_args
-        assert "label_smoothing" not in sig.parameters, (
-            "label_smoothing is NOT a named parameter of create_training_args "
-            "(goes through **kwargs)"
+        assert "label_smoothing" in sig.parameters, (
+            "label_smoothing should be a named parameter of create_training_args"
         )
 
-    def test_gradient_checkpointing_not_available(self):
-        """gradient_checkpointing is important for large models but absent
-        from both create_training_args and the training_cli schema."""
+    def test_gradient_checkpointing_is_named_parameter(self):
+        """gradient_checkpointing is now a named parameter."""
         from gliner.model import BaseGLiNER
 
         sig = inspect.signature(BaseGLiNER.create_training_args)
-        assert "gradient_checkpointing" not in sig.parameters
+        assert "gradient_checkpointing" in sig.parameters
 
-    def test_run_name_not_in_create_training_args(self):
-        """run_name is not a parameter of create_training_args."""
+    def test_run_name_is_named_parameter(self):
+        """run_name is now a named parameter of create_training_args."""
         from gliner.model import BaseGLiNER
 
         sig = inspect.signature(BaseGLiNER.create_training_args)
-        assert "run_name" not in sig.parameters
+        assert "run_name" in sig.parameters
 
 
 # ======================================================================== #
@@ -694,11 +714,14 @@ class TestConfigLoaderValidation:
 
 class TestSchemaVsForwarding:
     """Cross-reference _FIELD_SCHEMA entries against what _launch_training
-    actually passes to model.train_model()."""
+    actually passes to model.train_model().
 
-    def test_validated_training_fields_not_all_forwarded(self):
-        """Collect training.* fields from the schema and check which ones
-        appear in the _launch_training -> model.train_model() call."""
+    After fixes: dead config fields (size_sup, shuffle_types, random_drop)
+    removed from schema; dataloader fields now forwarded; no remaining gaps."""
+
+    def test_all_training_fields_forwarded(self):
+        """All training.* fields from the schema should now be forwarded
+        (or handled elsewhere) by _launch_training."""
         from ptbr.training_cli import _FIELD_SCHEMA
 
         # All training.* fields in the schema
