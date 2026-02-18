@@ -1,8 +1,8 @@
 # Loop Summary
 
-**Status:** Completed successfully
-**Iterations:** 1
-**Duration:** 16m 36s
+**Status:** Failed: too many consecutive failures
+**Iterations:** 5
+**Duration:** 5s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-74f3b9a: test: add regression tests for custom trainer column handling
+42dffff: integrate needs fixd
