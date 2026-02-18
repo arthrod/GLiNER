@@ -162,6 +162,8 @@ class TestYAMLSchemaIncompatibility:
         # against its own rules which may differ from the model section.
         # The key point: using template.yaml alone fails config_cli.
         assert training_ok, "training_cli should accept the hybrid YAML"
+        # Hybrid config should pass config_cli since gliner_config is present
+        assert config_ok, "config_cli should accept the hybrid YAML with gliner_config"
         # config_cli should also accept now (since gliner_config is present)
         # but the fundamental incompatibility means a *normal* user never
         # writes gliner_config -- they write model: and are stuck.
