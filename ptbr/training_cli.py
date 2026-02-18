@@ -1088,7 +1088,7 @@ def _launch_training(
     # -- Resume checkpoint detection --
     resume_checkpoint = None
     if resume:
-        checkpoint_dirs = sorted(output_folder.glob("checkpoint-*"))
+        checkpoint_dirs = sorted(output_folder.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[-1]))
         if checkpoint_dirs:
             resume_checkpoint = str(checkpoint_dirs[-1])
             logger.info(f"Resuming from checkpoint: {resume_checkpoint}")
