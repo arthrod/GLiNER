@@ -269,8 +269,9 @@ def main():
     num_corrupt = int(TOTAL * CORRUPTION_RATE)
     if num_corrupt < len(ALL_NOISE):
         raise ValueError(
-            "CORRUPTION_RATE * TOTAL must be >= number of noise types "
-            "to guarantee coverage."
+            "Not enough corrupt entries to guarantee all noise types: "
+            f"num_corrupt={num_corrupt}, len(ALL_NOISE)={len(ALL_NOISE)}. "
+            "Increase TOTAL or CORRUPTION_RATE."
         )
     corrupt_indices = set(random.sample(range(TOTAL), num_corrupt))
 
@@ -278,8 +279,6 @@ def main():
     noise_log = {}  # idx -> noise_type_name
 
     # Ensure every noise type is used at least once
-    noise_queue = list(range(len(ALL_NOISE)))
-    random.shuffle(noise_queue)
     corrupt_list = sorted(corrupt_indices)
 
     # Assign guaranteed-at-least-once for each noise type
@@ -327,9 +326,15 @@ def main():
     # Parse error indices from messages like "[123] ..."
     error_indices = set()
     for err in errors:
-        if err.startswith("["):
-            # Extract top-level index from "[123] ..." or "[123].ner[0] ..."
-            error_indices.add(int(err[1:err.index("]")]))
+        if not err.startswith("["):
+            continue
+        end_idx = err.find("]")
+        if end_idx == -1:
+            continue
+        # Extract top-level index from "[123] ..." or "[123].ner[0] ..."
+        idx_str = err[1:end_idx]
+        if idx_str.isdigit():
+            error_indices.add(int(idx_str))
 
     detected = error_indices & corrupt_indices
     missed = corrupt_indices - error_indices
