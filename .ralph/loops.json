@@ -1,3 +1,20 @@
 {
-  "loops": []
+  "loops": [
+    {
+      "id": "eager-birch",
+      "pid": 506737,
+      "started": "2026-02-18T01:28:17.977794068Z",
+      "prompt": "fetch this PR, implement the changes, run them, fix and then merge into staging. push after: arthro...",
+      "worktree_path": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/eager-birch",
+      "workspace": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/eager-birch"
+    },
+    {
+      "id": "peppy-willow",
+      "pid": 508768,
+      "started": "2026-02-18T01:28:43.875188009Z",
+      "prompt": "fetch this PR, implement the changes, run them, fix and then merge into staging. push after: arthro...",
+      "worktree_path": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/peppy-willow",
+      "workspace": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/peppy-willow"
+    }
+  ]
 }
