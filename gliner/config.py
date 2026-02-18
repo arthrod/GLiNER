@@ -162,7 +162,7 @@ class UniEncoderSpanDecoderConfig(UniEncoderConfig):
             **kwargs: Additional keyword arguments passed to UniEncoderConfig.
 
         Raises:
-            ValueError: If span_mode is 'token-level', which is incompatible with this config.
+            ValueError: If span_mode is 'token_level', which is incompatible with this config.
         """
         super().__init__(**kwargs)
 
