@@ -92,10 +92,6 @@ def test_fake_tensor_cpu_path_reflects_bf16_training_arg(tmp_path, monkeypatch):
     assert fake_output.dtype == torch.bfloat16
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PR14 follow-up: train.py still hardcodes output_dir/eval batch size/bf16",
-)
 def test_train_main_forwards_yaml_training_values(tmp_path, monkeypatch):
     pytest.importorskip("torch")
     pytest.importorskip("transformers")
