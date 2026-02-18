@@ -7,6 +7,7 @@ Commands:
 """
 
 import json
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -107,7 +108,7 @@ def config_cmd(
     )
 
     if validate:
-        print_and_log_result(result, file)
+        print_and_log_result(result, Path(file))
 
     if not result.report.is_valid:
         raise typer.Exit(code=1)
