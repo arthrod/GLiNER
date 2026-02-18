@@ -24,30 +24,83 @@ from ptbr import validate_data
 # Vocabulary pools for generating realistic-looking valid entries
 # ---------------------------------------------------------------------------
 NAMES = [
-    "Maria", "Joao", "Pedro", "Ana", "Carlos", "Fernanda", "Lucas", "Julia",
-    "Rafael", "Beatriz", "Gustavo", "Camila", "Thiago", "Larissa", "Diego",
-    "Mariana", "Bruno", "Isabela", "Felipe", "Leticia", "Matheus", "Gabriela",
+    "Maria",
+    "Joao",
+    "Pedro",
+    "Ana",
+    "Carlos",
+    "Fernanda",
+    "Lucas",
+    "Julia",
+    "Rafael",
+    "Beatriz",
+    "Gustavo",
+    "Camila",
+    "Thiago",
+    "Larissa",
+    "Diego",
+    "Mariana",
+    "Bruno",
+    "Isabela",
+    "Felipe",
+    "Leticia",
+    "Matheus",
+    "Gabriela",
 ]
 CITIES = [
-    "Sao Paulo", "Rio de Janeiro", "Brasilia", "Salvador", "Fortaleza",
-    "Belo Horizonte", "Manaus", "Curitiba", "Recife", "Porto Alegre",
-    "Belem", "Goiania", "Guarulhos", "Campinas", "Sao Luis", "Natal",
+    "Sao Paulo",
+    "Rio de Janeiro",
+    "Brasilia",
+    "Salvador",
+    "Fortaleza",
+    "Belo Horizonte",
+    "Manaus",
+    "Curitiba",
+    "Recife",
+    "Porto Alegre",
+    "Belem",
+    "Goiania",
+    "Guarulhos",
+    "Campinas",
+    "Sao Luis",
+    "Natal",
 ]
 ORGS = [
-    "Petrobras", "Itau", "Bradesco", "Vale", "Embraer", "Natura",
-    "Magazine Luiza", "Globo", "BNDES", "Fiocruz", "USP", "UNICAMP",
+    "Petrobras",
+    "Itau",
+    "Bradesco",
+    "Vale",
+    "Embraer",
+    "Natura",
+    "Magazine Luiza",
+    "Globo",
+    "BNDES",
+    "Fiocruz",
+    "USP",
+    "UNICAMP",
 ]
 VERBS = ["visited", "founded", "joined", "managed", "reported", "announced"]
 FILLERS = ["the", "a", "in", "of", "and", "with", "for", "on", "at", "to"]
 LABELS_NER = [
-    "Person", "City", "Organization", "Date", "Country", "Event",
-    "Product", "Money", "Percent", "Location", "Time", "Quantity",
+    "Person",
+    "City",
+    "Organization",
+    "Date",
+    "Country",
+    "Event",
+    "Product",
+    "Money",
+    "Percent",
+    "Location",
+    "Time",
+    "Quantity",
 ]
 RELATION_TYPES = ["located_in", "works_for", "born_in", "CEO_of", "founded_by"]
 
 # ---------------------------------------------------------------------------
 # Random valid entry generator
 # ---------------------------------------------------------------------------
+
 
 def random_valid_entry(idx: int) -> dict:
     """Generate a single valid GLiNER entry with realistic content."""
@@ -85,157 +138,187 @@ def random_valid_entry(idx: int) -> dict:
 # 30 noise injection functions -- each corrupts exactly one thing
 # ---------------------------------------------------------------------------
 
+
 def noise_text_as_string(e):
     e["tokenized_text"] = " ".join(e["tokenized_text"])
+
 
 def noise_text_has_int(e):
     tokens = e["tokenized_text"]
     if tokens:
         tokens[random.randrange(len(tokens))] = random.randint(0, 999)
 
+
 def noise_text_has_none(e):
     tokens = e["tokenized_text"]
     if tokens:
         tokens[random.randrange(len(tokens))] = None
+
 
 def noise_text_has_float(e):
     tokens = e["tokenized_text"]
     if tokens:
         tokens[random.randrange(len(tokens))] = 3.14
 
+
 def noise_text_is_dict(e):
     e["tokenized_text"] = {"tokens": e["tokenized_text"]}
+
 
 def noise_text_missing(e):
     del e["tokenized_text"]
 
+
 def noise_text_is_none(e):
     e["tokenized_text"] = None
+
 
 def noise_ner_missing(e):
     del e["ner"]
 
+
 def noise_ner_is_dict(e):
     e["ner"] = {str(i): s for i, s in enumerate(e["ner"])}
+
 
 def noise_ner_is_string(e):
     e["ner"] = str(e["ner"])
 
+
 def noise_ner_is_none(e):
     e["ner"] = None
 
+
 def noise_ner_is_int(e):
     e["ner"] = 0
+
 
 def noise_span_too_short(e):
     if e["ner"]:
         e["ner"][0] = e["ner"][0][:2]  # drop label
 
+
 def noise_span_too_long(e):
     if e["ner"]:
         e["ner"][0] = e["ner"][0] + [0.95]  # add confidence
+
 
 def noise_span_as_string(e):
     if e["ner"]:
         s = e["ner"][0]
         e["ner"][0] = f"{s[0]},{s[1]},{s[2]}"
 
+
 def noise_span_as_dict(e):
     if e["ner"]:
         s = e["ner"][0]
         e["ner"][0] = {"start": s[0], "end": s[1], "label": s[2]}
+
 
 def noise_float_indices(e):
     if e["ner"]:
         s = e["ner"][0]
         e["ner"][0] = [float(s[0]), float(s[1]), s[2]]
 
+
 def noise_negative_index(e):
     if e["ner"]:
         e["ner"][0][0] = -random.randint(1, 5)
+
 
 def noise_start_gt_end(e):
     if e["ner"]:
         s = e["ner"][0]
         e["ner"][0] = [s[1] + 1, s[0], s[2]]
 
+
 def noise_oob_index(e):
     if e["ner"]:
         n = len(e["tokenized_text"])
         e["ner"][0][1] = n + random.randint(0, 10)
 
+
 def noise_label_as_int(e):
     if e["ner"]:
         e["ner"][0][2] = random.randint(0, 99)
 
+
 def noise_label_as_none(e):
     if e["ner"]:
         e["ner"][0][2] = None
+
 
 def noise_label_as_list(e):
     if e["ner"]:
         lbl = e["ner"][0][2]
         e["ner"][0][2] = [lbl, "extra"]
 
+
 def noise_label_as_bool(e):
     if e["ner"]:
         e["ner"][0][2] = True
+
 
 def noise_item_is_list(e):
     """Returns a list instead of dict -- special handling needed."""
     return [e.get("tokenized_text", []), e.get("ner", [])]
 
+
 def noise_item_is_string(e):
     """Returns a string instead of dict -- special handling needed."""
     return json.dumps(e)
+
 
 def noise_relations_oob(e):
     e.setdefault("relations", [])
     e["relations"] = [[0, 99, "bad_rel"]]
 
+
 def noise_relations_type_int(e):
     e.setdefault("relations", [])
     e["relations"] = [[0, 0, 42]]
 
+
 def noise_relations_wrong_shape(e):
     e.setdefault("relations", [])
     e["relations"] = [[0, 1]]
+
 
 def noise_relations_is_string(e):
     e["relations"] = "bad"
 
 
 ALL_NOISE = [
-    ("text_as_string",       noise_text_as_string),
-    ("text_has_int",         noise_text_has_int),
-    ("text_has_none",        noise_text_has_none),
-    ("text_has_float",       noise_text_has_float),
-    ("text_is_dict",         noise_text_is_dict),
-    ("text_missing",         noise_text_missing),
-    ("text_is_none",         noise_text_is_none),
-    ("ner_missing",          noise_ner_missing),
-    ("ner_is_dict",          noise_ner_is_dict),
-    ("ner_is_string",        noise_ner_is_string),
-    ("ner_is_none",          noise_ner_is_none),
-    ("ner_is_int",           noise_ner_is_int),
-    ("span_too_short",       noise_span_too_short),
-    ("span_too_long",        noise_span_too_long),
-    ("span_as_string",       noise_span_as_string),
-    ("span_as_dict",         noise_span_as_dict),
-    ("float_indices",        noise_float_indices),
-    ("negative_index",       noise_negative_index),
-    ("start_gt_end",         noise_start_gt_end),
-    ("oob_index",            noise_oob_index),
-    ("label_as_int",         noise_label_as_int),
-    ("label_as_none",        noise_label_as_none),
-    ("label_as_list",        noise_label_as_list),
-    ("label_as_bool",        noise_label_as_bool),
-    ("item_is_list",         noise_item_is_list),
-    ("item_is_string",       noise_item_is_string),
-    ("relations_oob",        noise_relations_oob),
-    ("relations_type_int",   noise_relations_type_int),
+    ("text_as_string", noise_text_as_string),
+    ("text_has_int", noise_text_has_int),
+    ("text_has_none", noise_text_has_none),
+    ("text_has_float", noise_text_has_float),
+    ("text_is_dict", noise_text_is_dict),
+    ("text_missing", noise_text_missing),
+    ("text_is_none", noise_text_is_none),
+    ("ner_missing", noise_ner_missing),
+    ("ner_is_dict", noise_ner_is_dict),
+    ("ner_is_string", noise_ner_is_string),
+    ("ner_is_none", noise_ner_is_none),
+    ("ner_is_int", noise_ner_is_int),
+    ("span_too_short", noise_span_too_short),
+    ("span_too_long", noise_span_too_long),
+    ("span_as_string", noise_span_as_string),
+    ("span_as_dict", noise_span_as_dict),
+    ("float_indices", noise_float_indices),
+    ("negative_index", noise_negative_index),
+    ("start_gt_end", noise_start_gt_end),
+    ("oob_index", noise_oob_index),
+    ("label_as_int", noise_label_as_int),
+    ("label_as_none", noise_label_as_none),
+    ("label_as_list", noise_label_as_list),
+    ("label_as_bool", noise_label_as_bool),
+    ("item_is_list", noise_item_is_list),
+    ("item_is_string", noise_item_is_string),
+    ("relations_oob", noise_relations_oob),
+    ("relations_type_int", noise_relations_type_int),
     ("relations_wrong_shape", noise_relations_wrong_shape),
-    ("relations_is_string",  noise_relations_is_string),
+    ("relations_is_string", noise_relations_is_string),
 ]
 
 # ---------------------------------------------------------------------------
@@ -244,6 +327,7 @@ ALL_NOISE = [
 
 TOTAL = 50_000
 CORRUPTION_RATE = 0.30
+
 
 def main():
     random.seed(42)
@@ -258,7 +342,7 @@ def main():
     with open(base_path, "w", encoding="utf-8") as f:
         for entry in base:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    print(f"  Wrote {base_path}  ({time.time()-t0:.1f}s)")
+    print(f"  Wrote {base_path}  ({time.time() - t0:.1f}s)")
 
     # Quick sanity: base should be 100 % valid
     is_valid, errs = validate_data(base)
@@ -267,12 +351,6 @@ def main():
 
     # ---- Step 2: inject noise ---------------------------------------------
     num_corrupt = int(TOTAL * CORRUPTION_RATE)
-    if num_corrupt < len(ALL_NOISE):
-        raise ValueError(
-            "Not enough corrupt entries to guarantee all noise types: "
-            f"num_corrupt={num_corrupt}, len(ALL_NOISE)={len(ALL_NOISE)}. "
-            "Increase TOTAL or CORRUPTION_RATE."
-        )
     corrupt_indices = set(random.sample(range(TOTAL), num_corrupt))
 
     # Track which noise type was applied to each corrupted index
@@ -280,6 +358,13 @@ def main():
 
     # Ensure every noise type is used at least once
     corrupt_list = sorted(corrupt_indices)
+
+    if num_corrupt < len(ALL_NOISE):
+        raise RuntimeError(
+            "Not enough corrupted entries to cover all noise types: "
+            f"num_corrupt={num_corrupt}, len(ALL_NOISE)={len(ALL_NOISE)}. "
+            "Increase TOTAL or CORRUPTION_RATE."
+        )
 
     # Assign guaranteed-at-least-once for each noise type
     guaranteed = {}
@@ -312,7 +397,7 @@ def main():
     with open(noisy_path, "w", encoding="utf-8") as f:
         for entry in noisy:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    print(f"  Wrote {noisy_path}  ({time.time()-t0:.1f}s)")
+    print(f"  Wrote {noisy_path}  ({time.time() - t0:.1f}s)")
 
     # ---- Step 3: validate the noisy data ----------------------------------
     print(f"\nValidating noisy dataset ({TOTAL} entries, {num_corrupt} corrupted)...")
@@ -340,12 +425,12 @@ def main():
     missed = corrupt_indices - error_indices
     false_positives = error_indices - corrupt_indices
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Corrupted entries:     {num_corrupt}")
     print(f"  Detected by validator: {len(detected)}")
     print(f"  Missed (false neg):    {len(missed)}")
     print(f"  False positives:       {len(false_positives)}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # ---- Step 4: per-noise-type breakdown ---------------------------------
     type_counts = {}
