@@ -14,6 +14,10 @@
 
 ## Fixes
 
+### mem-1771383461-9162
+> failure: cmd=cat .ralph/agent/scratchpad.md, exit=1, error='No such file or directory', next=initialize .ralph/agent/scratchpad.md before read/append
+<!-- tags: tooling, error-handling, ralph | created: 2026-02-18 -->
+
 ### mem-1771381617-c997
 > failure: cmd=uv run --python 3.11 pytest -q ptbr/tests/test_training_cli.py tests/test_config_propagation.py (worktree=/tmp/gliner-pr14-staging), exit=1, error='uv dependency resolution unsatisfiable due jieba3 marker in fresh worktree env', next=execute pytest via existing /home/arthrod/workspace/gliner_review/GliNER/.venv/bin/python to validate staging worktree without uv solve
 <!-- tags: testing, tooling, uv, error-handling, staging | created: 2026-02-18 -->
