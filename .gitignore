@@ -179,3 +179,4 @@ poetry.toml
 pyrightconfig.json
 
 .vscode
+.worktrees/

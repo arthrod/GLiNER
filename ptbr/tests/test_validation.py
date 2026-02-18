@@ -14,6 +14,7 @@ Usage:
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -234,7 +235,7 @@ def test_jsonl_loading():
         tmp = f.name
     try:
         data = load_data(tmp)
-        ok, errs = validate_data(data)
+        ok, _errs = validate_data(data)
         report("JSONL loading works", len(data) == 2 and ok,
                f"loaded={len(data)}, valid={ok}")
     finally:
@@ -274,10 +275,33 @@ def test_column_remapping():
         tmp = f.name
     try:
         data = load_data(tmp, text_column="text", ner_column="entities")
-        ok, errs = validate_data(data)
+        ok, _errs = validate_data(data)
         report("column remapping works", ok and "tokenized_text" in data[0],
                f"keys={list(data[0].keys())}")
         report("extra columns preserved after remap", "id" in data[0])
+    finally:
+        os.unlink(tmp)
+
+
+def test_column_remapping_missing_custom_columns():
+    entries = [
+        {"text": ["Hello", "world"], "entities": [[0, 1, "Greeting"]], "id": 1},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(entries, f)
+        tmp = f.name
+    try:
+        try:
+            load_data(tmp, text_column="tokens", ner_column="spans")
+            report("missing custom columns raises", False, "expected ValueError")
+        except ValueError as exc:
+            msg = str(exc)
+            report(
+                "missing custom columns raises",
+                "Missing required column(s): 'tokens', 'spans'" in msg
+                and "Available columns in local file: 'entities', 'id', 'text'" in msg,
+                msg,
+            )
     finally:
         os.unlink(tmp)
 
@@ -308,14 +332,22 @@ def test_cli_validate():
     if not sample.exists():
         report("CLI validate", False, "sample_data.json not found")
         return
-    ret = os.system(f'python -m ptbr --file-or-repo "{sample}" --validate > /dev/null 2>&1')
-    report("CLI --validate exits 0 on valid data", ret == 0)
+    result = subprocess.run(
+        [sys.executable, "-m", "ptbr", "--file-or-repo", str(sample), "--validate"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    report("CLI --validate exits 0 on valid data", result.returncode == 0)
 
 
 def test_cli_validate_bad():
     bad = MOCKS / "text_is_raw_string.json"
-    ret = os.system(f'python -m ptbr --file-or-repo "{bad}" --validate > /dev/null 2>&1')
-    report("CLI --validate exits non-zero on bad data", ret != 0)
+    result = subprocess.run(
+        [sys.executable, "-m", "ptbr", "--file-or-repo", str(bad), "--validate"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    report("CLI --validate exits non-zero on bad data", result.returncode != 0)
 
 
 # ===================================================================
@@ -358,6 +390,7 @@ def main():
 
     print("\n--- Column remapping ---")
     test_column_remapping()
+    test_column_remapping_missing_custom_columns()
 
     print("\n--- Module API ---")
     test_prepare_module()

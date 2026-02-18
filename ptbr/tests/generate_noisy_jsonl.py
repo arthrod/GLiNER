@@ -267,6 +267,11 @@ def main():
 
     # ---- Step 2: inject noise ---------------------------------------------
     num_corrupt = int(TOTAL * CORRUPTION_RATE)
+    if num_corrupt < len(ALL_NOISE):
+        raise ValueError(
+            "CORRUPTION_RATE * TOTAL must be >= number of noise types "
+            "to guarantee coverage."
+        )
     corrupt_indices = set(random.sample(range(TOTAL), num_corrupt))
 
     # Track which noise type was applied to each corrupted index
@@ -319,10 +324,10 @@ def main():
     print(f"  is_valid = {is_valid}")
     print(f"  Total errors found: {len(errors)}")
 
-     # Parse error indices from messages like "[123] ..."
-     error_indices = set()
-     for err in errors:
-         if err.startswith("["):
+    # Parse error indices from messages like "[123] ..."
+    error_indices = set()
+    for err in errors:
+        if err.startswith("["):
             # Extract top-level index from "[123] ..." or "[123].ner[0] ..."
             error_indices.add(int(err[1:err.index("]")]))
 

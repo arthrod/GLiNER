@@ -18,7 +18,6 @@ import logging
 import os
 import sys
 import time
-import copy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -75,6 +74,7 @@ def _attach_file_handler(log_path: Path) -> None:
     """
     global _file_handler
     if _file_handler is not None:
+        _file_handler.close()
         logger.removeHandler(_file_handler)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     _file_handler = logging.FileHandler(str(log_path), mode="w", encoding="utf-8")
@@ -1122,6 +1122,10 @@ def _launch_training(
         save_steps=train_cfg["eval_every"],
         logging_steps=log_steps,
         save_total_limit=train_cfg["save_total_limit"],
+        # Evaluation — run eval at the same cadence as checkpointing when
+        # an eval dataset is available.
+        **({"eval_strategy": "steps", "eval_steps": train_cfg["eval_every"]}
+           if eval_dataset is not None else {}),
         # Precision
         bf16=train_cfg.get("bf16", False),
         fp16=train_cfg.get("fp16", False),
@@ -1139,10 +1143,10 @@ def _launch_training(
 
 def _apply_lora(model: Any, lora_cfg: dict) -> None:
     """
-    Apply a LoRA adapter to the model's backbone token representation layer.
-    
+    Apply a LoRA adapter to the model's HuggingFace backbone (PreTrainedModel).
+
     Parameters:
-        model (Any): Model object expected to contain attribute `model.token_rep_layer`; this function replaces that attribute in-place with a PEFT-wrapped module when found.
+        model (Any): Model object expected to contain attribute `model.token_rep_layer.bert_layer.model` (the HF PreTrainedModel backbone); this function replaces that attribute in-place with a PEFT-wrapped model when found.
         lora_cfg (dict): LoRA configuration mapping with required keys `r`, `lora_alpha`, `lora_dropout`, `bias`, and `target_modules`; optional keys include `task_type` and `modules_to_save`.
     
     Raises:
@@ -1172,17 +1176,31 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
         modules_to_save=lora_cfg.get("modules_to_save"),
     )
 
-    # Apply to the backbone encoder inside the model
-    if hasattr(model, "model") and hasattr(model.model, "token_rep_layer"):
-        model.model.token_rep_layer = get_peft_model(
-            model.model.token_rep_layer, peft_config
+    # Apply to the HuggingFace PreTrainedModel backbone inside the encoder.
+    # The model hierarchy is: model.model.token_rep_layer (Encoder)
+    #   -> .bert_layer (Transformer) -> .model (PreTrainedModel).
+    # PEFT/LoRA expects a PreTrainedModel, not a plain nn.Module, so we must
+    # target bert_layer.model -- consistent with the inference-time loading in
+    # gliner/modeling/encoder.py (Transformer.__init__).
+    try:
+        backbone = model.model.token_rep_layer.bert_layer.model
+    except AttributeError:
+        backbone = None
+
+    if backbone is not None:
+        model.model.token_rep_layer.bert_layer.model = get_peft_model(
+            backbone, peft_config
         )
         logger.info(
             f"[LORA]     Applied LoRA (r={lora_cfg['r']}, "
-            f"alpha={lora_cfg['lora_alpha']}) to token_rep_layer"
+            f"alpha={lora_cfg['lora_alpha']}) to "
+            f"token_rep_layer.bert_layer.model (PreTrainedModel backbone)"
         )
     else:
-        logger.warning("[LORA]     Could not locate token_rep_layer; LoRA not applied")
+        logger.warning(
+            "[LORA]     Could not locate "
+            "model.model.token_rep_layer.bert_layer.model; LoRA not applied"
+        )
 
 
 # ======================================================================== #

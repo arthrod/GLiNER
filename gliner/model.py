@@ -1116,6 +1116,19 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
                 raise ValueError("Either training_args or output_dir must be provided")
             training_args = self.create_training_args(output_dir=output_dir, **training_kwargs)
 
+        # Auto-enable evaluation when an eval_dataset is provided but
+        # eval_strategy was never set (defaults to "no").  Using "steps"
+        # because this codebase commonly trains with max_steps, not epochs.
+        if eval_dataset is not None:
+            current_strategy = getattr(training_args, "eval_strategy",
+                                       getattr(training_args, "evaluation_strategy", "no"))
+            if current_strategy == "no":
+                training_args.eval_strategy = "steps"
+                # If no explicit eval_steps, fall back to save_steps so that
+                # evaluation runs at the same cadence as checkpointing.
+                if getattr(training_args, "eval_steps", None) is None:
+                    training_args.eval_steps = training_args.save_steps
+
         # Compile model if requested
         if compile_model:
             self.compile()

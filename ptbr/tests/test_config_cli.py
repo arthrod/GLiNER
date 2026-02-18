@@ -467,6 +467,23 @@ class TestLoadAndValidateConfig:
         # span mode with no labels_encoder/decoder/relations → uni_encoder_span
         assert result.gliner_config.model_type == "gliner_uni_encoder_span"
 
+    @pytest.mark.parametrize(
+        ("config_kwargs", "expected_model_type"),
+        [
+            ({"span_mode": "token_level"}, "gliner_uni_encoder_token"),
+            (
+                {"span_mode": "token_level", "labels_encoder": "sentence-transformers/all-MiniLM-L6-v2"},
+                "gliner_bi_encoder_token",
+            ),
+            ({"span_mode": "token_level", "labels_decoder": "gpt2"}, "gliner_uni_encoder_token_decoder"),
+            ({"span_mode": "token_level", "relations_layer": "simple"}, "gliner_uni_encoder_token_relex"),
+        ],
+    )
+    def test_gliner_config_model_type_token_level(self, config_kwargs, expected_model_type):
+        """Token-level configs should route to token-level model families."""
+        cfg = GLiNERConfig(model_name="microsoft/deberta-v3-small", **config_kwargs)
+        assert cfg.model_type == expected_model_type
+
     def test_config_result_has_raw_yaml(self, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
         cfg_path = _write_yaml(tmp_path, data)
