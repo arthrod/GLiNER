@@ -26,6 +26,10 @@
 
 ## Fixes
 
+### mem-1771393854-6ece
+> Fixed 11 failing tests in tests/test_data_processing.py by correcting test assertions to match actual processor implementation: UniEncoderTokenProcessor returns 'entities' not 'entities_id', create_labels takes batch dict not individual args, and RelationExtractionSpanProcessor requires span_mask in batch. Also fixed processor.py line 1723 by removing .squeeze(-1) which caused IndexError on 2D span_mask tensors.
+<!-- tags: testing, processor, data_processing | created: 2026-02-18 -->
+
 ### mem-1771386158-6229
 > ptbr/tests/test_main_cli.py sys.modules manipulation causes subsequent mock.patch('ptbr.training_cli._launch_training') to fail; training CLI tests pass in isolation but fail after main_cli tests due to module caching issues
 <!-- tags: testing, ptbr, mocking | created: 2026-02-18 -->
