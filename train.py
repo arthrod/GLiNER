@@ -49,7 +49,7 @@ def main(cfg_path: str):
     # Build model
     model = build_model(model_cfg, train_cfg).to(dtype=torch.float32)
     print(f"Model type: {model.__class__.__name__}")
-    
+
     # Get freeze components
     freeze_components = train_cfg.get("freeze_components", None)
     if freeze_components:
@@ -57,6 +57,7 @@ def main(cfg_path: str):
 
     eval_batch_size = train_cfg.get("eval_batch_size") or cfg.training.train_batch_size
     logging_steps = train_cfg.get("logging_steps") or cfg.training.eval_every
+    label_smoothing = float(getattr(cfg.training, "label_smoothing", 0))
 
     # Train
     print("\nStarting training...")
@@ -83,17 +84,16 @@ def main(cfg_path: str):
         loss_reduction=cfg.training.loss_reduction,
         negatives=float(cfg.training.negatives),
         masking=cfg.training.masking,
+        label_smoothing=label_smoothing,
         # Logging & saving
         save_steps=cfg.training.eval_every,
         logging_steps=logging_steps,
         save_total_limit=cfg.training.save_total_limit,
         # Evaluation — run eval at the same cadence as checkpointing when
         # an eval dataset is available.
-        **({"eval_strategy": "steps", "eval_steps": cfg.training.eval_every}
-           if eval_dataset is not None else {}),
+        **({"eval_strategy": "steps", "eval_steps": cfg.training.eval_every} if eval_dataset is not None else {}),
         # Freezing
         freeze_components=freeze_components,
-
         # Dtype
         bf16=train_cfg.get("bf16", False),
     )
