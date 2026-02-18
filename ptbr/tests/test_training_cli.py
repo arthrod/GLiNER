@@ -521,33 +521,6 @@ class TestCLI:
         (out / "summary_20260101T000000Z.txt").write_text("ok")
         result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
         assert result.exit_code == 0
-    @mock.patch("ptbr.training_cli._launch_training")
-    def test_output_folder_empty_ok(
-        self,
-        mock_launch: mock.MagicMock,
-        cfg_file: Path,
-        tmp_path: Path,
-    ) -> None:
-        """An empty output folder should be accepted for a new training run."""
-        out = tmp_path / "output"
-        out.mkdir()
-        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
-        assert result.exit_code == 0
-        mock_launch.assert_called_once()
-
-    @mock.patch("ptbr.training_cli._launch_training")
-    def test_output_folder_allows_validation_artifacts(
-        self,
-        mock_launch: mock.MagicMock,
-        cfg_file: Path,
-        tmp_path: Path,
-    ) -> None:
-        out = tmp_path / "output"
-        out.mkdir()
-        (out / "validation_20260101T000000Z.log").write_text("ok")
-        (out / "summary_20260101T000000Z.txt").write_text("ok")
-        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
-        assert result.exit_code == 0
         mock_launch.assert_called_once()
 
     def test_validate_writes_summary(self, cfg_file: Path, tmp_path: Path) -> None:
