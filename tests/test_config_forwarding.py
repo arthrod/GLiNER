@@ -115,7 +115,18 @@ def _write_config(tmp_path, training_overrides=None):
 
 
 def _run_train_main(tmp_path, training_overrides=None):
-    """Patch GLiNER and run train.main(); return the train_model call_args."""
+    """
+    Run train.main with GLiNER patched and return the captured train_model call arguments.
+    
+    Creates a temporary config (optionally applying training_overrides), ensures a GLiNER class is available to the train module, patches GLiNER and load_json_data, invokes train.main with the generated config, and returns the arguments with which the model's train_model was called.
+    
+    Parameters:
+        tmp_path (pathlike): Path to a temporary directory where the config and training data are written.
+        training_overrides (dict, optional): Mapping of training configuration fields to override in the generated config.
+    
+    Returns:
+        call_args: The unittest.mock call arguments (args, kwargs) passed to the mocked model.train_model.
+    """
     config_path = _write_config(tmp_path, training_overrides)
 
     mock_model = MagicMock()
@@ -290,6 +301,12 @@ class TestTrainScriptForwardingValidation:
 
     def test_output_dir_forwarded(self, kwargs):
         # train.py uses cfg.data.root_dir (relative to tmp_path)
+        """
+        Asserts that the training output directory is forwarded to the model and ends with "/logs".
+        
+        Parameters:
+            kwargs (dict): Keyword arguments captured from train_model call; expected to contain forwarded TrainingArguments fields.
+        """
         assert "output_dir" in kwargs
         assert kwargs["output_dir"].endswith("/logs")
 
@@ -393,8 +410,12 @@ class TestCreateTrainingArgsSignatureGaps:
         reason="save_safetensors was removed from HF TrainingArguments in transformers v5",
     )
     def test_save_safetensors_is_named_parameter(self):
-        """save_safetensors was removed from HF TrainingArguments in transformers v5.
-        This parameter is no longer relevant."""
+        """
+        Check that `create_training_args` exposes `save_safetensors` as a named parameter.
+        
+        This test asserts that "save_safetensors" appears in the function signature's parameters.
+        Marked xfail for environments using Transformers v5 or later where `save_safetensors` was removed.
+        """
         assert "save_safetensors" in self.sig.parameters, (
             "save_safetensors is not a named parameter in create_training_args; "
             "removed in transformers v5"

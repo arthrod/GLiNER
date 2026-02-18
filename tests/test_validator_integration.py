@@ -264,11 +264,19 @@ class TestParameterForwardingFixed:
 
     @staticmethod
     def _get_launch_training_source() -> str:
+        """
+        Read and return the source text of the project's training CLI module.
+        
+        Returns:
+            str: The contents of the file at <ROOT>/ptbr/training_cli.py.
+        """
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         return source
 
     def test_dataloader_pin_memory_forwarded(self):
-        """training.dataloader_pin_memory is now forwarded to train_model."""
+        """
+        Verify that the `training.dataloader_pin_memory` config field is forwarded to `train_model`.
+        """
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
@@ -282,14 +290,18 @@ class TestParameterForwardingFixed:
         assert "dataloader_persistent_workers" in forwarded
 
     def test_dataloader_prefetch_factor_forwarded(self):
-        """training.dataloader_prefetch_factor is now forwarded."""
+        """
+        Assert that the training.dataloader_prefetch_factor configuration is forwarded to train_model.
+        """
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "dataloader_prefetch_factor" in forwarded
 
     def test_size_sup_removed_from_schema(self):
-        """training.size_sup is no longer in schema (dead config removed)."""
+        """
+        Verify that the dead `training.size_sup` field is not forwarded to `train_model`.
+        """
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
@@ -359,7 +371,11 @@ class TestParameterForwardingFixed:
         assert "run_tags" not in forwarded
 
     def test_run_description_not_forwarded(self):
-        """run.description validated but unused beyond logging."""
+        """
+        Asserts that the config's run.description is validated but not forwarded to train_model.
+        
+        Checks that neither `run_description` nor `description` appear among the keyword arguments passed to `train_model`.
+        """
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
@@ -395,12 +411,24 @@ class TestTrainPyValues:
 
     @staticmethod
     def _parse_train_py() -> ast.AST:
+        """
+        Parse the project's train.py source into an abstract syntax tree (AST).
+        
+        Returns:
+            tree (ast.AST): The parsed AST for the contents of TRAIN_PY.
+        """
         return ast.parse(TRAIN_PY.read_text())
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> dict[str, Any]:
-        """Extract keyword arguments from the model.train_model() call as
-        {name: ast_node} pairs."""
+        """
+        Extract the keyword arguments passed to any `*.train_model(...)` call in the given AST.
+        
+        Searches the AST for a call whose attribute name is `train_model` and returns a mapping from each keyword name to its corresponding AST node.
+        
+        Returns:
+            dict[str, ast.AST]: A dictionary mapping keyword argument names to their AST value nodes. Returns an empty dict if no `train_model` call is found.
+        """
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
@@ -409,13 +437,21 @@ class TestTrainPyValues:
         return {}
 
     def test_output_dir_uses_config(self):
-        """train.py now uses cfg.data.root_dir for output_dir."""
+        """
+        Verify that train.py supplies the configured data root directory as the training output directory.
+        
+        Asserts that the call to train_model includes an `output_dir` keyword, indicating the training output path is taken from the configuration's data root.
+        """
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "output_dir" in kwargs, "train.py should pass output_dir"
 
     def test_bf16_reads_from_config(self):
-        """train.py now reads bf16 from config."""
+        """
+        Verify that train.py forwards the `bf16` option from the configuration to the train_model call.
+        
+        Asserts that the AST of train.py includes a `bf16` keyword argument when invoking `train_model`.
+        """
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "bf16" in kwargs, "train.py should pass bf16"
@@ -441,7 +477,9 @@ class TestTrainPyValues:
         assert "size_sup" not in kwargs
 
     def test_shuffle_types_not_forwarded_by_train_py(self):
-        """train.py does not forward shuffle_types (dead config field)."""
+        """
+        Verify that train.py does not forward the deprecated `training.shuffle_types` configuration field to `train_model`.
+        """
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "shuffle_types" not in kwargs
@@ -470,9 +508,11 @@ class TestConfigFieldsReachTraining:
     }
 
     def test_all_training_fields_in_config_yaml_are_forwarded(self):
-        """Every field under ``training:`` in config.yaml should be forwarded
-        to model.train_model() by train.py.  Catch fields that are silently
-        ignored."""
+        """
+        Ensure every field under `training:` in config.yaml is forwarded to train_model() by train.py.
+        
+        Parses the project's `config.yaml` and `train.py` to compare `training.*` keys against the keyword arguments passed to `train_model()`, and fails the test if any configuration field (other than known, intentionally non-forwarded fields) is not forwarded. Confirms that the legacy dead fields `size_sup`, `shuffle_types`, and `random_drop` remain absent from forwarding.
+        """
         cfg = _load_config("config.yaml")
         training_fields = set(cfg.get("training", {}).keys())
 
@@ -593,7 +633,13 @@ class TestCreateTrainingArgsFixed:
     Previously these relied on **kwargs pass-through."""
 
     def test_label_smoothing_is_named_parameter(self):
-        """label_smoothing is now a named parameter of create_training_args."""
+        """
+        Verify that `create_training_args` declares `label_smoothing` as a named parameter and that `TrainingArguments` exposes a `label_smoothing` attribute.
+        
+        This test asserts two things:
+        - The `TrainingArguments` class defines a `label_smoothing` attribute.
+        - `BaseGLiNER.create_training_args` includes `label_smoothing` in its signature parameters.
+        """
         from gliner.model import BaseGLiNER
 
         sig = inspect.signature(BaseGLiNER.create_training_args)

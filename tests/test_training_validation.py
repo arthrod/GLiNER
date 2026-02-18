@@ -305,6 +305,12 @@ class TestCreateTrainingArgsSignature:
 
     @pytest.fixture(scope="class")
     def explicit_params(self):
+        """
+        Return the set of parameter names explicitly declared by BaseGLiNER.create_training_args.
+        
+        Returns:
+            set[str]: Parameter names that are explicitly declared on the classmethod, excluding `self`, `cls`, `*args`, and `**kwargs`.
+        """
         return _get_create_training_args_explicit_params()
 
     def test_label_smoothing_is_explicit(self, explicit_params):
@@ -328,9 +334,21 @@ class TestCreateTrainingArgsSignature:
         assert "run_name" in explicit_params
 
     def test_push_to_hub_is_explicit(self, explicit_params):
+        """
+        Asserts that BaseGLiNER.create_training_args exposes `push_to_hub` as an explicit parameter.
+        
+        Parameters:
+            explicit_params (set[str]): Names of parameters explicitly declared on `create_training_args` (excluding `cls`, `self`, `*args`, and `**kwargs`).
+        """
         assert "push_to_hub" in explicit_params
 
     def test_hub_model_id_is_explicit(self, explicit_params):
+        """
+        Asserts that "hub_model_id" is declared as an explicit parameter of BaseGLiNER.create_training_args.
+        
+        Parameters:
+            explicit_params (set[str]): Set of parameter names explicitly declared on the classmethod signature (excluding `self`, `cls`, `*args`, and `**kwargs`).
+        """
         assert "hub_model_id" in explicit_params
 
     @pytest.mark.xfail(
@@ -348,6 +366,12 @@ class TestCreateTrainingArgsSignature:
         )
 
     def test_eval_steps_is_explicit(self, explicit_params):
+        """
+        Asserts that "eval_steps" is listed among the explicit parameters returned by create_training_args.
+        
+        Parameters:
+            explicit_params (set[str]): Set of explicit parameter names extracted from BaseGLiNER.create_training_args.
+        """
         assert "eval_steps" in explicit_params
 
 
@@ -360,8 +384,10 @@ class TestMaskingDefaultMismatch:
     """Detect default mismatch between create_training_args and TrainingArguments."""
 
     def test_create_training_args_masking_matches_training_args_default(self):
-        """The two defaults should agree so create_training_args doesn't
-        silently override the GLiNER default.
+        """
+        Ensure the default 'masking' value in BaseGLiNER.create_training_args matches the default on TrainingArguments.
+        
+        Compares the 'masking' parameter default from BaseGLiNER.create_training_args's signature with the TrainingArguments dataclass field default and fails the test if they differ.
         """
         # Actually inspect the real method
         from gliner.model import BaseGLiNER
@@ -387,6 +413,12 @@ class TestRemoveUnusedColumns:
     """GLiNER uses custom batch dicts that require remove_unused_columns=False."""
 
     def test_create_training_args_sets_remove_unused_columns_false(self, tmp_path):
+        """
+        Verify that create_training_args sets remove_unused_columns to False.
+        
+        Asserts that a TrainingArguments instance produced via BaseGLiNER.create_training_args has
+        remove_unused_columns == False so GLiNER's custom batch dictionary keys are preserved.
+        """
         args = _create_training_args_via_classmethod(output_dir=tmp_path)
         assert args.remove_unused_columns is False, (
             f"remove_unused_columns is {args.remove_unused_columns}. "
@@ -394,8 +426,11 @@ class TestRemoveUnusedColumns:
         )
 
     def test_create_training_args_defaults_remove_unused_columns_false(self, tmp_path):
-        """create_training_args defaults remove_unused_columns to False
-        so that GLiNER's custom batch dictionaries are preserved."""
+        """
+        Verify create_training_args preserves GLiNER batch keys by defaulting remove_unused_columns to False.
+        
+        Checks that the classmethod-produced TrainingArguments sets remove_unused_columns to False (HF's default is True, which can cause GLiNER's custom batch dictionary keys to be dropped).
+        """
         args = _create_training_args_via_classmethod(output_dir=tmp_path)
         assert args.remove_unused_columns is False, (
             "create_training_args should default remove_unused_columns to False. "
