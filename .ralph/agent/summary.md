@@ -2,7 +2,7 @@
 
 **Status:** Completed successfully
 **Iterations:** 1
-**Duration:** 5m 21s
+**Duration:** 2m 39s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-6972469: Fix GLiNERConfig token_level model_type routing
+a4c3f5a: Clarify span_mode docstring uses token_level

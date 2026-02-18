@@ -1,20 +1,3 @@
 {
-  "loops": [
-    {
-      "id": "savvy-owl",
-      "pid": 287711,
-      "started": "2026-02-17T23:49:52.978600499Z",
-      "prompt": "CRead the code comment referenced below and evaluate it carefully: (1) verify whether the comment’...",
-      "worktree_path": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/savvy-owl",
-      "workspace": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/savvy-owl"
-    },
-    {
-      "id": "sunny-heron",
-      "pid": 301912,
-      "started": "2026-02-17T23:53:49.728832570Z",
-      "prompt": "```Read the code comment referenced below and evaluate it carefully: (1) verify whether the comment...",
-      "worktree_path": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/sunny-heron",
-      "workspace": "/home/arthrod/workspace/gliner_review/GliNER/.worktrees/sunny-heron"
-    }
-  ]
+  "loops": []
 }
