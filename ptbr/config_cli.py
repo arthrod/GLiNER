@@ -413,21 +413,43 @@ def load_and_validate_config(
 
     report = ValidationReport()
 
-    # --- Validate gliner_config section ---
-    if "gliner_config" not in raw:
-        report.add_error("gliner_config", "Missing 'gliner_config' section in YAML file.")
-        gliner_section = {}
+    # --- Resolve + validate gliner_config section ---
+    gliner_key = "gliner_config"
+    if gliner_key in raw and "model" in raw:
+        report.add_warning(
+            "gliner_config",
+            "Both 'gliner_config' and 'model' sections found; using 'gliner_config'.",
+        )
+    if gliner_key in raw:
+        gliner_section = raw.get(gliner_key)
+        selected_gliner_key = gliner_key
+    elif "model" in raw:
+        gliner_section = raw.get("model")
+        selected_gliner_key = "model"
+        report.add_warning(
+            "gliner_config",
+            "Using 'model' section as an alias for 'gliner_config'.",
+        )
     else:
-        gliner_section = raw.get("gliner_config")
-        if gliner_section is None:
-            report.add_error("gliner_config", "'gliner_config' must be a YAML mapping, got null.")
-            gliner_section = {}
-        elif not isinstance(gliner_section, dict):
-            report.add_error(
-                "gliner_config",
-                f"'gliner_config' must be a YAML mapping, got {type(gliner_section).__name__}.",
-            )
-            gliner_section = {}
+        report.add_error(
+            "gliner_config",
+            "Missing 'gliner_config' section in YAML file (or 'model' alias).",
+        )
+        gliner_section = {}
+        selected_gliner_key = gliner_key
+
+    if gliner_section is None:
+        report.add_error(
+            "gliner_config",
+            f"'{selected_gliner_key}' must be a YAML mapping, got null.",
+        )
+        gliner_section = {}
+    elif not isinstance(gliner_section, dict):
+        report.add_error(
+            "gliner_config",
+            f"'{selected_gliner_key}' must be a YAML mapping, got {type(gliner_section).__name__}.",
+        )
+        gliner_section = {}
 
     validated_gliner = _validate_section(
         gliner_section, _GLINER_RULES, "gliner_config", report,
@@ -442,23 +464,45 @@ def load_and_validate_config(
         raw_gliner_section=gliner_section,
     )
 
-    # --- Validate lora_config section (only for lora mode) ---
+    # --- Resolve + validate lora_config section (only for lora mode) ---
     validated_lora: Optional[Dict[str, Any]] = None
     if full_or_lora == "lora":
-        if "lora_config" not in raw:
-            report.add_warning("lora_config", "LoRA mode selected but 'lora_config' section is missing; using all defaults.")
-            lora_section = {}
+        lora_key = "lora_config"
+        if lora_key in raw and "lora" in raw:
+            report.add_warning(
+                "lora_config",
+                "Both 'lora_config' and 'lora' sections found; using 'lora_config'.",
+            )
+        if lora_key in raw:
+            lora_section = raw.get(lora_key)
+            selected_lora_key = lora_key
+        elif "lora" in raw:
+            lora_section = raw.get("lora")
+            selected_lora_key = "lora"
+            report.add_warning(
+                "lora_config",
+                "Using 'lora' section as an alias for 'lora_config'.",
+            )
         else:
-            lora_section = raw.get("lora_config")
-            if lora_section is None:
-                report.add_error("lora_config", "'lora_config' must be a YAML mapping, got null.")
-                lora_section = {}
-            elif not isinstance(lora_section, dict):
-                report.add_error(
-                    "lora_config",
-                    f"'lora_config' must be a YAML mapping, got {type(lora_section).__name__}.",
-                )
-                lora_section = {}
+            report.add_warning(
+                "lora_config",
+                "LoRA mode selected but neither 'lora_config' nor 'lora' section is present; using all defaults.",
+            )
+            lora_section = {}
+            selected_lora_key = lora_key
+
+        if lora_section is None:
+            report.add_error(
+                "lora_config",
+                f"'{selected_lora_key}' must be a YAML mapping, got null.",
+            )
+            lora_section = {}
+        elif not isinstance(lora_section, dict):
+            report.add_error(
+                "lora_config",
+                f"'{selected_lora_key}' must be a YAML mapping, got {type(lora_section).__name__}.",
+            )
+            lora_section = {}
         validated_lora = _validate_section(
             lora_section, _LORA_RULES, "lora_config", report,
         )
