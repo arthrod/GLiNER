@@ -2,7 +2,7 @@
 
 **Status:** Completed successfully
 **Iterations:** 1
-**Duration:** 12m 36s
+**Duration:** 16m 36s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-caeb71e: fix(test): accept model/lora aliases in template validation tests
+74f3b9a: test: add regression tests for custom trainer column handling
