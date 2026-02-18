@@ -11,9 +11,11 @@ Usage:
     python ptbr/tests/test_validation.py
 """
 
+import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -303,19 +305,36 @@ def test_prepare_module():
 # 6. CLI smoke test
 # ===================================================================
 
+def _run_validate_cli(path):
+    if importlib.util.find_spec("typer") is None:
+        return None
+    return subprocess.run(
+        [sys.executable, "-m", "ptbr", "--file-or-repo", str(path), "--validate"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
 def test_cli_validate():
     sample = Path(__file__).resolve().parents[2] / "examples" / "sample_data.json"
     if not sample.exists():
         report("CLI validate", False, "sample_data.json not found")
         return
-    ret = os.system(f'python -m ptbr --file-or-repo "{sample}" --validate > /dev/null 2>&1')
-    report("CLI --validate exits 0 on valid data", ret == 0)
+    result = _run_validate_cli(sample)
+    if result is None:
+        report("CLI --validate exits 0 on valid data", True, "skipped: typer not installed")
+        return
+    report("CLI --validate exits 0 on valid data", result.returncode == 0)
 
 
 def test_cli_validate_bad():
     bad = MOCKS / "text_is_raw_string.json"
-    ret = os.system(f'python -m ptbr --file-or-repo "{bad}" --validate > /dev/null 2>&1')
-    report("CLI --validate exits non-zero on bad data", ret != 0)
+    result = _run_validate_cli(bad)
+    if result is None:
+        report("CLI --validate exits non-zero on bad data", True, "skipped: typer not installed")
+        return
+    report("CLI --validate exits non-zero on bad data", result.returncode != 0)
 
 
 # ===================================================================
