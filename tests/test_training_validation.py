@@ -402,8 +402,6 @@ class TestMaskingDefaultMismatch:
         """The two defaults should agree so create_training_args doesn't
         silently override the GLiNER default.
         """
-        sig = inspect.signature(_create_training_args_via_classmethod)
-        # Actually inspect the real method
         from gliner.model import BaseGLiNER
 
         real_sig = inspect.signature(BaseGLiNER.create_training_args)
@@ -416,7 +414,6 @@ class TestMaskingDefaultMismatch:
             f"Masking default mismatch: create_training_args='{cta_default}' "
             f"vs TrainingArguments='{ta_default}'"
         )
-
 
 # ---------------------------------------------------------------------------
 # 10. remove_unused_columns not set to False
