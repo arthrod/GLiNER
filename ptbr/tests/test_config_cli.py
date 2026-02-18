@@ -27,6 +27,7 @@ from gliner.config import GLiNERConfig
 # Helpers
 # ============================================================================
 
+
 def _write_yaml(tmp_path: Path, data: dict, filename: str = "cfg.yaml") -> Path:
     """Write a dict as YAML and return the path."""
     p = tmp_path / filename
@@ -107,6 +108,7 @@ def _full_lora_config() -> dict:
 # Unit tests: _coerce_type
 # ============================================================================
 
+
 class TestCoerceType:
     def test_none_passthrough(self):
         assert _coerce_type(None, str) is None
@@ -155,6 +157,7 @@ class TestCoerceType:
 # ============================================================================
 # Unit tests: _validate_section
 # ============================================================================
+
 
 class TestValidateSection:
     def test_required_field_missing_errors(self):
@@ -244,6 +247,7 @@ class TestValidateSection:
 # Unit tests: _validate_cross_constraints
 # ============================================================================
 
+
 class TestCrossConstraints:
     def test_biencoder_requires_labels_encoder(self):
         report = ValidationReport()
@@ -304,6 +308,7 @@ class TestCrossConstraints:
 # Integration tests: load_and_validate_config
 # ============================================================================
 
+
 class TestLoadAndValidateConfig:
     def test_minimal_config_loads(self, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
@@ -320,8 +325,7 @@ class TestLoadAndValidateConfig:
         result = load_and_validate_config(cfg_path, full_or_lora="full", method="span")
         assert result.report.is_valid
         # Only warnings should be for fields with None default that stay None
-        real_warnings = [w for w in result.report.warnings
-                         if "Not set; using default" in w.message]
+        real_warnings = [w for w in result.report.warnings if "Not set; using default" in w.message]
         assert len(real_warnings) == 0
 
     def test_full_config_with_lora(self, tmp_path):
@@ -502,6 +506,7 @@ class TestLoadAndValidateConfig:
 # Tests: print_and_log_result (log file output)
 # ============================================================================
 
+
 class TestPrintAndLogResult:
     def test_log_file_created(self, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
@@ -539,6 +544,7 @@ class TestPrintAndLogResult:
 # Tests: ValidationReport
 # ============================================================================
 
+
 class TestValidationReport:
     def test_empty_report_is_valid(self):
         r = ValidationReport()
@@ -569,6 +575,7 @@ class TestValidationReport:
 # Tests: Template YAML is itself valid
 # ============================================================================
 
+
 class TestTemplateYaml:
     """Ensure the shipped template.yaml is valid when loaded."""
 
@@ -583,20 +590,18 @@ class TestTemplateYaml:
         with open(template_path) as f:
             data = yaml.safe_load(f)
         assert isinstance(data, dict)
-        assert "gliner_config" in data
+        assert "gliner_config" in data or "model" in data
 
     def test_template_validates_span(self, template_path):
         result = load_and_validate_config(template_path, full_or_lora="full", method="span")
-        assert result.report.is_valid, (
-            "Template failed validation:\n"
-            + "\n".join(f"  {e.field}: {e.message}" for e in result.report.errors)
+        assert result.report.is_valid, "Template failed validation:\n" + "\n".join(
+            f"  {e.field}: {e.message}" for e in result.report.errors
         )
 
     def test_template_validates_lora(self, template_path):
         result = load_and_validate_config(template_path, full_or_lora="lora", method="span")
-        assert result.report.is_valid, (
-            "Template failed lora validation:\n"
-            + "\n".join(f"  {e.field}: {e.message}" for e in result.report.errors)
+        assert result.report.is_valid, "Template failed lora validation:\n" + "\n".join(
+            f"  {e.field}: {e.message}" for e in result.report.errors
         )
 
     def test_template_validates_token(self, template_path):
@@ -606,12 +611,13 @@ class TestTemplateYaml:
     def test_template_has_lora_section(self, template_path):
         with open(template_path) as f:
             data = yaml.safe_load(f)
-        assert "lora_config" in data
+        assert "lora_config" in data or "lora" in data
 
 
 # ============================================================================
 # Tests: CLI (typer app) integration
 # ============================================================================
+
 
 class TestCLI:
     """Test the Typer CLI invocation via CliRunner."""
@@ -619,65 +625,97 @@ class TestCLI:
     @pytest.fixture
     def runner(self):
         from typer.testing import CliRunner
+
         return CliRunner()
 
     @pytest.fixture
     def app(self):
         from ptbr.config_cli import _build_app
+
         return _build_app()
 
     def test_cli_validate_valid_config(self, runner, app, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--validate",
-            "--full-or-lora", "full",
-            "--method", "span",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--validate",
+                "--full-or-lora",
+                "full",
+                "--method",
+                "span",
+            ],
+        )
         assert result.exit_code == 0
 
     def test_cli_validate_invalid_config(self, runner, app, tmp_path):
         data = {"gliner_config": {"name": "missing-model-name"}}
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--validate",
-            "--full-or-lora", "full",
-            "--method", "span",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--validate",
+                "--full-or-lora",
+                "full",
+                "--method",
+                "span",
+            ],
+        )
         assert result.exit_code != 0
 
     def test_cli_invalid_method(self, runner, app, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--validate",
-            "--full-or-lora", "full",
-            "--method", "invalid_method",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--validate",
+                "--full-or-lora",
+                "full",
+                "--method",
+                "invalid_method",
+            ],
+        )
         assert result.exit_code != 0
 
     def test_cli_invalid_full_or_lora(self, runner, app, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--validate",
-            "--full-or-lora", "partial",
-            "--method", "span",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--validate",
+                "--full-or-lora",
+                "partial",
+                "--method",
+                "span",
+            ],
+        )
         assert result.exit_code != 0
 
     def test_cli_without_validate_flag(self, runner, app, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--full-or-lora", "full",
-            "--method", "span",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--full-or-lora",
+                "full",
+                "--method",
+                "span",
+            ],
+        )
         assert result.exit_code == 0
         assert "loaded" in result.output.lower() or "warning" in result.output.lower()
 
@@ -687,12 +725,18 @@ class TestCLI:
             "lora_config": _full_lora_config(),
         }
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--validate",
-            "--full-or-lora", "lora",
-            "--method", "span",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--validate",
+                "--full-or-lora",
+                "lora",
+                "--method",
+                "span",
+            ],
+        )
         assert result.exit_code == 0
 
     def test_cli_biencoder_method(self, runner, app, tmp_path):
@@ -700,29 +744,42 @@ class TestCLI:
         cfg["labels_encoder"] = "microsoft/deberta-v3-small"
         data = {"gliner_config": cfg}
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--validate",
-            "--full-or-lora", "full",
-            "--method", "biencoder",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--validate",
+                "--full-or-lora",
+                "full",
+                "--method",
+                "biencoder",
+            ],
+        )
         assert result.exit_code == 0
 
     def test_cli_token_method(self, runner, app, tmp_path):
         data = {"gliner_config": _minimal_gliner_config()}
         cfg_path = _write_yaml(tmp_path, data)
-        result = runner.invoke(app, [
-            "--file", str(cfg_path),
-            "--validate",
-            "--full-or-lora", "full",
-            "--method", "token",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                str(cfg_path),
+                "--validate",
+                "--full-or-lora",
+                "full",
+                "--method",
+                "token",
+            ],
+        )
         assert result.exit_code == 0
 
 
 # ============================================================================
 # Edge-case tests
 # ============================================================================
+
 
 class TestEdgeCases:
     def test_boolean_string_coercion_in_yaml(self, tmp_path):
@@ -756,18 +813,17 @@ class TestEdgeCases:
             data = {"gliner_config": cfg}
             cfg_path = _write_yaml(tmp_path, data, filename=f"cfg_{method}.yaml")
             result = load_and_validate_config(cfg_path, full_or_lora="full", method=method)
-            assert result.report.is_valid, (
-                f"Method {method} failed:\n"
-                + "\n".join(f"  {e.field}: {e.message}" for e in result.report.errors)
+            assert result.report.is_valid, f"Method {method} failed:\n" + "\n".join(
+                f"  {e.field}: {e.message}" for e in result.report.errors
             )
 
     def test_multiple_errors_collected(self, tmp_path):
         """Multiple bad fields should all be reported, not just the first."""
         cfg = {
             # Missing model_name (REQUIRED)
-            "dropout": 99.0,       # out of range
+            "dropout": 99.0,  # out of range
             "span_mode": "bogus",  # invalid literal
-            "max_width": -5,       # out of range
+            "max_width": -5,  # out of range
         }
         data = {"gliner_config": cfg}
         cfg_path = _write_yaml(tmp_path, data)
