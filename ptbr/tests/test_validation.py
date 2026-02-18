@@ -283,6 +283,29 @@ def test_column_remapping():
         os.unlink(tmp)
 
 
+def test_column_remapping_missing_custom_columns():
+    entries = [
+        {"text": ["Hello", "world"], "entities": [[0, 1, "Greeting"]], "id": 1},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(entries, f)
+        tmp = f.name
+    try:
+        try:
+            load_data(tmp, text_column="tokens", ner_column="spans")
+            report("missing custom columns raises", False, "expected ValueError")
+        except ValueError as exc:
+            msg = str(exc)
+            report(
+                "missing custom columns raises",
+                "Missing required column(s): 'tokens', 'spans'" in msg
+                and "Available columns in local file: 'entities', 'id', 'text'" in msg,
+                msg,
+            )
+    finally:
+        os.unlink(tmp)
+
+
 # ===================================================================
 # 5. prepare() returns GLiNERData
 # ===================================================================
@@ -367,6 +390,7 @@ def main():
 
     print("\n--- Column remapping ---")
     test_column_remapping()
+    test_column_remapping_missing_custom_columns()
 
     print("\n--- Module API ---")
     test_prepare_module()
