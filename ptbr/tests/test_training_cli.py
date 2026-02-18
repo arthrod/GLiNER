@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+import types
 from types import ModuleType
 from unittest import mock
 
@@ -13,6 +14,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ptbr.training_cli import (
+    _apply_lora,
     _check_type,
     _deep_get,
     _deep_set,
@@ -58,11 +60,12 @@ MINIMAL_VALID_CONFIG = {
 def valid_cfg() -> dict:
     """
     Return a deep copy of the module's minimal valid configuration.
-    
+
     Returns:
         dict: A deep-copied dictionary of MINIMAL_VALID_CONFIG suitable for use in tests.
     """
     import copy
+
     return copy.deepcopy(MINIMAL_VALID_CONFIG)
 
 
@@ -70,11 +73,11 @@ def valid_cfg() -> dict:
 def cfg_file(tmp_path: Path, valid_cfg: dict) -> Path:
     """
     Write a configuration dictionary to a temporary YAML file and return its path.
-    
+
     Parameters:
         tmp_path (Path): Directory in which to create the temporary config file (typically pytest's tmp_path).
         valid_cfg (dict): Configuration dictionary to serialize to YAML.
-    
+
     Returns:
         Path: Path to the created YAML file named "config.yaml".
     """
@@ -89,6 +92,7 @@ def cfg_file(tmp_path: Path, valid_cfg: dict) -> Path:
 # ------------------------------------------------------------------ #
 # _deep_get / _deep_set                                               #
 # ------------------------------------------------------------------ #
+
 
 class TestDeepGetSet:
     def test_deep_get_found(self) -> None:
@@ -118,6 +122,7 @@ class TestDeepGetSet:
 # _check_type                                                         #
 # ------------------------------------------------------------------ #
 
+
 class TestCheckType:
     def test_int_as_float(self) -> None:
         assert _check_type(3, float) is True
@@ -146,11 +151,12 @@ class TestCheckType:
 # validate_config                                                      #
 # ------------------------------------------------------------------ #
 
+
 class TestValidateConfig:
     def test_minimal_valid(self, valid_cfg: dict) -> None:
         """
         Verifies that a minimal valid configuration passes validation.
-        
+
         Parameters:
             valid_cfg (dict): A minimal configuration dictionary expected to conform to the validator's schema.
         """
@@ -189,10 +195,17 @@ class TestValidateConfig:
         result = validate_config({})
         assert not result.ok
         required_keys = [
-            "run.name", "model.model_name", "model.span_mode", "model.max_len",
-            "data.root_dir", "data.train_data",
-            "training.num_steps", "training.train_batch_size",
-            "training.eval_every", "training.lr_encoder", "training.lr_others",
+            "run.name",
+            "model.model_name",
+            "model.span_mode",
+            "model.max_len",
+            "data.root_dir",
+            "data.train_data",
+            "training.num_steps",
+            "training.train_batch_size",
+            "training.eval_every",
+            "training.lr_encoder",
+            "training.lr_others",
         ]
         for key in required_keys:
             assert any(key in e for e in result.errors), f"Expected error for {key}"
@@ -226,6 +239,7 @@ class TestValidateConfig:
 # ------------------------------------------------------------------ #
 # semantic_checks                                                      #
 # ------------------------------------------------------------------ #
+
 
 class TestSemanticChecks:
     def test_invalid_span_mode(self, valid_cfg: dict) -> None:
@@ -268,9 +282,9 @@ class TestSemanticChecks:
     def test_positive_num_steps(self, valid_cfg: dict) -> None:
         """
         Checks that semantic validation reports an error when training.num_steps is not positive.
-        
+
         Sets training.num_steps to 0 on the provided configuration, runs semantic_checks, and asserts that an error referencing "num_steps" is present in the ValidationResult.
-        
+
         Parameters:
             valid_cfg (dict): A baseline valid configuration dictionary used for the test.
         """
@@ -306,6 +320,7 @@ class TestSemanticChecks:
 # ------------------------------------------------------------------ #
 # check_huggingface                                                    #
 # ------------------------------------------------------------------ #
+
 
 class TestCheckHuggingFace:
     def test_skip_when_push_disabled(self, valid_cfg: dict) -> None:
@@ -362,6 +377,7 @@ class TestCheckHuggingFace:
 # check_wandb                                                         #
 # ------------------------------------------------------------------ #
 
+
 class TestCheckWandB:
     def test_skip_when_disabled(self, valid_cfg: dict) -> None:
         valid_cfg.setdefault("environment", {})["report_to"] = "none"
@@ -384,9 +400,7 @@ class TestCheckWandB:
 
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "data": {"viewer": {"username": "testuser"}}
-        }
+        mock_resp.json.return_value = {"data": {"viewer": {"username": "testuser"}}}
 
         with mock.patch("requests.post", return_value=mock_resp):
             check_wandb(valid_cfg, result)
@@ -410,10 +424,9 @@ class TestCheckWandB:
 # check_resume                                                         #
 # ------------------------------------------------------------------ #
 
+
 class TestCheckResume:
-    def test_missing_run_name_in_current_config(
-        self, valid_cfg: dict, tmp_path: Path
-    ) -> None:
+    def test_missing_run_name_in_current_config(self, valid_cfg: dict, tmp_path: Path) -> None:
         valid_cfg["run"].pop("name", None)
         (tmp_path / "checkpoint-100").mkdir()
         result = ValidationResult()
@@ -457,6 +470,7 @@ class TestCheckResume:
 # CLI integration (typer runner)                                       #
 # ------------------------------------------------------------------ #
 
+
 class TestCLI:
     def test_validate_valid_config(self, cfg_file: Path) -> None:
         result = runner.invoke(app, [str(cfg_file), "--validate"])
@@ -486,15 +500,11 @@ class TestCLI:
         result = runner.invoke(app, ["/nonexistent/path.yaml", "--validate"])
         assert result.exit_code != 0
 
-    def test_output_folder_must_be_empty(
-        self, cfg_file: Path, tmp_path: Path
-    ) -> None:
+    def test_output_folder_must_be_empty(self, cfg_file: Path, tmp_path: Path) -> None:
         out = tmp_path / "output"
         out.mkdir()
         (out / "some_file.txt").write_text("blocker")
-        result = runner.invoke(
-            app, [str(cfg_file), "--output-folder", str(out)]
-        )
+        result = runner.invoke(app, [str(cfg_file), "--output-folder", str(out)])
         assert result.exit_code == 1
 
     @mock.patch("ptbr.training_cli._launch_training")
@@ -541,12 +551,10 @@ class TestCLI:
     def test_resume_without_output_folder(self, cfg_file: Path) -> None:
         """
         Allow validation to run when `--resume` is supplied without `--output-folder`.
-        
+
         Invokes the CLI with `--validate` and `--resume` for the provided config file and asserts the command exits with code 0.
         """
-        result = runner.invoke(
-            app, [str(cfg_file), "--validate", "--resume"]
-        )
+        result = runner.invoke(app, [str(cfg_file), "--validate", "--resume"])
         # validate-only doesn't check resume (no output folder)
         assert result.exit_code == 0
 
@@ -554,6 +562,7 @@ class TestCLI:
 # ------------------------------------------------------------------ #
 # Edge cases                                                           #
 # ------------------------------------------------------------------ #
+
 
 class TestEdgeCases:
     def test_empty_yaml(self, tmp_path: Path) -> None:
@@ -587,6 +596,57 @@ class TestEdgeCases:
         validate_config(valid_cfg)
         semantic_checks(valid_cfg, result)
         assert any("decoder_mode" in w for w in result.warnings)
+
+
+# ------------------------------------------------------------------ #
+# LoRA application                                                    #
+# ------------------------------------------------------------------ #
+
+
+class TestApplyLora:
+    def test_apply_lora_targets_backbone_model(self) -> None:
+        backbone = object()
+        token_rep_layer = types.SimpleNamespace(bert_layer=types.SimpleNamespace(model=backbone))
+        wrapper_model = types.SimpleNamespace(token_rep_layer=token_rep_layer)
+        model = types.SimpleNamespace(model=wrapper_model)
+
+        calls: dict[str, object] = {}
+
+        class FakeTaskType:
+            TOKEN_CLS = "TOKEN_CLS"
+            SEQ_CLS = "SEQ_CLS"
+            CAUSAL_LM = "CAUSAL_LM"
+            SEQ_2_SEQ_LM = "SEQ_2_SEQ_LM"
+
+        class FakeLoraConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        def fake_get_peft_model(target, peft_config):
+            calls["target"] = target
+            calls["peft_config"] = peft_config
+            return ("wrapped", target)
+
+        fake_peft = types.SimpleNamespace(
+            LoraConfig=FakeLoraConfig,
+            TaskType=FakeTaskType,
+            get_peft_model=fake_get_peft_model,
+        )
+        lora_cfg = {
+            "r": 8,
+            "lora_alpha": 16,
+            "lora_dropout": 0.05,
+            "bias": "none",
+            "target_modules": ["q_proj", "v_proj"],
+            "task_type": "TOKEN_CLS",
+        }
+
+        with mock.patch.dict(sys.modules, {"peft": fake_peft}):
+            _apply_lora(model, lora_cfg)
+
+        assert calls["target"] is backbone
+        assert model.model.token_rep_layer is token_rep_layer
+        assert model.model.token_rep_layer.bert_layer.model == ("wrapped", backbone)
 
 
 class TestLaunchTrainingPropagation:
