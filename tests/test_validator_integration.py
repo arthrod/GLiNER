@@ -1000,6 +1000,11 @@ class TestEndToEndWorkflow:
         finally:
             os.unlink(gc_path)
 
+        # gliner_config format should pass config_cli
+        assert config_ok_with_gc_format, (
+            "gliner_config: format should pass config_cli validation"
+        )
+
         # training_cli: should fail
         vr2 = validate_config(gliner_format)
         training_ok_with_gc_format = len(vr2.errors) == 0
