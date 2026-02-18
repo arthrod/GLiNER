@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+from types import ModuleType
 from unittest import mock
 
 import pytest
@@ -14,6 +16,7 @@ from ptbr.training_cli import (
     _check_type,
     _deep_get,
     _deep_set,
+    _launch_training,
     app,
     check_huggingface,
     check_wandb,
@@ -584,3 +587,161 @@ class TestEdgeCases:
         validate_config(valid_cfg)
         semantic_checks(valid_cfg, result)
         assert any("decoder_mode" in w for w in result.warnings)
+
+
+class TestLaunchTrainingPropagation:
+    @staticmethod
+    def _make_cfg(tmp_path: Path) -> dict:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / "train.json").write_text("[]", encoding="utf-8")
+        (data_dir / "val.json").write_text("[]", encoding="utf-8")
+
+        return {
+            "run": {
+                "name": "propagation-run",
+                "seed": 7,
+            },
+            "model": {
+                "model_name": "microsoft/deberta-v3-small",
+                "span_mode": "markerV0",
+                "max_len": 384,
+            },
+            "data": {
+                "root_dir": str(tmp_path / "logs"),
+                "train_data": "data/train.json",
+                "val_data_dir": "data/val.json",
+            },
+            "training": {
+                "prev_path": None,
+                "num_steps": 11,
+                "scheduler_type": "cosine",
+                "warmup_ratio": 0.2,
+                "train_batch_size": 4,
+                "eval_batch_size": 2,
+                "gradient_accumulation_steps": 3,
+                "max_grad_norm": 1.5,
+                "optimizer": "adamw_torch",
+                "lr_encoder": 3e-5,
+                "lr_others": 7e-5,
+                "weight_decay_encoder": 0.03,
+                "weight_decay_other": 0.07,
+                "loss_alpha": 1.0,
+                "loss_gamma": 2.0,
+                "loss_prob_margin": 0.12,
+                "label_smoothing": 0.18,
+                "loss_reduction": "sum",
+                "negatives": 1.5,
+                "masking": "none",
+                "eval_every": 5,
+                "save_total_limit": 2,
+                "logging_steps": 4,
+                "bf16": True,
+                "fp16": False,
+                "use_cpu": True,
+                "dataloader_num_workers": 6,
+                "dataloader_pin_memory": False,
+                "dataloader_persistent_workers": True,
+                "dataloader_prefetch_factor": 9,
+                "freeze_components": ["text_encoder"],
+                "compile_model": False,
+            },
+            "lora": {"enabled": False},
+            "environment": {
+                "report_to": "none",
+                "cuda_visible_devices": None,
+            },
+        }
+
+    @staticmethod
+    def _patch_fake_runtime(monkeypatch: pytest.MonkeyPatch):
+        captured: dict = {"seed": None, "to_dtype": None, "train_kwargs": None}
+
+        fake_torch = ModuleType("torch")
+        fake_torch.float32 = "float32"
+
+        def _manual_seed(seed: int) -> None:
+            captured["seed"] = seed
+
+        fake_torch.manual_seed = _manual_seed  # type: ignore[attr-defined]
+
+        class FakeModel:
+            def to(self, dtype=None):
+                captured["to_dtype"] = dtype
+                return self
+
+            def train_model(self, **kwargs):
+                captured["train_kwargs"] = kwargs
+
+        fake_model = FakeModel()
+
+        class FakeGLiNER:
+            @staticmethod
+            def from_pretrained(_path: str):
+                return fake_model
+
+            @staticmethod
+            def from_config(_cfg: dict):
+                return fake_model
+
+        fake_gliner = ModuleType("gliner")
+        fake_gliner.GLiNER = FakeGLiNER  # type: ignore[attr-defined]
+
+        monkeypatch.setitem(sys.modules, "torch", fake_torch)
+        monkeypatch.setitem(sys.modules, "gliner", fake_gliner)
+        return captured
+
+    def test_launch_training_forwards_core_training_kwargs(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        out_dir = tmp_path / "artifacts"
+        _launch_training(cfg, out_dir, resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        assert captured["seed"] == cfg["run"]["seed"]
+        assert captured["to_dtype"] == "float32"
+        assert kwargs is not None
+        assert kwargs["output_dir"] == str(out_dir)
+        assert kwargs["max_steps"] == cfg["training"]["num_steps"]
+        assert kwargs["per_device_train_batch_size"] == cfg["training"]["train_batch_size"]
+        assert kwargs["per_device_eval_batch_size"] == cfg["training"]["eval_batch_size"]
+        assert kwargs["learning_rate"] == float(cfg["training"]["lr_encoder"])
+        assert kwargs["others_lr"] == float(cfg["training"]["lr_others"])
+        assert kwargs["label_smoothing"] == float(cfg["training"]["label_smoothing"])
+        assert kwargs["gradient_accumulation_steps"] == cfg["training"]["gradient_accumulation_steps"]
+        assert kwargs["bf16"] is True
+        assert kwargs["fp16"] is False
+        assert kwargs["use_cpu"] is True
+        assert kwargs["dataloader_num_workers"] == cfg["training"]["dataloader_num_workers"]
+        assert kwargs["report_to"] == cfg["environment"]["report_to"]
+        assert kwargs["eval_strategy"] == "steps"
+        assert kwargs["eval_steps"] == cfg["training"]["eval_every"]
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "PR14 follow-up: _launch_training does not yet forward dataloader flags "
+            "or run metadata into train_model"
+        ),
+    )
+    def test_launch_training_forwards_dataloader_flags_and_run_name(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        assert kwargs is not None
+        assert kwargs["dataloader_pin_memory"] is cfg["training"]["dataloader_pin_memory"]
+        assert kwargs["dataloader_persistent_workers"] is cfg["training"]["dataloader_persistent_workers"]
+        assert kwargs["dataloader_prefetch_factor"] == cfg["training"]["dataloader_prefetch_factor"]
+        assert kwargs["run_name"] == cfg["run"]["name"]
