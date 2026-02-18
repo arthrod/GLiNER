@@ -18,7 +18,6 @@ import logging
 import os
 import sys
 import time
-import copy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -75,6 +74,7 @@ def _attach_file_handler(log_path: Path) -> None:
     """
     global _file_handler
     if _file_handler is not None:
+        _file_handler.close()
         logger.removeHandler(_file_handler)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     _file_handler = logging.FileHandler(str(log_path), mode="w", encoding="utf-8")
