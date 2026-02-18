@@ -179,9 +179,6 @@ _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
     ("training.dataloader_prefetch_factor",  int,   False,  2,          "Prefetch factor"),
     ("training.freeze_components",          (list, type(None)),  False,  None,  "Components to freeze"),
     ("training.compile_model",              bool,   False,  False,      "torch.compile"),
-    ("training.size_sup",                   int,    False,  -1,         "Max supervised examples"),
-    ("training.shuffle_types",              bool,   False,  True,       "Shuffle entity types"),
-    ("training.random_drop",                bool,   False,  True,       "Random drop types"),
 
     # -- lora --
     ("lora.enabled",        bool,   False,  False,              "Enable LoRA"),
@@ -1088,6 +1085,17 @@ def _launch_training(
     # -- Logging steps fallback --
     log_steps = train_cfg.get("logging_steps") or train_cfg["eval_every"]
 
+    # -- Resume checkpoint detection --
+    resume_checkpoint = None
+    if resume:
+        checkpoint_dirs = sorted(output_folder.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[-1]))
+        if checkpoint_dirs:
+            resume_checkpoint = str(checkpoint_dirs[-1])
+            logger.info(f"Resuming from checkpoint: {resume_checkpoint}")
+
+    # -- Hub fields --
+    env_cfg = cfg.get("environment", {})
+
     # -- Train --
     logger.info("Starting training ...")
     model.train_model(
@@ -1096,6 +1104,7 @@ def _launch_training(
         output_dir=str(output_folder),
         freeze_components=freeze,
         compile_model=train_cfg.get("compile_model", False),
+        resume_from_checkpoint=resume_checkpoint,
         # Schedule
         max_steps=train_cfg["num_steps"],
         lr_scheduler_type=train_cfg["scheduler_type"],
@@ -1140,6 +1149,13 @@ def _launch_training(
         run_name=cfg["run"]["name"],
         # Gradient accumulation
         gradient_accumulation_steps=train_cfg.get("gradient_accumulation_steps", 1),
+        # Seed
+        seed=cfg["run"]["seed"],
+        # GLiNER requires remove_unused_columns=False for custom batch dicts
+        remove_unused_columns=False,
+        # Hub integration
+        push_to_hub=env_cfg.get("push_to_hub", False),
+        hub_model_id=env_cfg.get("hub_model_id"),
     )
 
     logger.info(f"Training complete.  Checkpoints in {output_folder}")
