@@ -14,6 +14,50 @@
 
 ## Fixes
 
+### mem-1771378913-db23
+> failure: cmd=python3 inline load_data runtime check with validate kwarg, exit=1, error='TypeError: load_data() got an unexpected keyword argument validate', next=inspect ptbr.data.load_data signature and call without unsupported validate kwarg
+<!-- tags: testing, error-handling, ptbr, data | created: 2026-02-18 -->
+
+### mem-1771378888-80d1
+> failure: cmd=rm -rf /tmp/gliner-staging-integration && git worktree add /tmp/gliner-staging-integration origin/dev, exit=policy_blocked, error='blocked by policy', next=use git worktree add --force without rm -rf in this environment
+<!-- tags: tooling, error-handling, git | created: 2026-02-18 -->
+
+### mem-1771378741-02e5
+> PR13: ptbr/data.py local file load_data now validates requested custom text_column/ner_column against available local keys and raises ValueError before remapping; added regression check in ptbr/tests/test_validation.py.
+<!-- tags: ptbr, data, error-handling, testing | created: 2026-02-18 -->
+
+### mem-1771378588-60cf
+> PR13: ptbr/tests/test_validation.py now uses subprocess.run([sys.executable, ...], stdout/stderr DEVNULL) instead of os.system in CLI smoke tests; also renamed unused unpacked errs to _errs to avoid Ruff RUF059.
+<!-- tags: ptbr, testing, cli, error-handling | created: 2026-02-18 -->
+
+### mem-1771378572-cd08
+> failure: cmd=python3 -m ptbr --file-or-repo examples/sample_data.json --validate, exit=1, error='ModuleNotFoundError: No module named typer', next=install ptbr CLI dependencies (typer) or verify via static checks in dependency-constrained environment
+<!-- tags: tooling, error-handling, dependencies, ptbr | created: 2026-02-18 -->
+
+### mem-1771378444-0712
+> PR13: ptbr/training_cli.py should keep a single import copy and must close existing _file_handler before replacing it in _attach_file_handler to avoid descriptor leaks.
+<!-- tags: ptbr, cli, error-handling | created: 2026-02-18 -->
+
+### mem-1771378335-f27e
+> PR13: ptbr/__main__.py config_cmd must pass Path(file) to print_and_log_result; passing str risks runtime .parent errors.
+<!-- tags: ptbr, cli, error-handling | created: 2026-02-18 -->
+
+### mem-1771378243-830f
+> PR13: ptbr/tests/test_training_cli.py had duplicate TestCLI methods (output_folder_empty_ok and output_folder_allows_validation_artifacts); removed earlier duplicate definitions to prevent shadowing and preserve launch-call assertions.
+<!-- tags: testing, ptbr, cli | created: 2026-02-18 -->
+
+### mem-1771378157-e6d6
+> PR13: generate_noisy_jsonl Step 3 parser block had extra leading spaces causing invalid syntax; fixed indentation and added explicit num_corrupt>=len(ALL_NOISE) guard before guaranteed assignment
+<!-- tags: testing, ptbr, error-handling | created: 2026-02-18 -->
+
+### mem-1771378131-ea72
+> failure: cmd=ruff check ptbr/tests/generate_noisy_jsonl.py, exit=127, error='command not found: ruff', next=use python3 -m py_compile or install ruff/uvx for lint verification
+<!-- tags: tooling, error-handling, testing, lint | created: 2026-02-18 -->
+
+### mem-1771378012-b94c
+> failure: cmd=cat .ralph/agent/scratchpad.md, exit=1, error='No such file or directory', next=initialize required scratchpad file at .ralph/agent/scratchpad.md before reading/appending
+<!-- tags: tooling, error-handling, ralph | created: 2026-02-18 -->
+
 ### mem-1771372910-e0c5
 > failure: cmd=python3 -m pytest -q ptbr/tests/test_config_cli.py -k model_type, exit=1, error='No module named pytest', next=use source-level static checks and git-history-backed verification when pytest is unavailable
 <!-- tags: testing, tooling, error-handling | created: 2026-02-18 -->
@@ -79,6 +123,10 @@
 <!-- tags: tooling, error-handling, ralph | created: 2026-02-17 -->
 
 ## Context
+
+### mem-1771378943-f889
+> PR13 integration: created staging from origin/dev, merged dev via merge commit 56efbfb, verified via py_compile + targeted ptbr.data runtime check, and pushed origin/staging.
+<!-- tags: git, release, ptbr, staging | created: 2026-02-18 -->
 
 ### mem-1771372933-386a
 > GLiNERConfig.model_type token_level routing bug is already fixed on dev by commit 6972469 (2026-02-18) with regression coverage in ptbr/tests/test_config_cli.py; only stale token-level docstring references may remain.

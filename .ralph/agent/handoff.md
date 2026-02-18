@@ -1,17 +1,18 @@
 # Session Handoff
 
-_Generated: 2026-02-17 23:54:17 UTC_
+_Generated: 2026-02-18 00:02:36 UTC_
 
 ## Git Context
 
 - **Branch:** `dev`
-- **HEAD:** 1f793af: chore: auto-commit before merge (loop primary)
+- **HEAD:** 2f71d15: chore: auto-commit before merge (loop primary)
 
 ## Tasks
 
 ### Completed
 
 - [x] Fix GLiNERConfig token_level model_type detection
+- [x] Fix GLiNERConfig model_type token_level legacy check
 
 
 ## Key Files
@@ -19,6 +20,7 @@ _Generated: 2026-02-17 23:54:17 UTC_
 Recently modified:
 
 - `.gitignore`
+- `.ralph/agent/handoff.md`
 - `.ralph/agent/memories.md`
 - `.ralph/agent/memories.md.lock`
 - `.ralph/agent/scratchpad.md`
@@ -27,7 +29,6 @@ Recently modified:
 - `.ralph/agent/tasks.jsonl.lock`
 - `.ralph/current-events`
 - `.ralph/current-loop-id`
-- `.ralph/events-20260217-234855.jsonl`
 
 ## Next Session
 
