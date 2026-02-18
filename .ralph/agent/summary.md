@@ -1,8 +1,8 @@
 # Loop Summary
 
 **Status:** Completed successfully
-**Iterations:** 5
-**Duration:** 18m 56s
+**Iterations:** 1
+**Duration:** 3m 40s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-6d53d8c: fix: forward PR14 training config into runtime args
+35f3c52: chore: record continuation-loop closeout state
