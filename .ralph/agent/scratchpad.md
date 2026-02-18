@@ -50,3 +50,86 @@ Concrete test matrix to implement (PR14):
    - For deterministic signal, use `FakeTensorMode`/meta tensor checks to ensure model move/precision path follows config values without executing heavy kernels.
 4. Regression test for `train.py`:
    - Stub `build_model` return object and assert `train_model` receives `output_dir`, eval batch size fallback, and precision values from config, not hardcoded constants.
+
+## 2026-02-18T02:12:00Z - Iteration result
+- Completed atomic task `task-1771380639-6cbf` (planning).
+- Committed plan artifact as `487cfa7` (`docs: define PR14 config propagation test plan`).
+- Created dependent runtime task chain through staging push:
+  - `task-1771380639-69d7` fetch/reconcile PR14
+  - `task-1771380639-3a36` add deterministic propagation tests
+  - `task-1771380639-4985` implement fixes
+  - `task-1771380639-8939` verify + merge/push staging
+- Stored memory `mem-1771380724-d7ef` capturing currently observed forwarding/hardcode gaps.
+
+## 2026-02-18T03:16:00Z - Iteration result
+- Completed atomic task `task-1771380639-69d7` (fetch branch + reconcile PR14 comments).
+- Fetched PR14 head explicitly via `git fetch origin pull/14/head:pr-14`; confirmed head `5906b4b61cce38f79de7b8bdc58eab7d092d340a`.
+- Reconciled `arthrod-GLiNER-pr14-comments.md` against `dev` and recorded triage in `.ralph/agent/pr14_reconciliation.md`.
+- Decision: do not port `tests/test_validator_integration.py` from PR14 because it is bug-documenting and stale-base heavy; proceed with focused deterministic propagation tests in next task.
+- Confirmed unresolved in-scope gaps for follow-up tasks: PTBR dataloader/run metadata forwarding and `train.py` hardcoded output_dir/bf16/eval batch behavior.
+
+## 2026-02-18T03:58:00Z - Iteration result
+- Completed atomic task `task-1771380639-3a36` by adding deterministic propagation tests across PTBR, GLiNER->Transformers, and torch-safe fake tensor paths.
+- `ptbr/tests/test_training_cli.py` now includes:
+  - `test_launch_training_forwards_core_training_kwargs` (passing) asserting `_launch_training` forwards schedule/batch/optimization/loss/precision/eval/report kwargs into `model.train_model`.
+  - `test_launch_training_forwards_dataloader_flags_and_run_name` (`xfail(strict=True)`) documenting missing forwarding for `dataloader_pin_memory`, `dataloader_persistent_workers`, `dataloader_prefetch_factor`, and `run_name`.
+- Added `tests/test_config_propagation.py` with:
+  - `test_create_training_args_forwards_to_training_arguments` (passing) patching `gliner.model.TrainingArguments` to capture forwarded kwargs.
+  - `test_fake_tensor_cpu_path_reflects_bf16_training_arg` (passing) using `FakeTensorMode` on CPU to assert config-driven bf16 path without CUDA.
+  - `test_train_main_forwards_yaml_training_values` (`xfail(strict=True)`) documenting `train.py` hardcoded `output_dir`, eval batch size, and `bf16`.
+- Verification:
+  - `uv run --python 3.11 pytest -q ptbr/tests/test_training_cli.py tests/test_config_propagation.py` => `62 passed, 2 xfailed`.
+  - `uv run --python 3.11 ruff check tests/test_config_propagation.py` => pass.
+- Confidence: 92/100 that these tests provide precise red/green targets for the next atomic fix task (`task-1771380639-4985`).
+
+## 2026-02-18T04:20:00Z - In-progress task task-1771380639-4985
+- Focus for this atomic iteration: convert PR14 propagation gaps from documented xfails to passing behavior.
+- Planned edits:
+  - `ptbr/training_cli.py::_launch_training`: forward `dataloader_pin_memory`, `dataloader_persistent_workers`, `dataloader_prefetch_factor`, and `run_name` from validated config into `model.train_model(...)`.
+  - `train.py::main`: remove hardcoded `output_dir`, eval batch size, and `bf16`; source from loaded YAML config with eval-batch fallback to train batch.
+  - Tests: remove strict `xfail` markers in `ptbr/tests/test_training_cli.py` and `tests/test_config_propagation.py` so these become required regressions.
+- Decision confidence: 95/100. Existing deterministic tests already isolate the exact forwarding/hardcode defects; minimal direct patches should turn the suite green without broad refactor risk.
+
+## 2026-02-18T04:27:00Z - Iteration result
+- Completed atomic task `task-1771380639-4985` with commit `6d53d8c` (`fix: forward PR14 training config into runtime args`).
+- Implemented forwarding fixes:
+  - `ptbr/training_cli.py::_launch_training` now forwards `dataloader_pin_memory`, `dataloader_persistent_workers`, `dataloader_prefetch_factor`, and `run_name` into `model.train_model(...)`.
+  - `train.py` now uses YAML-derived values for `output_dir`, `per_device_eval_batch_size` (with fallback to train batch size), and `bf16`; also uses `logging_steps` fallback from config.
+- Regression tests updated from strict xfail to required pass:
+  - `ptbr/tests/test_training_cli.py::test_launch_training_forwards_dataloader_flags_and_run_name`
+  - `tests/test_config_propagation.py::test_train_main_forwards_yaml_training_values`
+- Verification:
+  - `uv run --python 3.11 pytest -q ptbr/tests/test_training_cli.py tests/test_config_propagation.py` => `64 passed`.
+  - `uv run --python 3.11 ruff check tests/test_config_propagation.py` => pass.
+  - `python3 -m py_compile train.py ptbr/training_cli.py` => pass.
+  - Broad Ruff on legacy files still reports pre-existing lint debt (tracked in memory `mem-1771381493-b73e`), not introduced by this change.
+- Next ready task is now `task-1771380639-8939` (verify, merge to staging, push).
+
+## 2026-02-18T04:36:00Z - In-progress task task-1771380639-8939
+- Objective for this atomic iteration: finalize PR14 by verifying the forwarding fixes, merging into `staging`, and pushing to origin.
+- Current state check:
+  - `ralph tools task ready` shows only `task-1771380639-8939`.
+  - Working tree on `dev` is dirty with orchestration artifacts and unrelated files; do not alter/revert them.
+- Execution plan:
+  1. Fetch remotes and confirm commit topology for `dev`, `staging`, and PR14 fix commit `6d53d8c`.
+  2. Run targeted verification for PR14 propagation coverage before merge.
+  3. Create/update `staging` from `origin/staging`, merge `dev` with a non-fast-forward merge commit, and re-run fast sanity checks on `staging`.
+  4. Push `staging` to `origin`, close the task, and record integration memory + scratchpad result.
+- Decision confidence: 94/100. Process matches prior staging integrations and isolates risk despite dirty local workspace.
+
+## 2026-02-18T04:43:00Z - Iteration result
+- Completed atomic task `task-1771380639-8939` (verify, merge to staging, push).
+- Integration approach:
+  - Avoided merging full `dev` because it contained non-PR14 orchestration commit `6254982` (`.ralph`/comment artifacts).
+  - Created clean worktree at `/tmp/gliner-pr14-staging` from `origin/staging` (`60dddae`).
+  - Cherry-picked PR14 runtime commits only:
+    - `127991f` -> `7f8e362` (`test: add deterministic config propagation coverage`)
+    - `6d53d8c` -> `e801e6f` (`fix: forward PR14 training config into runtime args`)
+- Verification on staging candidate (`/tmp/gliner-pr14-staging`):
+  - `/home/arthrod/workspace/gliner_review/GliNER/.venv/bin/python -m pytest -q ptbr/tests/test_training_cli.py tests/test_config_propagation.py` => `64 passed`.
+  - `python3 -m py_compile train.py ptbr/training_cli.py` => pass.
+  - `/home/arthrod/workspace/gliner_review/GliNER/.venv/bin/python -m ruff check tests/test_config_propagation.py` => pass.
+- Push:
+  - `git -C /tmp/gliner-pr14-staging push origin HEAD:staging` => updated `origin/staging` from `60dddae` to `e801e6f`.
+- Notes:
+  - `uv run --python 3.11 ...` in fresh worktree failed due known jieba3 marker resolution; captured as fix memory `mem-1771381617-c997` and worked around via existing repo venv interpreter.

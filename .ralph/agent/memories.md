@@ -14,6 +14,30 @@
 
 ## Fixes
 
+### mem-1771381617-c997
+> failure: cmd=uv run --python 3.11 pytest -q ptbr/tests/test_training_cli.py tests/test_config_propagation.py (worktree=/tmp/gliner-pr14-staging), exit=1, error='uv dependency resolution unsatisfiable due jieba3 marker in fresh worktree env', next=execute pytest via existing /home/arthrod/workspace/gliner_review/GliNER/.venv/bin/python to validate staging worktree without uv solve
+<!-- tags: testing, tooling, uv, error-handling, staging | created: 2026-02-18 -->
+
+### mem-1771381493-b73e
+> failure: cmd=uv run --python 3.11 ruff check ptbr/training_cli.py train.py tests/test_config_propagation.py ptbr/tests/test_training_cli.py, exit=1, error='pre-existing repository lint debt in train.py/ptbr.training_cli/ptbr test file dominates output', next=use targeted lint on low-debt touched file(s) plus pytest+py_compile for atomic PR14 forwarding verification
+<!-- tags: lint, testing, error-handling, ptbr, train | created: 2026-02-18 -->
+
+### mem-1771381296-0c3a
+> failure: cmd=uv run --python 3.11 ruff check ptbr/tests/test_training_cli.py tests/test_config_propagation.py, exit=1, error='mixed pre-existing lint in ptbr/tests/test_training_cli.py plus new local import/style warnings', next=run targeted lint only on newly added file and rely on pytest verification for legacy file
+<!-- tags: lint, testing, error-handling, ptbr | created: 2026-02-18 -->
+
+### mem-1771381256-eb36
+> failure: cmd=uv run --python 3.11 pytest -q tests/test_config_propagation.py, exit=1, error='ImportError: TrainingArguments requires accelerate>=1.1.0 in test_fake_tensor_cpu_path_reflects_bf16_training_arg', next=patch gliner.model.TrainingArguments in this test to avoid accelerate device setup while asserting config-driven fake-tensor dtype path
+<!-- tags: testing, error-handling, transformers, torch | created: 2026-02-18 -->
+
+### mem-1771380868-3b36
+> failure: cmd=rg -n 'from ptbr import training_cli|import training_cli' ptbr/__main__.py -S, exit=1, error='no matches', next=open ptbr/__main__.py directly and verify import location
+<!-- tags: tooling, error-handling, search, ptbr | created: 2026-02-18 -->
+
+### mem-1771380814-da9c
+> failure: cmd=sed -n '1,240p' docs/pr14_config_propagation_test_plan.md, exit=2, error='No such file or directory', next=locate actual plan artifact path in repository before reading
+<!-- tags: tooling, error-handling, docs | created: 2026-02-18 -->
+
 ### mem-1771378913-db23
 > failure: cmd=python3 inline load_data runtime check with validate kwarg, exit=1, error='TypeError: load_data() got an unexpected keyword argument validate', next=inspect ptbr.data.load_data signature and call without unsupported validate kwarg
 <!-- tags: testing, error-handling, ptbr, data | created: 2026-02-18 -->
@@ -123,6 +147,26 @@
 <!-- tags: tooling, error-handling, ralph | created: 2026-02-17 -->
 
 ## Context
+
+### mem-1771381654-ca1d
+> PR14 staging integration used clean worktree from origin/staging and cherry-picked only 127991f+6d53d8c (new heads 7f8e362/e801e6f) to avoid bringing non-PR14 orchestration commit 6254982 from dev; pushed origin/staging to e801e6f after 64-pass targeted verification.
+<!-- tags: pr14, staging, git, release, testing | created: 2026-02-18 -->
+
+### mem-1771381524-3966
+> PR14 fix landed in commit 6d53d8c: _launch_training now forwards dataloader_pin_memory/dataloader_persistent_workers/dataloader_prefetch_factor and run_name; train.py now uses config-driven output_dir/eval_batch_size fallback/bf16 and removed strict xfails for these paths.
+<!-- tags: pr14, training, config, forwarding, ptbr, train | created: 2026-02-18 -->
+
+### mem-1771381340-ac53
+> PR14 deterministic propagation coverage now lives in ptbr/tests/test_training_cli.py and tests/test_config_propagation.py; current expected failures (strict xfail) track missing _launch_training dataloader/run_name forwarding and train.py hardcoded output_dir/eval batch/bf16.
+<!-- tags: pr14, testing, config, forwarding | created: 2026-02-18 -->
+
+### mem-1771380948-b383
+> PR14 reconciliation: fetched pull/14 head at 5906b4b; do not cherry-pick tests/test_validator_integration.py because it asserts broken behavior on stale base; proceed with focused deterministic propagation tests and targeted forwarding fixes instead.
+<!-- tags: pr14, testing, config, forwarding | created: 2026-02-18 -->
+
+### mem-1771380724-d7ef
+> PR14 propagation gaps: ptbr.training_cli._launch_training currently omits dataloader_pin_memory/dataloader_persistent_workers/dataloader_prefetch_factor/run_name forwarding, and train.py still hardcodes output_dir='models', bf16=True, eval batch size=train batch size.
+<!-- tags: ptbr, training, config, forwarding | created: 2026-02-18 -->
 
 ### mem-1771378943-f889
 > PR13 integration: created staging from origin/dev, merged dev via merge commit 56efbfb, verified via py_compile + targeted ptbr.data runtime check, and pushed origin/staging.

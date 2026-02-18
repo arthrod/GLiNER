@@ -1,8 +1,8 @@
 # Loop Summary
 
 **Status:** Completed successfully
-**Iterations:** 7
-**Duration:** 16m 10s
+**Iterations:** 5
+**Duration:** 18m 56s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-4536734: Enforce local custom-column checks in data loader
+6d53d8c: fix: forward PR14 training config into runtime args
