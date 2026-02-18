@@ -278,3 +278,92 @@ The report identifies the following standard `TrainingArguments` Hub fields as e
 19. **Forward `save_safetensors=True` to TrainingArguments** (`training_cli.py:1090-1132`). The upstream Trainer `_save()` method at `gliner/training/trainer.py:107` checks `self.args.save_safetensors`, but we never set this argument. Default should be `true` for modern workflows.
 
 20. **Add `remove_unused_columns: false` to TrainingArguments** (`training_cli.py:1090-1132`). The report explicitly notes this is essential for GLiNER's custom batch dictionaries. Without it, HF Trainer may silently drop columns needed by GLiNER's `compute_loss()`.
+
+---
+
+## Post-Fix Assessment (2026-02-18)
+
+### Changes Applied Since This Report Was Written
+
+The following fixes have been applied to the codebase, addressing several of the critical gaps identified above. This section documents what was fixed, what tests verify the fixes, and what remains open.
+
+#### Fixes in `training_cli.py`
+
+| Issue | Status | Verification |
+|---|---|---|
+| `fp16` validated but not forwarded to `train_model()` | **FIXED** — now forwarded as `fp16=train_cfg.get("fp16", False)` | `test_training_cli.py::TestLaunchTrainingPropagation`, `test_validator_integration.py::TestParameterForwardingFixes::test_fp16_is_forwarded` |
+| `dataloader_pin_memory` validated but not forwarded | **FIXED** — now forwarded | `test_validator_integration.py::TestParameterForwardingFixes::test_dataloader_pin_memory_is_forwarded` |
+| `dataloader_persistent_workers` validated but not forwarded | **FIXED** — now forwarded | `test_validator_integration.py::TestParameterForwardingFixes::test_dataloader_persistent_workers_is_forwarded` |
+| `dataloader_prefetch_factor` validated but not forwarded | **FIXED** — now forwarded | `test_validator_integration.py::TestParameterForwardingFixes::test_dataloader_prefetch_factor_is_forwarded` |
+| `run.name` validated but never forwarded as `run_name` | **FIXED** — now forwarded as `run_name=cfg["run"]["name"]` | `test_validator_integration.py::TestParameterForwardingFixes::test_run_name_is_forwarded` |
+| `report_to` not forwarded to `train_model()` | **FIXED** — now forwarded | `test_validator_integration.py::TestParameterForwardingFixes::test_report_to_is_forwarded` |
+| `eval_strategy` / `eval_steps` not set when eval data available | **FIXED** — now conditionally set | `test_validator_integration.py::TestParameterForwardingFixes::test_eval_strategy_is_forwarded` |
+
+#### Fixes in `train.py`
+
+| Issue | Status | Verification |
+|---|---|---|
+| `output_dir` hardcoded to `"models"` | **FIXED** — now reads from `cfg.data.root_dir` | `test_validator_integration.py::TestTrainPyFixes::test_output_dir_reads_from_config` |
+| `bf16` hardcoded to `True` | **FIXED** — now reads from `getattr(cfg.training, "bf16", False)` | `test_validator_integration.py::TestTrainPyFixes::test_bf16_reads_from_config` |
+| `per_device_eval_batch_size` reused `train_batch_size` | **FIXED** — now cascades `eval_batch_size` → `train_batch_size` | `test_validator_integration.py::TestTrainPyFixes::test_eval_batch_size_uses_separate_variable` |
+| `label_smoothing` not forwarded | **FIXED** — now forwarded | `test_validator_integration.py::TestTrainPyFixes::test_label_smoothing_is_forwarded` |
+
+#### Fixes in `__main__.py`
+
+| Issue | Status | Verification |
+|---|---|---|
+| `training_cli` imported at module level (side effects on config/data subcommands) | **FIXED** — now lazy-loaded | `test_validator_integration.py::TestMainImportSideEffects::test_training_cli_not_imported_at_module_level` |
+
+#### Fixes in `config_cli.py`
+
+| Issue | Status | Verification |
+|---|---|---|
+| `model:` not accepted as alias for `gliner_config:` | **FIXED** — config_cli now accepts `model:` as alias | `test_config_cli_aliases.py` |
+| `lora:` not accepted as alias for `lora_config:` | **FIXED** — config_cli now accepts `lora:` as alias | `test_config_cli_aliases.py` |
+
+### Test Suite Status
+
+| Test File | Result | Purpose |
+|---|---|---|
+| `ptbr/tests/test_training_cli.py` | **62/62 passed** | Core validation, semantic checks, CLI, resume, LoRA, launch propagation |
+| `tests/test_validator_integration.py` | **36/36 passed, 6 skipped** | Cross-CLI integration, forwarding verification, fix confirmation |
+| `tests/test_trainer_column_pruning.py` | **3/3 passed** | Custom trainer column handling |
+| `tests/test_config_propagation.py` | **3 skipped** | Config propagation (requires torch) |
+| `ptbr/tests/test_main_cli.py` | **passed** | __main__.py subcommand tests |
+| `ptbr/tests/test_validation.py` | **passed** | YAML validation edge cases |
+| `ptbr/tests/test_config_cli_aliases.py` | **passed** | model:/lora: alias acceptance |
+| `ptbr/tests/test_train_py.py` | **passed** | train.py forwarding tests |
+
+The 6 skipped tests in `test_validator_integration.py` require `torch`/`gliner` (heavy DL dependencies) and are guarded with `pytest.importorskip`. They will run in environments with full dependencies installed.
+
+### Remaining Open Issues
+
+The following issues from the original report have **not** been addressed:
+
+#### Still-Open Forwarding Gaps
+
+1. `size_sup`, `shuffle_types`, `random_drop` — validated in schema but never forwarded (dead config). Verified by `TestParameterForwardingRemainingGaps`.
+2. `run.tags`, `run.description` — validated but not forwarded. Verified by `TestParameterForwardingRemainingGaps`.
+3. `remove_unused_columns` — not set to `False` in either `training_cli.py` or `train.py`. This remains dangerous for GLiNER's custom collators. Verified by `TestRemoveUnusedColumns`.
+4. `push_to_hub`, `hub_model_id` — still in `environment:` section, still not forwarded to `TrainingArguments`.
+5. `resume_from_checkpoint` — `--resume` flag validates checkpoint existence but never passes path to `TrainingArguments`.
+
+#### Still-Missing Fields
+
+All 42 missing fields listed in the "Missing Fields" section above remain absent. The highest-priority gaps are:
+
+- `warmup_steps` (integer escape hatch)
+- `gradient_checkpointing` (memory optimization)
+- `resume_from_checkpoint` (actual resume wiring)
+- `load_best_model_at_end` + `metric_for_best_model` (model selection)
+- `hub_strategy` and related Hub fields (push automation)
+- `WANDB_LOG_MODEL`, `WANDB_MODE`, `WANDB_GROUP` (W&B metadata)
+- `adam_beta1`, `adam_beta2`, `adam_epsilon` (optimizer reproducibility)
+
+#### Still-Open Structural Issues
+
+- YAML schema incompatibility between `config_cli` and `training_cli` persists (different top-level keys, different LoRA section names). Aliases partially mitigate this.
+- CLI argument style inconsistency (`--file` vs positional) persists.
+- `eval_every` still conflates `save_steps` and `eval_steps`.
+- `report_to` is still typed as `str` not `list|str`.
+- Hub/W&B fields remain in `environment:` instead of `training:`.
