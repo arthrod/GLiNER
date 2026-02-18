@@ -55,8 +55,14 @@ def main(cfg_path: str):
     if freeze_components:
         print(f"Freezing components: {freeze_components}")
 
-    eval_batch_size = train_cfg.get("eval_batch_size") or cfg.training.train_batch_size
-    logging_steps = train_cfg.get("logging_steps") or cfg.training.eval_every
+    eval_batch_size = (
+        train_cfg.get("eval_batch_size")
+        or getattr(cfg.training, "eval_batch_size", None)
+        or cfg.training.train_batch_size
+    )
+    logging_steps = (
+        train_cfg.get("logging_steps") or getattr(cfg.training, "logging_steps", None) or cfg.training.eval_every
+    )
     label_smoothing = float(getattr(cfg.training, "label_smoothing", 0))
 
     # Train
@@ -95,7 +101,7 @@ def main(cfg_path: str):
         # Freezing
         freeze_components=freeze_components,
         # Dtype
-        bf16=train_cfg.get("bf16", False),
+        bf16=getattr(cfg.training, "bf16", False),
     )
 
     print(f"\n✓ Training complete! Model saved to {output_dir}")

@@ -6,7 +6,19 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
 from typer.testing import CliRunner
+
+
+@pytest.fixture(autouse=True)
+def restore_training_cli_module():
+    """Ensure ptbr.training_cli is restored after each test."""
+    original_training_cli = sys.modules.get("ptbr.training_cli")
+    yield
+    if original_training_cli is not None:
+        sys.modules["ptbr.training_cli"] = original_training_cli
+    elif "ptbr.training_cli" in sys.modules:
+        del sys.modules["ptbr.training_cli"]
 
 
 def _reload_main_module():
@@ -27,9 +39,7 @@ def test_config_validate_passes_path_to_summary_printer(tmp_path):
     runner = CliRunner()
 
     with patch.dict("sys.modules", {"ptbr.config_cli": fake_config_cli}):
-        result = runner.invoke(
-            main_module.app, ["config", "--file", str(cfg_path), "--validate"]
-        )
+        result = runner.invoke(main_module.app, ["config", "--file", str(cfg_path), "--validate"])
 
     assert result.exit_code == 0
     fake_config_cli.print_and_log_result.assert_called_once()

@@ -22,9 +22,7 @@ class _FakeEmbeddings:
 
 def _write_valid_dataset(path):
     path.write_text(
-        json.dumps([
-            {"tokenized_text": ["hello", "world"], "ner": [[0, 1, "GREETING"]]}
-        ]),
+        json.dumps([{"tokenized_text": ["hello", "world"], "ner": [[0, 1, "GREETING"]]}]),
         encoding="utf-8",
     )
 
@@ -65,6 +63,7 @@ def test_cli_forwards_trust_remote_code_flag(tmp_path):
         result = runner.invoke(
             app,
             [
+                "data",
                 "--file-or-repo",
                 str(data_path),
                 "--generate-label-embeddings",
