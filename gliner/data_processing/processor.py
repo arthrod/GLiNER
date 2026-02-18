@@ -934,8 +934,12 @@ class BaseBiEncoderProcessor(BaseProcessor):
                 - labels_attention_mask: Entity type attention mask (if entities provided)
         """
         tokenized_inputs = self.transformer_tokenizer(
-            texts, is_split_into_words=True, return_tensors="pt", truncation=True,
-            max_length=self.config.max_len, padding="longest"
+            texts,
+            is_split_into_words=True,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self.config.max_len,
+            padding="longest",
         )
 
         if entities is not None:
@@ -1720,7 +1724,7 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
         span_mask = batch["span_mask"]
 
         # Count entities per sample (differs from span-based which uses span_label)
-        batch_ents = span_mask.long().squeeze(-1).sum(-1)
+        batch_ents = span_mask.long().sum(-1)
         max_En = max(batch_ents.max().item(), 1)
 
         rel_class_to_ids = batch["rel_class_to_ids"]
