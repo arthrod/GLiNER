@@ -13,10 +13,10 @@ CLI usage:
 
 from ptbr.data import (
     GLiNERData,
-    extract_labels,
-    load_data,
     prepare,
+    load_data,
     validate_data,
+    extract_labels,
 )
 
 __all__ = [

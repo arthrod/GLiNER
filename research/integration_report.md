@@ -27,12 +27,16 @@ However, **several Priority 2 and Priority 3 issues remain open**, including dea
 
 **Main tests (tests/):** 173 passed, 33 failed, 54 errors (pre-existing issues unrelated to ptbr; mostly tokenizer/processor incompatibilities with current transformers version).
 
-**Static analysis (ruff):** 52 findings in ptbr/:
-- 4 unused imports (F401) in test files and `training_cli.py` (`sys`, `time`)
-- 3 unused variable assignments (F841) in `test_config_cli.py`
-- ~30 whitespace/formatting issues (W293 trailing whitespace in docstrings, E101 mixed tabs/spaces)
-- 5 lines exceeding 120 chars (E501) in docstrings and test docstrings
-- No logic bugs, no security issues, no undefined names
+**Static analysis (ruff):** 96 findings in ptbr/ (after cleanup of F401, F841, W293, E101, E501, D-series, B904 issues):
+- 43 `print` statements (T201) in test utilities and `generate_noisy_jsonl.py` (expected for CLI tools)
+- 20 f-string logging (G004) in `training_cli.py` (style preference, no functional impact)
+- 17 non-top-level imports (PLC0415) (intentional lazy-loading pattern)
+- 4 global statements (PLW0603) (intentional module-level caching)
+- 3 Typer default-call conventions (B008) (standard Typer usage)
+- 3 unused loop variables (B007) in `config_cli.py`
+- 2 unused function arguments (ARG001) in Typer callbacks
+- 4 minor style items (SIM102, PLR0911, TC003, PLW2901)
+- No ruff-reported undefined names or security-rule violations
 
 ---
 
@@ -254,17 +258,22 @@ Items from the original report that are still open:
 
 ### Static Analysis Findings
 
-52 ruff findings, all low-severity:
+96 ruff findings remaining after cleanup (all intentional patterns or low-severity style items):
 
 | Category | Count | Files | Severity |
 |---|---|---|---|
-| Unused imports (F401) | 4 | `training_cli.py` (sys, time), `test_config_cli.py`, `test_validation.py` | Low — dead code |
-| Unused variables (F841) | 3 | `test_config_cli.py` | Low — test readability |
-| Trailing whitespace (W293) | ~25 | `training_cli.py` docstrings | Cosmetic |
-| Mixed tabs/spaces (E101) | ~10 | `training_cli.py` docstrings | Cosmetic |
-| Line too long (E501) | 5 | `training_cli.py`, `test_training_cli.py` | Cosmetic |
+| Print statements (T201) | 43 | `generate_noisy_jsonl.py`, `test_validation.py` | Expected — CLI/test output |
+| F-string logging (G004) | 20 | `training_cli.py` | Style preference — no functional impact |
+| Non-top-level imports (PLC0415) | 17 | `__main__.py`, `training_cli.py`, `config_cli.py`, `data.py`, tests | Intentional — lazy-loading pattern |
+| Global statements (PLW0603) | 4 | `__main__.py`, `training_cli.py`, `test_validation.py` | Intentional — module-level caching |
+| Typer defaults (B008) | 3 | `config_cli.py`, `training_cli.py` | Expected — standard Typer convention |
+| Unused loop variables (B007) | 3 | `config_cli.py` | Low — cosmetic |
+| Unused function arguments (ARG001) | 2 | `config_cli.py` | Expected — Typer callback signatures |
+| Other style (SIM102, PLR0911, TC003, PLW2901) | 4 | Various | Low — cosmetic |
 
-No logic errors, undefined names, or security concerns were found by static analysis.
+**Previously fixed (this cleanup round):** Removed 2 unused imports (F401) in `training_cli.py` (`sys`, `time`), 1 unused import in `test_config_cli.py` (`textwrap`), 1 unused import in `test_config_cli.py` (`GLiNERConfigResult`), 1 unused import in `test_validation.py` (`extract_labels`), 3 unused variable assignments (F841) in `test_config_cli.py`, ~26 trailing whitespace issues (W293), ~10 mixed tabs/spaces (E101), 6 lines exceeding 120 chars (E501), 2 docstring formatting issues (D205/D209/D206), 1 missing raw docstring prefix (D301), 1 missing period in module docstring (D415), and 1 missing `raise from` (B904).
+
+No ruff-reported undefined names or security-rule violations were found.
 
 ---
 

@@ -14,6 +14,7 @@ training process.  They verify both remaining issues and completed fixes:
    (still open, mitigated by custom Trainer).
 5. LoRA section naming divergence between config_cli and training_cli.
 6. CLI argument style inconsistency (--file vs positional).
+7. __main__.py now uses lazy import for training_cli (FIXED).
 """
 
 from __future__ import annotations
@@ -367,12 +368,13 @@ class TestTrainPyForwarding:
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> dict[str, Any]:
         """
-        Extract the keyword arguments passed to any `*.train_model(...)` call in the given AST.
+        Locate the keywords passed to a train_model(...) call within an AST and map each keyword name to its corresponding AST value node.
         
-        Searches the AST for a call whose attribute name is `train_model` and returns a mapping from each keyword name to its corresponding AST node.
+        Parameters:
+            tree (ast.AST): The AST to search (for example, the Module returned by ast.parse()).
         
         Returns:
-            dict[str, ast.AST]: A dictionary mapping keyword argument names to their AST value nodes. Returns an empty dict if no `train_model` call is found.
+            dict[str, ast.AST]: A mapping from keyword argument name to the AST node representing its value; returns an empty dict if no train_model call with keywords is found.
         """
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
@@ -445,7 +447,11 @@ class TestTrainPyRemainingGaps:
         return {}
 
     def test_size_sup_not_forwarded_by_train_py(self):
-        """train.py does not forward size_sup (dead config field)."""
+        """
+        Verify that train.py does not forward the `size_sup` training field to train_model.
+        
+        Asserts that the keyword arguments collected for the call to `train_model` do not include `"size_sup"`.
+        """
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "size_sup" not in kwargs
@@ -546,11 +552,13 @@ class TestRemoveUnusedColumns:
         """The HF default for remove_unused_columns is True."""
         pytest.importorskip("torch", reason="requires torch")
         from gliner.training.trainer import TrainingArguments
+        import tempfile
 
-        args = TrainingArguments(output_dir="/tmp/_test_ruc")
-        assert args.remove_unused_columns is True, (
-            "HF TrainingArguments defaults remove_unused_columns to True"
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = TrainingArguments(output_dir=tmpdir)
+            assert args.remove_unused_columns is True, (
+                "HF TrainingArguments defaults remove_unused_columns to True"
+            )
 
     def test_create_training_args_does_not_override_remove_unused_columns(self):
         """create_training_args does not set remove_unused_columns=False."""
@@ -948,4 +956,12 @@ class TestEndToEndWorkflow:
         vr = validate_config(gliner_format)
         assert len(vr.errors) > 0, (
             "training_cli should reject the 'gliner_config:' format"
+        )
+
+        # The incompatibility is proven: neither format works for both
+        assert not config_ok_with_model_format, (
+            "model: format fails config_cli"
+        )
+        assert not training_ok_with_gc_format, (
+            "gliner_config: format fails training_cli"
         )

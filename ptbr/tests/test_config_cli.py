@@ -3,25 +3,22 @@
 from __future__ import annotations
 
 import json
-import textwrap
 from pathlib import Path
 
-import pytest
 import yaml
+import pytest
 
+from gliner.config import GLiNERConfig
 from ptbr.config_cli import (
-    GLiNERConfigResult,
+    _LORA_RULES,
+    _GLINER_RULES,
     ValidationReport,
     _coerce_type,
     _validate_section,
-    _validate_cross_constraints,
-    _GLINER_RULES,
-    _LORA_RULES,
-    load_and_validate_config,
     print_and_log_result,
+    load_and_validate_config,
+    _validate_cross_constraints,
 )
-from gliner.config import GLiNERConfig
-
 
 # ============================================================================
 # Helpers
@@ -162,7 +159,7 @@ class TestCoerceType:
 class TestValidateSection:
     def test_required_field_missing_errors(self):
         report = ValidationReport()
-        result = _validate_section({}, _GLINER_RULES, "gliner_config", report)
+        _validate_section({}, _GLINER_RULES, "gliner_config", report)
         # model_name is REQUIRED
         errors = [i for i in report.errors if "model_name" in i.field]
         assert len(errors) == 1
@@ -171,7 +168,7 @@ class TestValidateSection:
     def test_default_fields_produce_warnings(self):
         report = ValidationReport()
         data = {"model_name": "some-model"}
-        result = _validate_section(data, _GLINER_RULES, "gliner_config", report)
+        _validate_section(data, _GLINER_RULES, "gliner_config", report)
         # Many fields should get defaults → warnings
         warning_fields = {i.field.split(".")[-1] for i in report.warnings}
         assert "name" in warning_fields
@@ -182,7 +179,7 @@ class TestValidateSection:
     def test_fully_specified_no_warnings(self):
         report = ValidationReport()
         data = _full_gliner_config()
-        result = _validate_section(data, _GLINER_RULES, "gliner_config", report)
+        _validate_section(data, _GLINER_RULES, "gliner_config", report)
         # Only _attn_implementation should produce a warning since it's None and default is None
         # (None default → no warning)
         non_attn_warnings = [w for w in report.warnings if "_attn_implementation" not in w.field]

@@ -9,11 +9,11 @@ Creates:
     Prints a full validation report at the end.
 """
 
+import sys
 import copy
 import json
-import random
-import sys
 import time
+import random
 from pathlib import Path
 
 # Ensure repo root is importable
