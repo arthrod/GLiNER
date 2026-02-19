@@ -1,4 +1,4 @@
-"""Central CLI entry point: python -m ptbr <command>
+"""Central CLI entry point: python -m ptbr <command>.
 
 Commands:
     data    Load, validate, and prepare GLiNER datasets
@@ -7,8 +7,8 @@ Commands:
 """
 
 import json
-from pathlib import Path
 from typing import Optional
+from pathlib import Path
 
 import typer
 
@@ -46,8 +46,21 @@ def data_cmd(
         "labels.json", help="Output path for extracted labels JSON."
     ),
 ):
-    """Load GLiNER data, validate, or generate label embeddings."""
-    from ptbr.data import extract_labels, load_data, validate_data
+    """
+    Load GLiNER-formatted data, optionally validate it, and optionally generate and save label embeddings.
+    
+    Parameters:
+        file_or_repo (str): Local JSON/JSONL file path or HuggingFace dataset repository id.
+        text_column (str): Column name that contains tokenized text.
+        ner_column (str): Column name that contains NER annotations.
+        split (str): Dataset split to load (e.g., "train", "validation", "test").
+        validate (bool): If True, validate the loaded data against GLiNER native format and exit with code 1 on validation failure.
+        generate_label_embeddings (Optional[str]): If provided, name or path of a bi-encoder model used to encode label embeddings.
+        trust_remote_code (bool): If True, allow execution of custom code when loading remote models.
+        output_embeddings_path (str): File path where computed label embeddings will be saved (PyTorch format).
+        output_labels_path (str): File path where extracted labels will be saved (JSON, UTF-8).
+    """
+    from ptbr.data import load_data, validate_data, extract_labels
 
     data = load_data(file_or_repo, text_column, ner_column, split=split)
     labels = extract_labels(data)
@@ -101,8 +114,21 @@ def config_cmd(
     full_or_lora: str = typer.Option("full", help="Training mode: 'full' or 'lora'."),
     method: str = typer.Option("span", help="GLiNER method: span, token, biencoder, decoder, relex."),
 ):
-    """Validate a GLiNER training configuration YAML file."""
-    from ptbr.config_cli import load_and_validate_config, print_and_log_result
+    """
+    Validate a GLiNER training configuration YAML file and optionally print a rich validation report.
+    
+    If `validate` is True, prints and logs a detailed validation report for the provided config file. Exits the process with code 1 when the validation report is not valid.
+    
+    Parameters:
+        file (str): Path to the YAML configuration file.
+        validate (bool): When True, run full validation and emit a rich report.
+        full_or_lora (str): Training mode, either "full" or "lora".
+        method (str): GLiNER method to validate for (e.g., "span", "token", "biencoder", "decoder", "relex").
+    
+    Raises:
+        typer.Exit: Exits with code 1 if the configuration validation fails.
+    """
+    from ptbr.config_cli import print_and_log_result, load_and_validate_config
 
     result = load_and_validate_config(
         file, full_or_lora=full_or_lora, method=method, validate=validate,
