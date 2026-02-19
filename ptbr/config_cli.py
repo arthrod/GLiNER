@@ -691,10 +691,13 @@ def print_and_log_result(
 # ============================================================================
 
 def _build_app():
-    """Build the Typer app.
-
-    Imported lazily so the module works without typer
-    when used purely as a library (typer is only needed for CLI execution).
+    """
+    Constructs and returns a Typer CLI application for validating and inspecting GLiNER fine-tuning YAML configurations.
+    
+    The app exposes a `main` command that loads a YAML config file, runs validation (optionally printing a rich summary and saving a log), and exits with a nonzero code on validation failure.
+    
+    Returns:
+        typer.Typer: A configured Typer application exposing the `main` command.
     """
     import typer
 
