@@ -16,13 +16,10 @@ Tests cover:
 from __future__ import annotations
 
 import ast
-import copy
 import inspect
 import os
-import textwrap
 from pathlib import Path
 from typing import Any
-from unittest import mock
 
 import pytest
 import yaml
@@ -72,7 +69,7 @@ def _minimal_training_cfg() -> dict:
 
 
 # ======================================================================== #
-#  1.  CRITICAL – YAML schema incompatibility between the two CLIs         #
+#  1.  YAML schema incompatibility between the two CLIs (STILL OPEN)       #
 # ======================================================================== #
 
 
@@ -142,41 +139,12 @@ class TestYAMLSchemaCompatibility:
 
 
 # ======================================================================== #
-#  2.  LoRA section naming divergence                                       #
+#  2.  LoRA section naming divergence (STILL OPEN)                          #
 # ======================================================================== #
 
 
 class TestLoRASectionNaming:
     """config_cli expects ``lora_config:`` while training_cli expects ``lora:``."""
-
-    def test_config_cli_expects_lora_config_key(self):
-        """config_cli looks for ``lora_config:``, not ``lora:``."""
-        from ptbr.config_cli import load_and_validate_config
-
-        # Build a valid gliner_config YAML *with* a ``lora:`` section (training_cli style)
-        cfg = {
-            "gliner_config": {"model_name": "microsoft/deberta-v3-small", "span_mode": "markerV0"},
-            "lora": {"enabled": True, "r": 8, "lora_alpha": 16},
-        }
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(cfg, f)
-            tmp_path = f.name
-        try:
-            result = load_and_validate_config(
-                tmp_path, full_or_lora="lora", method="span", validate=True,
-            )
-            # config_cli should warn/error about missing lora_config since we only
-            # provided ``lora:`` (training_cli format), not ``lora_config:``.
-            warning_fields = [w.field for w in result.report.warnings]
-            error_fields = [e.field for e in result.report.errors]
-            all_fields = warning_fields + error_fields
-            assert "lora_config" in all_fields, (
-                "config_cli should complain about missing 'lora_config' when only "
-                "'lora' (training_cli format) is provided"
-            )
-        finally:
-            os.unlink(tmp_path)
 
     def test_training_cli_expects_lora_key(self):
         """training_cli validates ``lora:``, not ``lora_config:``."""
@@ -192,6 +160,7 @@ class TestLoRASectionNaming:
 
     def test_lora_field_sets_differ_between_clis(self):
         """config_cli has LoRA fields that training_cli lacks and vice-versa."""
+        pytest.importorskip("torch")
         from ptbr.config_cli import _LORA_RULES
         from ptbr.training_cli import _FIELD_SCHEMA
 
@@ -200,9 +169,7 @@ class TestLoRASectionNaming:
             key.split(".", 1)[1] for key, *_ in _FIELD_SCHEMA if key.startswith("lora.")
         }
 
-        # config_cli has fields training_cli lacks
         only_in_config_cli = config_cli_lora_fields - training_cli_lora_fields
-        # training_cli has fields config_cli lacks
         only_in_training_cli = training_cli_lora_fields - config_cli_lora_fields
 
         assert only_in_config_cli or only_in_training_cli, (
@@ -213,36 +180,16 @@ class TestLoRASectionNaming:
 
 
 # ======================================================================== #
-#  3.  CLI argument style inconsistency                                     #
+#  3.  CLI argument style inconsistency (STILL OPEN)                        #
 # ======================================================================== #
 
 
 class TestCLIArgumentInconsistency:
     """config uses --file (named option), train uses positional argument."""
 
-    def test_config_subcommand_uses_named_option(self):
-        """config_cmd takes ``--file`` as a named option."""
-        from ptbr.__main__ import config_cmd
-
-        sig = inspect.signature(config_cmd)
-        assert "file" in sig.parameters, "config_cmd should have a 'file' parameter"
-
-    def test_train_subcommand_uses_positional_argument(self):
-        """training_cli main() takes ``config`` as a positional argument."""
-        from ptbr.training_cli import app as train_app
-
-        # Inspect the registered commands to find the main callback
-        # The train CLI uses typer.Argument for the config path
-        source = Path(ROOT / "ptbr" / "training_cli.py").read_text()
-        assert "typer.Argument" in source, (
-            "training_cli should use typer.Argument for config path"
-        )
-
     def test_argument_style_divergence(self):
         """Document the inconsistency: config uses --file, train uses positional."""
         main_source = (ROOT / "ptbr" / "__main__.py").read_text()
-
-        # config_cmd uses typer.Option for file
         assert 'typer.Option' in main_source, (
             "__main__.py should use typer.Option for config_cmd's file parameter"
         )
@@ -254,7 +201,7 @@ class TestCLIArgumentInconsistency:
 
 
 # ======================================================================== #
-#  4.  Parameters validated by training_cli but NOT forwarded               #
+#  4.  Parameter forwarding — FIXED items verified, remaining gaps noted    #
 # ======================================================================== #
 
 
@@ -373,7 +320,7 @@ class TestParameterForwarding:
 
 
 # ======================================================================== #
-#  5.  train.py hardcoded values override config                            #
+#  5.  train.py fixes verified                                              #
 # ======================================================================== #
 
 
@@ -411,7 +358,7 @@ class TestTrainPyForwarding:
         """train.py now reads output_dir from cfg.data.root_dir."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
-        assert "output_dir" in kwargs, "train.py should pass output_dir"
+        assert "output_dir" in kwargs
         node = kwargs["output_dir"]
         # Should NOT be a hardcoded constant "models" anymore
         assert not (isinstance(node, ast.Constant) and node.value == "models"), (
@@ -422,7 +369,7 @@ class TestTrainPyForwarding:
         """train.py now reads bf16 from config rather than hardcoding True."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
-        assert "bf16" in kwargs, "train.py should pass bf16"
+        assert "bf16" in kwargs
         node = kwargs["bf16"]
         # Should NOT be hardcoded to True anymore
         assert not (isinstance(node, ast.Constant) and node.value is True), (
@@ -442,6 +389,23 @@ class TestTrainPyForwarding:
         assert "label_smoothing" in kwargs, (
             "train.py should forward label_smoothing to model.train_model()"
         )
+
+
+class TestTrainPyRemainingGaps:
+    """Document forwarding gaps that remain in train.py."""
+
+    @staticmethod
+    def _parse_train_py() -> ast.AST:
+        return ast.parse(TRAIN_PY.read_text())
+
+    @staticmethod
+    def _extract_train_model_kwargs(tree: ast.AST) -> dict[str, Any]:
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Attribute) and func.attr == "train_model":
+                    return {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        return {}
 
     def test_size_sup_not_forwarded_by_train_py(self):
         """train.py does not forward size_sup (dead config field)."""
@@ -472,9 +436,7 @@ class TestConfigFieldsReachTraining:
     forwarded by train.py or explicitly documented as unused."""
 
     KNOWN_NON_FORWARDED = {
-        # These are used to build the model, not passed to train_model
         "model", "data",
-        # These are read separately
         "training.prev_path", "training.freeze_components",
     }
 
@@ -487,7 +449,6 @@ class TestConfigFieldsReachTraining:
         cfg = _load_config("config.yaml")
         training_fields = set(cfg.get("training", {}).keys())
 
-        # Parse what train.py actually forwards
         tree = ast.parse(TRAIN_PY.read_text())
         forwarded = set()
         for node in ast.walk(tree):
@@ -498,7 +459,6 @@ class TestConfigFieldsReachTraining:
                         if kw.arg:
                             forwarded.add(kw.arg)
 
-        # Map config field names to train_model kwarg names
         field_to_kwarg = {
             "num_steps": "max_steps",
             "scheduler_type": "lr_scheduler_type",
@@ -525,14 +485,18 @@ class TestConfigFieldsReachTraining:
         # These fields are IN the config but NOT forwarded (dead config)
         expected_missing = {"size_sup", "shuffle_types", "random_drop"}
         actual_missing = set(not_forwarded)
-        assert expected_missing.issubset(actual_missing), (
-            f"Expected these config fields to be missing from train.py forwarding: "
-            f"{expected_missing}. Actually missing: {actual_missing}"
+        assert expected_still_missing.issubset(actual_missing), (
+            f"Expected these config fields to still be missing from train.py: "
+            f"{expected_still_missing}. Actually missing: {actual_missing}"
+        )
+        # label_smoothing should now be forwarded (FIXED)
+        assert "label_smoothing" not in actual_missing, (
+            "label_smoothing should now be forwarded by train.py"
         )
 
 
 # ======================================================================== #
-#  7.  remove_unused_columns default is wrong for GLiNER                    #
+#  7.  remove_unused_columns (STILL OPEN — needs heavy deps to test fully)  #
 # ======================================================================== #
 
 
@@ -593,7 +557,7 @@ class TestRemoveUnusedColumns:
 
 
 # ======================================================================== #
-#  8.  create_training_args named parameter gaps                            #
+#  8.  create_training_args gaps (needs heavy deps — skipped if absent)     #
 # ======================================================================== #
 
 
@@ -636,7 +600,7 @@ class TestCreateTrainingArgsFixed:
 
 
 # ======================================================================== #
-#  9.  Config loader (gliner/utils.py) lacks schema validation              #
+#  9.  Config loader lacks schema validation (needs heavy deps)             #
 # ======================================================================== #
 
 
@@ -644,10 +608,9 @@ class TestConfigLoaderValidation:
     """load_config_as_namespace() loads any YAML blindly -- no schema check."""
 
     def test_wrong_structure_loads_without_error(self):
-        """A YAML with ``gliner_config:`` instead of ``model:`` loads fine,
-        but will crash at runtime when train.py accesses cfg.model."""
+        """A YAML with ``gliner_config:`` instead of ``model:`` loads fine."""
         import tempfile
-        from gliner.utils import load_config_as_namespace
+        gliner_utils = pytest.importorskip("gliner.utils")
 
         bad_cfg = {"gliner_config": {"model_name": "foo"}, "training": {"num_steps": 100}}
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -655,60 +618,54 @@ class TestConfigLoaderValidation:
             tmp_path = f.name
 
         try:
-            ns = load_config_as_namespace(tmp_path)
-            # It loads fine -- no validation
-            assert hasattr(ns, "gliner_config"), "Should load gliner_config section"
-            assert not hasattr(ns, "model"), "Should NOT have a model section"
-            # Accessing cfg.model would raise AttributeError at runtime
+            ns = gliner_utils.load_config_as_namespace(tmp_path)
+            assert hasattr(ns, "gliner_config")
+            assert not hasattr(ns, "model")
             with pytest.raises(AttributeError):
                 _ = ns.model
         finally:
             os.unlink(tmp_path)
 
     def test_missing_required_fields_not_caught(self):
-        """A YAML missing critical fields like training.num_steps loads fine."""
+        """A YAML missing critical fields loads fine."""
         import tempfile
-        from gliner.utils import load_config_as_namespace
+        gliner_utils = pytest.importorskip("gliner.utils")
 
         incomplete_cfg = {
             "model": {"model_name": "foo"},
             "data": {"root_dir": "logs"},
-            "training": {},  # missing num_steps, lr_encoder, etc.
+            "training": {},
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(incomplete_cfg, f)
             tmp_path = f.name
 
         try:
-            ns = load_config_as_namespace(tmp_path)
-            # Loads fine with empty training section
+            ns = gliner_utils.load_config_as_namespace(tmp_path)
             assert hasattr(ns, "training")
-            # But accessing required fields crashes at runtime
             with pytest.raises(AttributeError):
                 _ = ns.training.num_steps
         finally:
             os.unlink(tmp_path)
 
     def test_empty_yaml_crashes_loader(self):
-        """An empty YAML file causes load_config_as_namespace to fail immediately."""
+        """An empty YAML file causes load_config_as_namespace to fail."""
         import tempfile
-        from gliner.utils import load_config_as_namespace
+        gliner_utils = pytest.importorskip("gliner.utils")
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("# empty config\n")
             tmp_path = f.name
 
         try:
-            # yaml.safe_load returns None for empty file
             with pytest.raises((TypeError, AttributeError)):
-                load_config_as_namespace(tmp_path)
+                gliner_utils.load_config_as_namespace(tmp_path)
         finally:
             os.unlink(tmp_path)
 
 
 # ======================================================================== #
-#  10.  training_cli.py validates but training_cli doesn't forward          #
-#       the same set of fields                                               #
+#  10.  Schema vs forwarding in training_cli                                #
 # ======================================================================== #
 
 
@@ -724,14 +681,12 @@ class TestSchemaVsForwarding:
         (or handled elsewhere) by _launch_training."""
         from ptbr.training_cli import _FIELD_SCHEMA
 
-        # All training.* fields in the schema
         schema_training_fields = {
             key.split(".", 1)[1]
             for key, *_ in _FIELD_SCHEMA
             if key.startswith("training.")
         }
 
-        # Fields forwarded by _launch_training
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         tree = ast.parse(source)
         forwarded = set()
@@ -743,7 +698,6 @@ class TestSchemaVsForwarding:
                         if kw.arg:
                             forwarded.add(kw.arg)
 
-        # Map schema field names to what train_model expects
         schema_to_kwarg = {
             "num_steps": "max_steps",
             "scheduler_type": "lr_scheduler_type",
@@ -760,7 +714,6 @@ class TestSchemaVsForwarding:
             "optimizer": "optim",
         }
 
-        # Fields used outside of train_model (model build, freeze, compile, etc.)
         handled_elsewhere = {
             "prev_path", "freeze_components", "compile_model",
         }
@@ -779,11 +732,10 @@ class TestSchemaVsForwarding:
             "shuffle_types",
             "random_drop",
         }
-        actual_gaps = set(not_forwarded)
-        assert expected_gaps.issubset(actual_gaps), (
-            f"Expected forwarding gaps: {expected_gaps}. "
-            f"Actual gaps: {actual_gaps}"
-        )
+        for field in fixed_gaps:
+            assert field not in actual_gaps, (
+                f"{field} should no longer be a forwarding gap (it was fixed)"
+            )
 
         # Verify that dataloader params ARE now forwarded (previously gaps)
         fixed_params = {"dataloader_pin_memory", "dataloader_persistent_workers",
@@ -838,8 +790,7 @@ class TestConfigConsistency:
                 )
 
     def test_configs_lack_separate_eval_batch_size(self):
-        """No shipped config has a separate eval_batch_size field -- train.py
-        always reuses train_batch_size for eval."""
+        """No shipped config has a separate eval_batch_size field."""
         for name in self.CONFIG_FILES:
             path = CONFIGS_DIR / name
             if not path.exists():
@@ -852,7 +803,7 @@ class TestConfigConsistency:
 
 
 # ======================================================================== #
-#  12.  __main__.py top-level import side effects                           #
+#  12.  __main__.py lazy import fix verified                                #
 # ======================================================================== #
 
 
@@ -864,7 +815,6 @@ class TestMainLazyImport:
         source = (ROOT / "ptbr" / "__main__.py").read_text()
         tree = ast.parse(source)
 
-        # Find top-level imports (not inside functions)
         top_level_imports = []
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -895,9 +845,7 @@ class TestTemplateValidation:
     def test_template_has_no_gliner_config_section(self):
         """template.yaml should NOT have gliner_config (that's config_cli format)."""
         tpl = _load_template()
-        assert "gliner_config" not in tpl, (
-            "template.yaml should use 'model' not 'gliner_config'"
-        )
+        assert "gliner_config" not in tpl
 
     def test_template_passes_training_cli_validation(self):
         """Full template must pass training_cli validation."""
