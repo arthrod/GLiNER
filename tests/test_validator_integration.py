@@ -292,12 +292,14 @@ class TestParameterForwarding:
         forwarded = self._extract_train_model_kwargs(tree)
         assert "random_drop" not in forwarded
 
-    def test_run_name_forwarded(self):
-        """run.name is now forwarded as run_name to TrainingArguments."""
+    def test_run_name_forwarded_to_training_args(self):
+        """run.name is validated and forwarded as ``run_name`` to TrainingArguments."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "run_name" in forwarded
+        assert "run_name" in forwarded, (
+            "run_name should be in the train_model() call (fix verified)"
+        )
 
     def test_run_tags_not_forwarded(self):
         """run.tags validated but not forwarded to W&B/TrainingArguments."""
@@ -485,9 +487,9 @@ class TestConfigFieldsReachTraining:
         # These fields are IN the config but NOT forwarded (dead config)
         expected_missing = {"size_sup", "shuffle_types", "random_drop"}
         actual_missing = set(not_forwarded)
-        assert expected_still_missing.issubset(actual_missing), (
+        assert expected_missing.issubset(actual_missing), (
             f"Expected these config fields to still be missing from train.py: "
-            f"{expected_still_missing}. Actually missing: {actual_missing}"
+            f"{expected_missing}. Actually missing: {actual_missing}"
         )
         # label_smoothing should now be forwarded (FIXED)
         assert "label_smoothing" not in actual_missing, (
@@ -507,12 +509,15 @@ class TestRemoveUnusedColumns:
 
     def test_default_remove_unused_columns_is_true(self):
         """The HF default for remove_unused_columns is True."""
+        pytest.importorskip("torch", reason="requires torch")
         from gliner.training.trainer import TrainingArguments
+        import tempfile
 
-        args = TrainingArguments(output_dir="/tmp/_test_ruc")
-        assert args.remove_unused_columns is True, (
-            "HF TrainingArguments defaults remove_unused_columns to True"
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = TrainingArguments(output_dir=tmpdir)
+            assert args.remove_unused_columns is True, (
+                "HF TrainingArguments defaults remove_unused_columns to True"
+            )
 
     def test_create_training_args_overrides_remove_unused_columns(self):
         """create_training_args now sets remove_unused_columns=False."""
@@ -732,10 +737,13 @@ class TestSchemaVsForwarding:
             "shuffle_types",
             "random_drop",
         }
-        for field in fixed_gaps:
-            assert field not in actual_gaps, (
-                f"{field} should no longer be a forwarding gap (it was fixed)"
-            )
+        actual_gaps = set(not_forwarded)
+
+        # Verify dead config fields are still gaps as expected
+        assert expected_gaps.issubset(actual_gaps), (
+            f"Expected these schema fields to still be gaps: {expected_gaps}. "
+            f"Actually gaps: {actual_gaps}"
+        )
 
         # Verify that dataloader params ARE now forwarded (previously gaps)
         fixed_params = {"dataloader_pin_memory", "dataloader_persistent_workers",
@@ -817,9 +825,11 @@ class TestMainLazyImport:
 
         top_level_imports = []
         for node in ast.iter_child_nodes(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    top_level_imports.append(node.module)
+            if isinstance(node, ast.ImportFrom) and node.module:
+                top_level_imports.append(node.module)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    top_level_imports.append(alias.name)
 
         assert not any("training_cli" in imp for imp in top_level_imports), (
             "training_cli should NOT be imported at module level in __main__.py "
