@@ -1,4 +1,4 @@
-"""GLiNER fine-tuning configuration validator and CLI.
+r"""GLiNER fine-tuning configuration validator and CLI.
 
 Usage as CLI (via Typer):
     python -m ptbr.config_cli --file config.yaml --validate \\
@@ -15,15 +15,15 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime
+from typing import Any, Dict, List, Tuple, Literal, Optional
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from datetime import datetime
+from dataclasses import field, dataclass
 
 import yaml
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.console import Console
 
 from gliner.config import GLiNERConfig
 
@@ -691,8 +691,14 @@ def print_and_log_result(
 # ============================================================================
 
 def _build_app():
-    """Build the Typer app. Imported lazily so the module works without typer
-    when used purely as a library (typer is only needed for CLI execution)."""
+    """
+    Constructs and returns a Typer CLI application for validating and inspecting GLiNER fine-tuning YAML configurations.
+    
+    The app exposes a `main` command that loads a YAML config file, runs validation (optionally printing a rich summary and saving a log), and exits with a nonzero code on validation failure.
+    
+    Returns:
+        typer.Typer: A configured Typer application exposing the `main` command.
+    """
     import typer
 
     app = typer.Typer(

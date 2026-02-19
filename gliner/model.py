@@ -1008,55 +1008,80 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         focal_loss_alpha: float = -1,
         focal_loss_gamma: float = 0.0,
         focal_loss_prob_margin: float = 0.0,
+        label_smoothing: float = 0.0,
         loss_reduction: str = "sum",
         negatives: float = 1.0,
-        masking: str = "none",
+        masking: str = "global",
         lr_scheduler_type: str = "linear",
         warmup_ratio: float = 0.1,
         per_device_train_batch_size: int = 8,
         per_device_eval_batch_size: int = 8,
         max_grad_norm: float = 1.0,
         max_steps: int = 10000,
+        eval_steps: Optional[int] = None,
         save_steps: int = 1000,
         save_total_limit: int = 10,
         logging_steps: int = 10,
         use_cpu: bool = False,
         bf16: bool = False,
+        fp16: bool = False,
+        seed: int = 42,
+        gradient_checkpointing: bool = False,
+        remove_unused_columns: bool = False,
         dataloader_num_workers: int = 1,
-        report_to: str = "none",
+        dataloader_pin_memory: bool = True,
+        dataloader_persistent_workers: bool = False,
+        dataloader_prefetch_factor: Optional[int] = 2,
+        report_to: Union[str, list] = "none",
+        run_name: Optional[str] = None,
+        push_to_hub: bool = False,
+        hub_model_id: Optional[str] = None,
         **kwargs,
     ) -> TrainingArguments:
-        """Create training arguments with sensible defaults.
-
-        Args:
-            output_dir: Directory to save model checkpoints.
-            learning_rate: Learning rate for main parameters.
+        """
+        Create a configured TrainingArguments object with sensible defaults for GLiNER training.
+        
+        Parameters:
+            output_dir: Directory where checkpoints and outputs will be saved.
+            learning_rate: Base learning rate for main parameters.
             weight_decay: Weight decay for main parameters.
-            others_lr: Learning rate for other parameters.
-            others_weight_decay: Weight decay for other parameters.
-            focal_loss_alpha: Alpha for focal loss.
-            focal_loss_gamma: Gamma for focal loss.
+            others_lr: Learning rate for parameter groups marked as "other"; defaults to `learning_rate` when None.
+            others_weight_decay: Weight decay for "other" parameter groups; defaults to `weight_decay` when None.
+            focal_loss_alpha: Alpha parameter for focal loss.
+            focal_loss_gamma: Gamma parameter for focal loss.
             focal_loss_prob_margin: Probability margin for focal loss.
-            loss_reduction: Loss reduction method.
+            label_smoothing: Label smoothing factor applied to the GLiNER loss.
+            loss_reduction: Reduction method for the loss (e.g., "sum", "mean").
             negatives: Negative sampling ratio.
-            masking: Masking strategy.
-            lr_scheduler_type: Learning rate scheduler type.
-            warmup_ratio: Warmup ratio.
-            per_device_train_batch_size: Training batch size.
-            per_device_eval_batch_size: Evaluation batch size.
-            max_grad_norm: Maximum gradient norm.
-            max_steps: Maximum training steps.
-            save_steps: Save checkpoint every N steps.
+            masking: Masking strategy; use "global" or "none".
+            lr_scheduler_type: Learning rate scheduler type (string identifier).
+            warmup_ratio: Fraction of total steps used for linear warmup.
+            per_device_train_batch_size: Training batch size per device.
+            per_device_eval_batch_size: Evaluation batch size per device.
+            max_grad_norm: Maximum gradient norm for clipping.
+            max_steps: Maximum number of training steps.
+            eval_steps: Run evaluation every N steps. If None, `save_steps` will be used as the evaluation cadence.
+            save_steps: Save a checkpoint every N steps.
             save_total_limit: Maximum number of checkpoints to keep.
-            logging_steps: Log every N steps.
-            use_cpu: Whether to use CPU.
-            bf16: Whether to use bfloat16.
-            dataloader_num_workers: Number of dataloader workers.
-            report_to: Where to report metrics.
-            **kwargs: Additional training arguments.
-
+            logging_steps: Log metrics every N steps.
+            use_cpu: Force training on CPU.
+            bf16: Enable bfloat16 where supported.
+            fp16: Enable float16 mixed precision.
+            seed: Random seed for reproducibility.
+            gradient_checkpointing: Enable gradient checkpointing to reduce memory.
+            remove_unused_columns: If True, remove unused dataset columns; must be False for GLiNER's custom batch dictionaries.
+            dataloader_num_workers: Number of worker processes for data loading.
+            dataloader_pin_memory: Pin memory in dataloaders.
+            dataloader_persistent_workers: Use persistent dataloader workers.
+            dataloader_prefetch_factor: Number of batches to prefetch per worker.
+            report_to: Destination(s) for reporting metrics (e.g., "none", "wandb"); may be a string or list.
+            run_name: Optional name for the training run (used by reporting integrations).
+            push_to_hub: Whether to push the trained model to the Hugging Face Hub.
+            hub_model_id: Hub repository identifier to push to.
+            **kwargs: Additional TrainingArguments fields to pass through.
+        
         Returns:
-            TrainingArguments instance.
+            A TrainingArguments instance pre-populated for GLiNER training.
         """
         return TrainingArguments(
             output_dir=output_dir,
@@ -1067,6 +1092,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             focal_loss_gamma=focal_loss_gamma,
             focal_loss_alpha=focal_loss_alpha,
             focal_loss_prob_margin=focal_loss_prob_margin,
+            label_smoothing=label_smoothing,
             loss_reduction=loss_reduction,
             negatives=negatives,
             masking=masking,
@@ -1076,13 +1102,24 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             per_device_eval_batch_size=per_device_eval_batch_size,
             max_grad_norm=max_grad_norm,
             max_steps=max_steps,
+            eval_steps=eval_steps,
             save_steps=save_steps,
             save_total_limit=save_total_limit,
             dataloader_num_workers=dataloader_num_workers,
+            dataloader_pin_memory=dataloader_pin_memory,
+            dataloader_persistent_workers=dataloader_persistent_workers,
+            dataloader_prefetch_factor=dataloader_prefetch_factor,
             logging_steps=logging_steps,
             use_cpu=use_cpu,
             report_to=report_to,
+            run_name=run_name,
             bf16=bf16,
+            fp16=fp16,
+            seed=seed,
+            gradient_checkpointing=gradient_checkpointing,
+            remove_unused_columns=remove_unused_columns,
+            push_to_hub=push_to_hub,
+            hub_model_id=hub_model_id,
             **kwargs,
         )
 
@@ -1094,21 +1131,26 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         freeze_components: Optional[list[str]] = None,
         compile_model: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
+        resume_from_checkpoint: Optional[Union[str, Path, bool]] = None,
         **training_kwargs,
     ) -> Trainer:
-        """Train the model.
-
-        Args:
-            train_dataset: Training dataset.
-            eval_dataset: Evaluation dataset.
-            training_args: Training arguments (created with defaults if None).
-            freeze_components: List of component names to freeze (e.g., ['text_encoder', 'decoder']).
-            compile_model: Whether to compile model with torch.compile.
-            output_dir: Output directory (required if training_args is None).
-            **training_kwargs: Additional kwargs for creating training args.
-
+        """
+        Execute training with Hugging Face's Trainer using the provided datasets and training configuration.
+        
+        If `training_args` is None, a TrainingArguments object is created from `output_dir` and `training_kwargs`. When `eval_dataset` is provided and no evaluation strategy is set, evaluation is enabled with `eval_strategy='steps'` and `eval_steps` defaulting to `save_steps`.
+        
+        Parameters:
+            train_dataset: The dataset used for training.
+            eval_dataset: The dataset used for evaluation (may be None).
+            training_args: Optional TrainingArguments; created from `output_dir` and `training_kwargs` if not provided.
+            freeze_components: Optional list of component names to freeze before training (e.g., ['text_encoder', 'decoder']).
+            compile_model: If True, compiles the model (via self.compile()) before training.
+            output_dir: Directory to save training outputs; required if `training_args` is None.
+            resume_from_checkpoint: Path to a checkpoint to resume from, or True to auto-detect the latest checkpoint; if None training starts from scratch.
+            **training_kwargs: Additional keyword arguments forwarded to `create_training_args` when `training_args` is not provided.
+        
         Returns:
-            Trained Trainer instance.
+            The Trainer instance used to run training (with trained model weights).
         """
         # Create training arguments if not provided
         if training_args is None:
@@ -1123,7 +1165,12 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             current_strategy = getattr(training_args, "eval_strategy",
                                        getattr(training_args, "evaluation_strategy", "no"))
             if current_strategy == "no":
-                training_args.eval_strategy = "steps"
+                # Set both attributes for cross-version compatibility:
+                # transformers < 5.0 uses evaluation_strategy, >= 5.0 uses eval_strategy.
+                if hasattr(training_args, "eval_strategy"):
+                    training_args.eval_strategy = "steps"
+                if hasattr(training_args, "evaluation_strategy"):
+                    training_args.evaluation_strategy = "steps"
                 # If no explicit eval_steps, fall back to save_steps so that
                 # evaluation runs at the same cadence as checkpointing.
                 if getattr(training_args, "eval_steps", None) is None:
@@ -1158,8 +1205,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
         trainer = Trainer(**trainer_kwargs)
 
-        # Train
-        trainer.train()
+        # Train, optionally resuming from a checkpoint
+        if resume_from_checkpoint is not None:
+            trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            trainer.train()
 
         return trainer
 

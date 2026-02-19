@@ -63,7 +63,7 @@ def main(cfg_path: str):
     logging_steps = (
         train_cfg.get("logging_steps") or getattr(cfg.training, "logging_steps", None) or cfg.training.eval_every
     )
-    label_smoothing = float(getattr(cfg.training, "label_smoothing", 0))
+    label_smoothing = float(getattr(cfg.training, "label_smoothing", None) or 0)
 
     # Train
     print("\nStarting training...")

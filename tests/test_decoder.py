@@ -534,7 +534,7 @@ class TestSpanRelexDecoder:
         """Should return empty relations when rel_id_to_classes is None."""
         decoder = SpanRelexDecoder(relex_config)
 
-        spans, relations = decoder.decode(
+        _spans, relations = decoder.decode(
             tokens=relex_inputs["tokens"],
             id_to_classes=relex_inputs["id_to_classes"],
             model_output=relex_inputs["model_output"],

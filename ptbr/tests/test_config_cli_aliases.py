@@ -6,10 +6,10 @@ before importing ``ptbr.config_cli``.
 
 from __future__ import annotations
 
-import importlib
 import sys
-from pathlib import Path
+import importlib
 from types import ModuleType
+from pathlib import Path
 
 import yaml
 

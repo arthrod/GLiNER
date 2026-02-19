@@ -4,29 +4,29 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 import types
 from types import ModuleType
+from pathlib import Path
 from unittest import mock
 
-import pytest
 import yaml
+import pytest
 from typer.testing import CliRunner
 
 from ptbr.training_cli import (
-    _apply_lora,
-    _check_type,
+    ValidationResult,
+    app,
     _deep_get,
     _deep_set,
-    _launch_training,
-    app,
-    check_huggingface,
+    _apply_lora,
+    _check_type,
     check_wandb,
     check_resume,
     print_summary,
     semantic_checks,
     validate_config,
-    ValidationResult,
+    _launch_training,
+    check_huggingface,
 )
 
 runner = CliRunner()
@@ -281,12 +281,12 @@ class TestSemanticChecks:
 
     def test_positive_num_steps(self, valid_cfg: dict) -> None:
         """
-        Checks that semantic validation reports an error when training.num_steps is not positive.
-
-        Sets training.num_steps to 0 on the provided configuration, runs semantic_checks, and asserts that an error referencing "num_steps" is present in the ValidationResult.
-
+        Verify semantic validation reports an error when training.num_steps is not greater than zero.
+        
+        This test sets `training.num_steps` to 0 and asserts that `ValidationResult` contains an error mentioning "num_steps".
+        
         Parameters:
-            valid_cfg (dict): A baseline valid configuration dictionary used for the test.
+            valid_cfg (dict): Baseline valid configuration used by the test.
         """
         valid_cfg["training"]["num_steps"] = 0
         result = ValidationResult()
@@ -552,7 +552,8 @@ class TestCLI:
         """
         Allow validation to run when `--resume` is supplied without `--output-folder`.
 
-        Invokes the CLI with `--validate` and `--resume` for the provided config file and asserts the command exits with code 0.
+        Invokes the CLI with `--validate` and `--resume` for the provided config file
+        and asserts the command exits with code 0.
         """
         result = runner.invoke(app, [str(cfg_file), "--validate", "--resume"])
         # validate-only doesn't check resume (no output folder)
