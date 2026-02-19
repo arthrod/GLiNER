@@ -306,6 +306,12 @@ class TestParameterForwardingGaps:
 
     @staticmethod
     def _get_launch_training_source() -> str:
+        """
+        Retrieve the source code of ptbr/training_cli.py.
+        
+        Returns:
+            The file contents of ptbr/training_cli.py as a string.
+        """
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         return source
 
@@ -424,8 +430,15 @@ class TestTrainPyHardcodedValues:
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> dict[str, Any]:
-        """Extract keyword arguments from the model.train_model() call as
-        {name: ast_node} pairs."""
+        """
+        Locate the keywords passed to a train_model(...) call within an AST and map each keyword name to its corresponding AST value node.
+        
+        Parameters:
+            tree (ast.AST): The AST to search (for example, the Module returned by ast.parse()).
+        
+        Returns:
+            dict[str, ast.AST]: A mapping from keyword argument name to the AST node representing its value; returns an empty dict if no train_model call with keywords is found.
+        """
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
@@ -478,7 +491,11 @@ class TestTrainPyHardcodedValues:
         )
 
     def test_size_sup_not_forwarded_by_train_py(self):
-        """train.py does not forward size_sup despite it being in all YAML configs."""
+        """
+        Verify that train.py does not forward the `size_sup` training field to train_model.
+        
+        Asserts that the keyword arguments collected for the call to `train_model` do not include `"size_sup"`.
+        """
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "size_sup" not in kwargs
