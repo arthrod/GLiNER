@@ -4,7 +4,7 @@
 
 This report was originally written before a series of fixes to `training_cli.py` and `train.py`. The **Review and Conclusions** section at the end captures the current state after those fixes, the static analysis results, and the test assessment.
 
-Our training toolkit has a well-structured validation layer (`_FIELD_SCHEMA` in `training_cli.py`) and correctly identifies most GLiNER-specific extension fields. After recent fixes, the majority of the original critical parameter-forwarding gaps in `training_cli.py` have been resolved. The remaining issues are: three dead fields (`size_sup`, `shuffle_types`, `random_drop`) still in the schema and all shipped configs, `remove_unused_columns=False` is still not set anywhere, `run.seed` is still not forwarded to TrainingArguments, the LoRA schema in `training_cli.py` still lacks three fields that `config_cli.py` validates (`init_lora_weights`, `use_rslora`, `fan_in_fan_out`), and several `test_validator_integration.py` tests now fail because they assert bugs exist that have since been fixed.
+Our training toolkit has a well-structured validation layer (`_FIELD_SCHEMA` in `training_cli.py`) and correctly identifies most GLiNER-specific extension fields. After recent fixes, the majority of the original critical parameter-forwarding gaps in `training_cli.py` have been resolved. `remove_unused_columns` now defaults to `False` in `create_training_args` and is forwarded by `training_cli`. Dead fields (`size_sup`, `shuffle_types`, `random_drop`) have been removed from `_FIELD_SCHEMA` (still in shipped YAML configs for backward compatibility). The remaining issues are: `run.seed` is still not forwarded to TrainingArguments, the LoRA schema in `training_cli.py` still lacks three fields that `config_cli.py` validates (`init_lora_weights`, `use_rslora`, `fan_in_fan_out`). All `test_validator_integration.py` tests have been updated to verify fixes rather than asserting bugs.
 
 ---
 
@@ -103,9 +103,9 @@ This is the critical end-to-end analysis. For each field validated in `_FIELD_SC
 
 | Schema field | Line in schema | Impact |
 |---|---|---|
-| `training.size_sup` | 182 | **DEAD FIELD** - not consumed by GLiNER library anywhere. Grep across entire `gliner/` directory returns zero hits. This field exists in upstream config YAML examples but has no implementation. |
-| `training.shuffle_types` | 183 | **DEAD FIELD** - same as above. Not consumed anywhere in `gliner/`. |
-| `training.random_drop` | 184 | **DEAD FIELD** - same as above. Not consumed anywhere in `gliner/`. |
+| ~~`training.size_sup`~~ | ~~182~~ | **REMOVED FROM SCHEMA** - Dead field, not consumed by GLiNER library anywhere. Still present in shipped YAML configs for backward compatibility. |
+| ~~`training.shuffle_types`~~ | ~~183~~ | **REMOVED FROM SCHEMA** - Dead field, same as above. |
+| ~~`training.random_drop`~~ | ~~184~~ | **REMOVED FROM SCHEMA** - Dead field, same as above. |
 | `run.description` | 95 | Not forwarded anywhere. |
 | `run.tags` | 96 | Not forwarded anywhere. |
 | `run.seed` | 100 | Used for `torch.manual_seed()` but NOT forwarded as `seed` to TrainingArguments. This means the Trainer's internal seed (for shuffling, etc.) may differ from the user's configured seed. |
@@ -130,7 +130,7 @@ The research report recommends these TrainingArguments fields which are complete
 | `adam_beta1` / `adam_beta2` / `adam_epsilon` | HF-TRAIN | Optimizer | Report explicitly lists these. Users cannot tune Adam hyperparams. |
 | `gradient_checkpointing` | HF-TRAIN | Precision/perf | Critical for large models. Completely absent. |
 | `torch_compile` | HF-TRAIN | Precision/perf | Report lists this as a TrainingArguments field; we have `compile_model` which calls `model.compile()` before training rather than using the Trainer's built-in `torch_compile` support. These are different code paths. |
-| `remove_unused_columns` | HF-TRAIN | Misc | Must be `false` for GLiNER's custom batch dictionaries. Report explicitly warns about this. Our code does not set it, meaning it defaults to `True` in HF Trainer, which **will silently drop batch columns and may cause training failures**. |
+| `remove_unused_columns` | HF-TRAIN | Misc | **FIXED**: `create_training_args` now defaults `remove_unused_columns=False` for GLiNER's custom batch dictionaries. `training_cli` forwards it to `train_model()`. |
 | `save_strategy` | HF-TRAIN | Saving | We set `save_steps` but never explicitly set `save_strategy="steps"`. HF defaults to `"steps"` so this accidentally works, but it's fragile. |
 | `seed` | HF-TRAIN | Determinism | Not forwarded as a TrainingArguments field. Only used for `torch.manual_seed()`. |
 | `warmup_steps` | HF-TRAIN | Schedule | Sometimes preferred over `warmup_ratio`; absent. |
@@ -183,7 +183,7 @@ YAML -> data -> Dataset loader -> Trainer
 
 1. **YAML -> model -> GLiNER**: Correct. `_launch_training` passes `cfg["model"]` to `GLiNER.from_config(model_cfg)` (line 1055) or `GLiNER.from_pretrained(prev_path)` (line 1052).
 
-2. **YAML -> training -> Trainer**: Mostly correct after recent fixes. Training fields are extracted from `cfg["training"]` and forwarded as kwargs to `model.train_model()`, which creates `TrainingArguments` and a `Trainer`. The remaining gaps are the three dead fields and the missing `seed` forwarding.
+2. **YAML -> training -> Trainer**: Mostly correct after recent fixes. Training fields are extracted from `cfg["training"]` and forwarded as kwargs to `model.train_model()`, which creates `TrainingArguments` and a `Trainer`. Dead fields (`size_sup`, `shuffle_types`, `random_drop`) have been removed from the schema. The remaining gap is the missing `seed` forwarding.
 
 3. **YAML -> peft -> model**: Correct structure. `_apply_lora` (line 1062) applies PEFT to `model.model.token_rep_layer.bert_layer.model` before `train_model()` is called. However, only 7 of 10 PEFT config fields are forwarded (missing `init_lora_weights`, `use_rslora`, `fan_in_fan_out` from both schema and `_apply_lora`).
 
@@ -227,9 +227,8 @@ YAML -> data -> Dataset loader -> Trainer
 
 ### Concrete Recommendations
 
-1. **CRITICAL: Add `remove_unused_columns=False` to `_launch_training`**.
-   - File: `ptbr/training_cli.py`, line 1142 (inside `model.train_model()` call)
-   - GLiNER uses custom batch dictionaries. Without this, HF Trainer will drop columns not in the model's forward signature, causing silent data loss or crashes.
+1. ~~**CRITICAL: Add `remove_unused_columns=False` to `_launch_training`**.~~
+   - **FIXED**. `create_training_args` now defaults `remove_unused_columns=False`, and `training_cli` forwards it to `train_model()`. The custom Trainer also bypasses column pruning by overriding dataloader creation as an additional safety net.
 
 2. ~~**CRITICAL: Add `evaluation_strategy="steps"` and `eval_steps` to `_launch_training`**.~~
    - **FIXED**. Lines 1127-1128 of `training_cli.py` conditionally forward `eval_strategy="steps"` and `eval_steps` when an eval dataset is present. Additionally, `model.train_model()` in `gliner/model.py` lines 1119-1130 has a fallback that auto-enables evaluation.
@@ -245,9 +244,8 @@ YAML -> data -> Dataset loader -> Trainer
    - File: `ptbr/training_cli.py`, line ~184 (schema) and ~1142 (launch)
    - Critical for training large backbones on limited GPU memory.
 
-6. **HIGH: Remove or clearly document dead fields `size_sup`, `shuffle_types`, `random_drop`**.
-   - File: `ptbr/training_cli.py`, lines 182-184
-   - These are validated and appear in `template.yaml` but are consumed by nothing in the GLiNER codebase. They mislead users into thinking they have an effect.
+6. ~~**HIGH: Remove or clearly document dead fields `size_sup`, `shuffle_types`, `random_drop`**.~~
+   - **FIXED**. Removed from `_FIELD_SCHEMA`. Still present in shipped YAML configs for backward compatibility.
 
 7. ~~**HIGH: Forward `run.name` as `run_name` in TrainingArguments**.~~
    - **FIXED**. Line 1140 of `training_cli.py` now forwards `run_name=cfg["run"]["name"]`.
@@ -303,12 +301,12 @@ YAML -> data -> Dataset loader -> Trainer
 
 | # | Recommendation | Original severity | Status | Evidence |
 |---|---|---|---|---|
-| 1 | `remove_unused_columns=False` | CRITICAL | **STILL OPEN** | Grep for `remove_unused_columns` in `training_cli.py`, `train.py`, `model.py` returns zero hits. HF default is `True`. The custom `Trainer` in `trainer.py` bypasses the issue by overriding `get_train_dataloader()` and `get_eval_dataloader()` (lines 342-406) -- these build `DataLoader` directly without calling `_remove_unused_columns()`. So in practice the custom Trainer works, but if HF changes its Trainer internals, this could break. Defensive `remove_unused_columns=False` is still recommended. |
+| 1 | `remove_unused_columns=False` | CRITICAL | **FIXED** | `create_training_args` now defaults `remove_unused_columns=False`, and `training_cli` forwards it to `train_model()`. The custom `Trainer` also bypasses column pruning by overriding `get_train_dataloader()` / `get_eval_dataloader()` as an additional safety net. |
 | 2 | `eval_strategy` + `eval_steps` | CRITICAL | **FIXED** | `training_cli.py` lines 1127-1128 conditionally forward `eval_strategy="steps"` and `eval_steps`. Additionally `model.train_model()` in `model.py` lines 1119-1130 auto-enables evaluation when `eval_dataset is not None`. |
 | 3 | Forward `run.seed` as `seed` | CRITICAL | **STILL OPEN** | `training_cli.py` line 1025 calls `torch.manual_seed(seed)` but `seed` is not in the `model.train_model()` kwargs (confirmed by AST). The Trainer uses its own default seed (42). |
 | 4 | Dataloader params forwarding | HIGH | **FIXED** | Lines 1135-1137 forward `dataloader_pin_memory`, `dataloader_persistent_workers`, `dataloader_prefetch_factor`. |
 | 5 | `gradient_checkpointing` | HIGH | **STILL OPEN** | Not in `_FIELD_SCHEMA`, not forwarded. |
-| 6 | Dead fields documentation | HIGH | **STILL OPEN** | `size_sup`, `shuffle_types`, `random_drop` remain in schema (lines 182-184) and all shipped configs. AST confirms none are forwarded. |
+| 6 | Dead fields documentation | HIGH | **FIXED** | `size_sup`, `shuffle_types`, `random_drop` removed from `_FIELD_SCHEMA`. Still present in shipped YAML configs for backward compatibility. |
 | 7 | Forward `run_name` | HIGH | **FIXED** | Line 1140: `run_name=cfg["run"]["name"]`. |
 | 8 | LoRA missing fields | MEDIUM | **STILL OPEN** | `init_lora_weights`, `use_rslora`, `fan_in_fan_out` absent from both `_FIELD_SCHEMA` and the `LoraConfig()` call in `_apply_lora`. `FEATURE_EXTRACTION` still missing from `task_map` (lines 1165-1170). |
 | 9 | `label_smoothing` explicit param | MEDIUM | **STILL OPEN** | `create_training_args` signature has 24 named params; `label_smoothing` goes through `**kwargs`. |
@@ -323,12 +321,9 @@ YAML -> data -> Dataset loader -> Trainer
 
 AST extraction of all keyword arguments in the `model.train_model()` call within `_launch_training`:
 
-**All 35 schema training fields** were analyzed. The only training schema fields NOT forwarded are:
-- `size_sup` (dead field)
-- `shuffle_types` (dead field)
-- `random_drop` (dead field)
+**All schema training fields** were analyzed. The dead fields (`size_sup`, `shuffle_types`, `random_drop`) have been removed from `_FIELD_SCHEMA`, so there are no remaining forwarding gaps for training schema fields.
 
-All other `training.*` fields are correctly mapped and forwarded, including the recently-fixed `dataloader_pin_memory`, `dataloader_persistent_workers`, `dataloader_prefetch_factor`, `label_smoothing`, `eval_strategy`/`eval_steps`, and `run_name`.
+All `training.*` fields are correctly mapped and forwarded, including `dataloader_pin_memory`, `dataloader_persistent_workers`, `dataloader_prefetch_factor`, `label_smoothing`, `eval_strategy`/`eval_steps`, `run_name`, and `remove_unused_columns`.
 
 ### Static Analysis: train.py Parameter Forwarding
 
@@ -443,7 +438,7 @@ These tests verify the GLiNER custom Trainer's dataloader methods:
 ### Remaining Actionable Items (Prioritized)
 
 **CRITICAL:**
-1. `remove_unused_columns=False` -- Not set. The custom Trainer works around it by overriding dataloader creation, but this is fragile. Add it to `_launch_training` as a defensive measure.
+1. ~~`remove_unused_columns=False`~~ -- **DONE**: `create_training_args` now defaults `remove_unused_columns=False`, and `training_cli` forwards it to `train_model()`. The custom Trainer also bypasses column pruning as a safety net.
 2. Forward `run.seed` as `seed` in TrainingArguments -- Trainer-level reproducibility requires this.
 
 **HIGH:**

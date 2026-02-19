@@ -10,8 +10,9 @@ training process.  They verify both remaining issues and completed fixes:
    (dataloader params, run_name -- verified as fixed).
 3. train.py now reads output_dir from config, bf16 from config, and uses
    a separate eval_batch_size (verified as fixed).
-4. remove_unused_columns defaults to True -- wrong for custom collators
-   (still open, mitigated by custom Trainer).
+4. remove_unused_columns now defaults to False in create_training_args and
+   is forwarded by training_cli (verified as fixed; custom Trainer also
+   bypasses column pruning as a safety net).
 5. LoRA section naming divergence between config_cli and training_cli.
 6. CLI argument style inconsistency (--file vs positional).
 """
@@ -273,7 +274,7 @@ class TestParameterForwarding:
 
         forwarded = self._extract_train_model_kwargs(tree)
         assert "dataloader_pin_memory" in forwarded, (
-            "dataloader_pin_memory should be in the train_model() call (fix verified)"
+            "dataloader_pin_memory should be forwarded to train_model()"
         )
 
     def test_dataloader_persistent_workers_forwarded(self):
@@ -282,7 +283,7 @@ class TestParameterForwarding:
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "dataloader_persistent_workers" in forwarded, (
-            "dataloader_persistent_workers should be in the train_model() call (fix verified)"
+            "dataloader_persistent_workers should be forwarded to train_model()"
         )
 
     def test_dataloader_prefetch_factor_forwarded(self):
@@ -291,7 +292,7 @@ class TestParameterForwarding:
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "dataloader_prefetch_factor" in forwarded, (
-            "dataloader_prefetch_factor should be in the train_model() call (fix verified)"
+            "dataloader_prefetch_factor should be forwarded to train_model()"
         )
 
     def test_run_name_forwarded(self):
@@ -390,7 +391,7 @@ class TestTrainPyForwarding:
         # It should NOT be a hardcoded constant string "models"
         is_hardcoded = isinstance(node, ast.Constant) and node.value == "models"
         assert not is_hardcoded, (
-            "output_dir should no longer be hardcoded to 'models' (fix verified)"
+            "output_dir should be read from config, not hardcoded to 'models'"
         )
 
     def test_bf16_from_config(self):
@@ -402,7 +403,7 @@ class TestTrainPyForwarding:
         # It should NOT be a hardcoded constant True
         is_hardcoded = isinstance(node, ast.Constant) and node.value is True
         assert not is_hardcoded, (
-            "bf16 should no longer be hardcoded to True (fix verified)"
+            "bf16 should be read from config, not hardcoded to True"
         )
 
     def test_eval_batch_size_uses_separate_variable(self):
@@ -416,7 +417,7 @@ class TestTrainPyForwarding:
         name_ids = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
         assert "eval_batch_size" in name_ids and "train_batch_size" not in name_ids, (
             "eval batch size should come from the eval_batch_size variable and "
-            "must not reference train_batch_size directly (fix verified)"
+            "eval_batch_size should use a separate variable, not train_batch_size"
         )
 
     def test_label_smoothing_forwarded_by_train_py(self):
@@ -424,7 +425,7 @@ class TestTrainPyForwarding:
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "label_smoothing" in kwargs, (
-            "train.py should forward label_smoothing (fix verified)"
+            "train.py should forward label_smoothing to train_model()"
         )
 
 
@@ -528,12 +529,12 @@ class TestConfigFieldsReachTraining:
         )
         # Verify label_smoothing is no longer in the missing set
         assert "label_smoothing" not in actual_missing, (
-            "label_smoothing should now be forwarded by train.py (fix verified)"
+            "label_smoothing should be forwarded by train.py"
         )
 
 
 # ======================================================================== #
-#  7.  remove_unused_columns (STILL OPEN — needs heavy deps to test fully)  #
+#  7.  remove_unused_columns (FIXED — needs heavy deps to test fully)        #
 # ======================================================================== #
 
 
@@ -544,13 +545,16 @@ class TestRemoveUnusedColumns:
 
     def test_default_remove_unused_columns_is_true(self):
         """The HF default for remove_unused_columns is True."""
+        import tempfile
+
         pytest.importorskip("torch", reason="requires torch")
         from gliner.training.trainer import TrainingArguments
 
-        args = TrainingArguments(output_dir="/tmp/_test_ruc")
-        assert args.remove_unused_columns is True, (
-            "HF TrainingArguments defaults remove_unused_columns to True"
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = TrainingArguments(output_dir=tmpdir)
+            assert args.remove_unused_columns is True, (
+                "HF TrainingArguments defaults remove_unused_columns to True"
+            )
 
     def test_create_training_args_does_not_override_remove_unused_columns(self):
         """create_training_args does not set remove_unused_columns=False."""
@@ -829,7 +833,7 @@ class TestConfigConsistency:
 
 
 # ======================================================================== #
-#  12.  __main__.py lazy import fix verified                                #
+#  12.  __main__.py lazy import structure                                    #
 # ======================================================================== #
 
 
@@ -854,7 +858,7 @@ class TestMainImportSideEffects:
 
         assert not any("training_cli" in imp for imp in top_level_imports), (
             "training_cli should NOT be imported at module level in __main__.py "
-            "(fix verified: now lazy-loaded via _attach_train_subcommand)"
+            "(must be lazy-loaded to avoid side effects)"
         )
 
 
