@@ -355,24 +355,30 @@ This test file correctly validates the current implementation:
 
 **Verdict**: These tests are well-written and accurately validate the fixes. They use runtime mocking (fake GLiNER + fake torch) to call the real `_launch_training` function and capture all kwargs. This is the authoritative test suite for parameter forwarding.
 
-#### `tests/test_validator_integration.py` -- 47 tests, UPDATED
+#### `tests/test_validator_integration.py` -- 46 tests, ALL FIXED (35 pass, 11 skip)
 
-This file was originally written to **document bugs**. The 10 tests that asserted old bug behavior have been **updated to verify the fixes** instead:
+This file was originally written to **document bugs**. All tests have been updated to reflect the current state. Key changes:
 
 | Test (updated) | New assertion | Fix it verifies |
 |---|---|---|
-| `test_dataloader_pin_memory_forwarded` | Asserts `dataloader_pin_memory` IS in `train_model()` call | training_cli.py line 1135 |
-| `test_dataloader_persistent_workers_forwarded` | Asserts `dataloader_persistent_workers` IS forwarded | training_cli.py line 1136 |
-| `test_dataloader_prefetch_factor_forwarded` | Asserts `dataloader_prefetch_factor` IS forwarded | training_cli.py line 1137 |
-| `test_run_name_forwarded` | Asserts `run_name` IS forwarded | training_cli.py line 1140 |
+| `test_dataloader_pin_memory_forwarded` | Asserts `dataloader_pin_memory` IS in `train_model()` call | training_cli.py forwarding fix |
+| `test_dataloader_persistent_workers_forwarded` | Asserts `dataloader_persistent_workers` IS forwarded | training_cli.py forwarding fix |
+| `test_dataloader_prefetch_factor_forwarded` | Asserts `dataloader_prefetch_factor` IS forwarded | training_cli.py forwarding fix |
+| `test_run_name_forwarded` | Asserts `run_name` IS forwarded | training_cli.py forwarding fix |
 | `test_output_dir_from_config` | Asserts `output_dir` is NOT hardcoded `"models"` | train.py uses `str(output_dir)` |
 | `test_bf16_from_config` | Asserts `bf16` is NOT hardcoded `True` | train.py uses `getattr(cfg.training, "bf16", False)` |
-| `test_eval_batch_size_uses_separate_variable` | Asserts eval uses `eval_batch_size` variable | train.py has separate eval_batch_size |
+| `test_eval_batch_size_uses_separate_variable` | Asserts eval uses `eval_batch_size` variable (AST shape check) | train.py has separate eval_batch_size |
 | `test_label_smoothing_forwarded_by_train_py` | Asserts `label_smoothing` IS forwarded | train.py line 93 |
-| `test_all_training_fields_in_config_yaml_are_forwarded` | Expected missing set excludes `label_smoothing` | train.py now forwards it |
-| `test_validated_training_fields_not_all_forwarded` | Expected gaps are exactly 3 dead fields | Dataloader params now forwarded |
+| `test_all_training_fields_in_config_yaml_are_forwarded` | Dead fields excluded from expected missing set | train.py now forwards all non-dead fields |
+| `test_all_training_fields_forwarded` | All schema fields forwarded (dead fields removed from schema) | No remaining gaps |
+| `test_training_cli_not_imported_at_module_level` | Checks both `ast.Import` and `ast.ImportFrom` nodes | Lazy-loading verified |
 
-Additionally, `test_training_cli_not_imported_at_module_level` was updated to verify that `training_cli` is lazy-loaded (no longer imported at module level in `__main__.py`).
+Additional fixes applied:
+- Added missing `_extract_train_model_kwargs` method to `TestParameterForwarding` class
+- Fixed `test_size_sup_not_forwarded` which was checking `shuffle_types` instead of `size_sup`
+- Added separate `test_shuffle_types_not_forwarded` test
+- Removed duplicate `test_run_name_forwarded` method
+- Fixed undefined `expected_still_missing` variable (should be `expected_missing`)
 
 **Tests that are properly SKIPPED** when heavy dependencies are unavailable:
 
@@ -382,7 +388,7 @@ Tests requiring `torch` or `transformers` now use `pytest.importorskip()` and ar
 - `test_label_smoothing_not_named_parameter` (`torch`)
 - `test_gradient_checkpointing_not_available` (`torch`)
 - `test_run_name_not_in_create_training_args` (`torch`)
-- `test_template_yaml_fails_config_cli_validation` (`transformers`)
+- `test_template_yaml_passes_config_cli_validation` (`transformers`)
 - `test_no_single_yaml_satisfies_both_clis` (`transformers`)
 - `test_config_cli_expects_lora_config_key` (`transformers`)
 - `test_lora_field_sets_differ_between_clis` (`transformers`)
@@ -407,15 +413,14 @@ Note: `test_wrong_structure_loads_without_error`, `test_missing_required_fields_
 | `test_template_has_all_required_sections` | Structural fact -- CORRECT |
 | `test_template_has_no_gliner_config_section` | Structural fact -- CORRECT |
 | `test_template_passes_training_cli_validation` | Template is valid -- CORRECT |
-| `test_training_cli_does_not_pass_remove_unused_columns` | Still not passed -- CORRECT |
+| `test_training_cli_passes_remove_unused_columns` | Now passes remove_unused_columns -- FIXED |
 | `test_train_py_does_not_pass_remove_unused_columns` | Still not passed -- CORRECT |
 | `test_size_sup_not_forwarded_by_train_py` | Dead field -- CORRECT |
 | `test_shuffle_types_not_forwarded_by_train_py` | Dead field -- CORRECT |
 | `test_random_drop_not_forwarded_by_train_py` | Dead field -- CORRECT |
 | `test_gliner_config_structure_fails_training_cli` | Still true -- CORRECT |
 | `test_training_cli_expects_lora_key` | Still true -- CORRECT |
-| `test_config_subcommand_uses_named_option` | Still true -- CORRECT |
-| `test_train_subcommand_uses_positional_argument` | Still true -- CORRECT |
+| `test_argument_style_divergence` | CLI inconsistency documented -- CORRECT |
 
 #### `tests/test_config_propagation.py` -- 3 tests, 3 SKIPPED (torch not available)
 
@@ -443,8 +448,8 @@ These tests verify the GLiNER custom Trainer's dataloader methods:
 
 **HIGH:**
 3. Add `gradient_checkpointing` to schema and forwarding.
-4. Remove or document dead fields (`size_sup`, `shuffle_types`, `random_drop`) from schema and shipped configs.
-5. Update `test_validator_integration.py` tests that assert fixed bugs -- flip assertions to verify fixes work correctly.
+4. ~~Remove or document dead fields from schema~~ -- **DONE**: `size_sup`, `shuffle_types`, `random_drop` removed from `_FIELD_SCHEMA` (still in shipped YAML configs for backward compatibility).
+5. ~~Update `test_validator_integration.py` tests~~ -- **DONE**: All 46 tests updated. 35 pass, 11 skip (missing heavy deps). No failures.
 
 **MEDIUM:**
 6. Add `init_lora_weights`, `use_rslora`, `fan_in_fan_out` to LoRA schema and `_apply_lora`.
@@ -452,3 +457,6 @@ These tests verify the GLiNER custom Trainer's dataloader methods:
 8. Forward Hub-related fields (`push_to_hub`, `hub_model_id`) to TrainingArguments.
 9. Wire `--resume` to `resume_from_checkpoint`.
 10. Make `label_smoothing` an explicit parameter in `create_training_args`.
+
+**LOW:**
+11. Remove dead fields from shipped YAML configs (currently kept for backward compatibility).

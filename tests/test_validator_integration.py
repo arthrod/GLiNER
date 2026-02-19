@@ -251,14 +251,20 @@ class TestParameterForwarding:
 
     @staticmethod
     def _get_launch_training_source() -> str:
-        """
-        Read and return the source text of the project's training CLI module.
-        
-        Returns:
-            str: The contents of the file at <ROOT>/ptbr/training_cli.py.
-        """
-        source = (ROOT / "ptbr" / "training_cli.py").read_text()
-        return source
+        return (ROOT / "ptbr" / "training_cli.py").read_text()
+
+    @staticmethod
+    def _extract_train_model_kwargs(tree: ast.AST) -> set[str]:
+        """Extract keyword argument names from the model.train_model() call."""
+        kwargs = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Attribute) and func.attr == "train_model":
+                    for kw in node.keywords:
+                        if kw.arg is not None:
+                            kwargs.add(kw.arg)
+        return kwargs
 
     def test_dataloader_pin_memory_forwarded(self):
         """training.dataloader_pin_memory is validated and forwarded to train_model."""
@@ -304,6 +310,13 @@ class TestParameterForwarding:
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
+        assert "size_sup" not in forwarded
+
+    def test_shuffle_types_not_forwarded(self):
+        """training.shuffle_types validated but never forwarded (dead config)."""
+        source = self._get_launch_training_source()
+        tree = ast.parse(source)
+        forwarded = self._extract_train_model_kwargs(tree)
         assert "shuffle_types" not in forwarded
 
     def test_random_drop_removed_from_schema(self):
@@ -312,15 +325,6 @@ class TestParameterForwarding:
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "random_drop" not in forwarded
-
-    def test_run_name_forwarded(self):
-        """run.name is validated and forwarded as ``run_name`` to TrainingArguments."""
-        source = self._get_launch_training_source()
-        tree = ast.parse(source)
-        forwarded = self._extract_train_model_kwargs(tree)
-        assert "run_name" in forwarded, (
-            "run_name should be in the train_model() call (fix verified)"
-        )
 
     def test_run_tags_not_forwarded(self):
         """run.tags validated but not forwarded to W&B/TrainingArguments."""
@@ -408,10 +412,11 @@ class TestTrainPyForwarding:
         assert "per_device_eval_batch_size" in kwargs
 
         node = kwargs["per_device_eval_batch_size"]
-        # It should use the eval_batch_size variable, not cfg.training.train_batch_size directly
-        source_line = ast.dump(node)
-        assert "eval_batch_size" in source_line, (
-            "eval batch size should use the eval_batch_size variable (fix verified)"
+        # Assert on the AST shape instead of substring matching on ast.dump.
+        name_ids = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+        assert "eval_batch_size" in name_ids and "train_batch_size" not in name_ids, (
+            "eval batch size should come from the eval_batch_size variable and "
+            "must not reference train_batch_size directly (fix verified)"
         )
 
     def test_label_smoothing_forwarded_by_train_py(self):
@@ -517,13 +522,9 @@ class TestConfigFieldsReachTraining:
         # These dead fields are IN the config but NOT forwarded (label_smoothing is now forwarded)
         expected_missing = {"size_sup", "shuffle_types", "random_drop"}
         actual_missing = set(not_forwarded)
-        assert expected_still_missing.issubset(actual_missing), (
-            f"Expected these config fields to still be missing from train.py: "
-            f"{expected_still_missing}. Actually missing: {actual_missing}"
-        )
-        # label_smoothing should now be forwarded (FIXED)
-        assert "label_smoothing" not in actual_missing, (
-            "label_smoothing should now be forwarded by train.py"
+        assert expected_missing.issubset(actual_missing), (
+            f"Expected these config fields to be missing from train.py forwarding: "
+            f"{expected_missing}. Actually missing: {actual_missing}"
         )
         # Verify label_smoothing is no longer in the missing set
         assert "label_smoothing" not in actual_missing, (
@@ -763,16 +764,11 @@ class TestSchemaVsForwarding:
             if kwarg not in forwarded:
                 not_forwarded.append(field)
 
-        # Only the 3 dead fields remain as gaps (dataloader params are now forwarded)
-        expected_gaps = {
-            "size_sup",
-            "shuffle_types",
-            "random_drop",
-        }
-        actual_gaps = set(not_forwarded)
-        assert expected_gaps == actual_gaps, (
-            f"Expected forwarding gaps: {expected_gaps}. "
-            f"Actual gaps: {actual_gaps}"
+        # Dead fields (size_sup, shuffle_types, random_drop) have been removed
+        # from _FIELD_SCHEMA, so there should be no remaining gaps.
+        assert len(not_forwarded) == 0, (
+            f"All training schema fields should be forwarded. "
+            f"Not forwarded: {not_forwarded}"
         )
 
 
@@ -846,11 +842,15 @@ class TestMainImportSideEffects:
         source = (ROOT / "ptbr" / "__main__.py").read_text()
         tree = ast.parse(source)
 
+        # Find top-level imports (not inside functions).
+        # Check both ast.Import (import x) and ast.ImportFrom (from x import y).
         top_level_imports = []
         for node in ast.iter_child_nodes(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    top_level_imports.append(node.module)
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top_level_imports.append(alias.name)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                top_level_imports.append(node.module)
 
         assert not any("training_cli" in imp for imp in top_level_imports), (
             "training_cli should NOT be imported at module level in __main__.py "
