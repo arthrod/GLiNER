@@ -305,60 +305,50 @@ class TestCreateTrainingArgsSignature:
 
     @pytest.fixture(scope="class")
     def explicit_params(self):
+        """
+        Return the set of parameter names explicitly declared by BaseGLiNER.create_training_args.
+        
+        Returns:
+            set[str]: Parameter names that are explicitly declared on the classmethod, excluding `self`, `cls`, `*args`, and `**kwargs`.
+        """
         return _get_create_training_args_explicit_params()
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="label_smoothing relies on **kwargs; not explicit in create_training_args",
-    )
     def test_label_smoothing_is_explicit(self, explicit_params):
         assert "label_smoothing" in explicit_params, (
             "label_smoothing is not an explicit parameter in create_training_args; "
             "it relies on **kwargs pass-through which is fragile"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="fp16 is not explicit; only bf16 is, creating an asymmetry",
-    )
     def test_fp16_is_explicit(self, explicit_params):
         assert "fp16" in explicit_params, (
             "fp16 is not explicit in create_training_args; only bf16 is"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="seed not explicit; Trainer's internal seed may differ from user's",
-    )
     def test_seed_is_explicit(self, explicit_params):
         assert "seed" in explicit_params
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="gradient_checkpointing not explicit; critical for large models",
-    )
     def test_gradient_checkpointing_is_explicit(self, explicit_params):
         assert "gradient_checkpointing" in explicit_params
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="run_name not explicit; experiment trackers get auto-generated names",
-    )
     def test_run_name_is_explicit(self, explicit_params):
         assert "run_name" in explicit_params
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="push_to_hub not explicit in create_training_args",
-    )
     def test_push_to_hub_is_explicit(self, explicit_params):
+        """
+        Asserts that BaseGLiNER.create_training_args exposes `push_to_hub` as an explicit parameter.
+        
+        Parameters:
+            explicit_params (set[str]): Names of parameters explicitly declared on `create_training_args` (excluding `cls`, `self`, `*args`, and `**kwargs`).
+        """
         assert "push_to_hub" in explicit_params
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="hub_model_id not explicit in create_training_args",
-    )
     def test_hub_model_id_is_explicit(self, explicit_params):
+        """
+        Asserts that "hub_model_id" is declared as an explicit parameter of BaseGLiNER.create_training_args.
+        
+        Parameters:
+            explicit_params (set[str]): Set of parameter names explicitly declared on the classmethod signature (excluding `self`, `cls`, `*args`, and `**kwargs`).
+        """
         assert "hub_model_id" in explicit_params
 
     @pytest.mark.xfail(
@@ -375,11 +365,13 @@ class TestCreateTrainingArgsSignature:
             "evaluation never runs during training"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="eval_steps not explicit; evaluation frequency cannot be controlled",
-    )
     def test_eval_steps_is_explicit(self, explicit_params):
+        """
+        Asserts that "eval_steps" is listed among the explicit parameters returned by create_training_args.
+        
+        Parameters:
+            explicit_params (set[str]): Set of explicit parameter names extracted from BaseGLiNER.create_training_args.
+        """
         assert "eval_steps" in explicit_params
 
 
@@ -391,16 +383,11 @@ class TestCreateTrainingArgsSignature:
 class TestMaskingDefaultMismatch:
     """Detect default mismatch between create_training_args and TrainingArguments."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "create_training_args defaults masking to 'none' but "
-            "TrainingArguments defaults to 'global'"
-        ),
-    )
     def test_create_training_args_masking_matches_training_args_default(self):
-        """The two defaults should agree so create_training_args doesn't
-        silently override the GLiNER default.
+        """
+        Ensure the default 'masking' value in BaseGLiNER.create_training_args matches the default on TrainingArguments.
+        
+        Compares the 'masking' parameter default from BaseGLiNER.create_training_args's signature with the TrainingArguments dataclass field default and fails the test if they differ.
         """
         # Actually inspect the real method
         from gliner.model import BaseGLiNER
@@ -425,31 +412,28 @@ class TestMaskingDefaultMismatch:
 class TestRemoveUnusedColumns:
     """GLiNER uses custom batch dicts that require remove_unused_columns=False."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "create_training_args does not set remove_unused_columns=False; "
-            "HF Trainer defaults to True which silently drops custom batch keys"
-        ),
-    )
     def test_create_training_args_sets_remove_unused_columns_false(self, tmp_path):
+        """
+        Verify that create_training_args sets remove_unused_columns to False.
+        
+        Asserts that a TrainingArguments instance produced via BaseGLiNER.create_training_args has
+        remove_unused_columns == False so GLiNER's custom batch dictionary keys are preserved.
+        """
         args = _create_training_args_via_classmethod(output_dir=tmp_path)
         assert args.remove_unused_columns is False, (
             f"remove_unused_columns is {args.remove_unused_columns}. "
             f"GLiNER needs False to preserve custom batch dictionary keys."
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "train_model never references remove_unused_columns; "
-            "GLiNER's custom batch dictionaries require it to be False"
-        ),
-    )
-    def test_train_model_source_references_remove_unused_columns(self):
-        source = _get_train_model_source()
-        assert "remove_unused_columns" in source, (
-            "train_model never references remove_unused_columns. "
+    def test_create_training_args_defaults_remove_unused_columns_false(self, tmp_path):
+        """
+        Verify create_training_args preserves GLiNER batch keys by defaulting remove_unused_columns to False.
+        
+        Checks that the classmethod-produced TrainingArguments sets remove_unused_columns to False (HF's default is True, which can cause GLiNER's custom batch dictionary keys to be dropped).
+        """
+        args = _create_training_args_via_classmethod(output_dir=tmp_path)
+        assert args.remove_unused_columns is False, (
+            "create_training_args should default remove_unused_columns to False. "
             "HF defaults to True which can cause silent data loss."
         )
 
@@ -573,19 +557,11 @@ class TestLabelSmoothingCollision:
 class TestTrainModelResumeSupport:
     """train_model should support checkpoint resumption."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="train_model does not accept resume_from_checkpoint parameter",
-    )
     def test_train_model_accepts_resume_from_checkpoint(self):
         sig = _get_train_model_signature()
         param_names = set(sig.parameters.keys())
         assert "resume_from_checkpoint" in param_names
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="train_model source never references resume_from_checkpoint",
-    )
     def test_train_model_forwards_resume_to_trainer(self):
         source = _get_train_model_source()
         assert "resume_from_checkpoint" in source
@@ -613,10 +589,6 @@ class TestCreateTrainingArgsCoversCustomFields:
         "masking",
     }
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="label_smoothing (at minimum) is not explicit in create_training_args",
-    )
     def test_all_custom_fields_are_explicit_params(self):
         explicit = _get_create_training_args_explicit_params()
         missing = self.CUSTOM_FIELDS - explicit
