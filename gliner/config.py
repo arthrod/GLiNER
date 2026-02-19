@@ -162,7 +162,7 @@ class UniEncoderSpanDecoderConfig(UniEncoderConfig):
             **kwargs: Additional keyword arguments passed to UniEncoderConfig.
 
         Raises:
-            ValueError: If span_mode is 'token-level', which is incompatible with this config.
+            ValueError: If span_mode is 'token_level', which is incompatible with this config.
         """
         super().__init__(**kwargs)
 
@@ -324,18 +324,18 @@ class GLiNERConfig(BaseGLiNERConfig):
     def model_type(self):
         """Auto-detect model type based on configuration."""
         if self.labels_decoder:
-            if self.span_mode == "token-level":
+            if self.span_mode == "token_level":
                 return "gliner_uni_encoder_token_decoder"
             else:
                 return "gliner_uni_encoder_span_decoder"
         elif self.labels_encoder:
-            return "gliner_bi_encoder_span" if self.span_mode != "token-level" else "gliner_bi_encoder_token"
+            return "gliner_bi_encoder_span" if self.span_mode != "token_level" else "gliner_bi_encoder_token"
         elif self.relations_layer is not None:
-            if self.span_mode == "token-level":
+            if self.span_mode == "token_level":
                 return "gliner_uni_encoder_token_relex"
             else:
                 return "gliner_uni_encoder_span_relex"
-        elif self.span_mode == "token-level":
+        elif self.span_mode == "token_level":
             return "gliner_uni_encoder_token"
         else:
             return "gliner_uni_encoder_span"

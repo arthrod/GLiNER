@@ -1,0 +1,25 @@
+[
+  {
+    "id": "doc-0001",
+    "source": "wikipedia",
+    "tokenized_text": ["Barack", "Obama", "was", "born", "in", "Honolulu", "."],
+    "ner": [[0, 1, "Person"], [5, 5, "City"]],
+    "metadata": {"lang": "en", "confidence": 0.98}
+  },
+  {
+    "id": "doc-0002",
+    "source": "news",
+    "tokenized_text": ["Apple", "Inc", ".", "reported", "earnings", "on", "Tuesday", "."],
+    "ner": [[0, 2, "Company"], [6, 6, "Date"]],
+    "custom_field": 42,
+    "tags": ["finance", "tech"]
+  },
+  {
+    "id": "doc-0003",
+    "source": "medical",
+    "tokenized_text": ["The", "patient", "was", "prescribed", "Ibuprofen", "for", "arthritis", "."],
+    "ner": [[4, 4, "Drug"], [6, 6, "Condition"]],
+    "annotator": "dr_smith",
+    "review_status": "approved"
+  }
+]
