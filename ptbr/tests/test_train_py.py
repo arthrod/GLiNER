@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import importlib.util
 import sys
-from pathlib import Path
+import importlib.util
 from types import ModuleType, SimpleNamespace
+from pathlib import Path
 from unittest.mock import patch
-
 
 ROOT = Path(__file__).resolve().parents[2]
 TRAIN_PY = ROOT / "train.py"

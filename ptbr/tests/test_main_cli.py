@@ -1,9 +1,9 @@
 """Tests for top-level ptbr CLI wiring."""
 
-import importlib
 import sys
-from pathlib import Path
+import importlib
 from types import ModuleType, SimpleNamespace
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest

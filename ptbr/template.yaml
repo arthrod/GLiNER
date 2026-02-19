@@ -429,20 +429,6 @@ training:
   # Default: false
   compile_model: false
 
-  # ---- Advanced / legacy ----
-
-  # Maximum number of supervised examples.  -1 = use all.
-  # Default: -1
-  size_sup: -1
-
-  # Shuffle entity types within each example during training.
-  # Default: true
-  shuffle_types: true
-
-  # Randomly drop entity types from examples during training.
-  # Default: true
-  random_drop: true
-
 
 # -----------------------------------------------------------------------------
 # 5. LORA  -  LoRA / PEFT adapter configuration (optional)
