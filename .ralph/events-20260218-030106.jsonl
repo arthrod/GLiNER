@@ -1,4 +1,0 @@
-{"ts":"2026-02-18T03:01:06.412398958+00:00","iteration":0,"hat":"loop","topic":"task.start","triggered":"planner","payload":"there are several worktrees in this repo. each completmetnarry, integrtate them and clean this mess. after hat, test and fix"}
-{"payload":"task-1771383836-141e complete: integrated noisy-jsonl hardening (commit 7d54f1d); verification: py_compile pass","topic":"build.done","ts":"2026-02-18T03:05:39.960866002+00:00"}
-{"payload":"task: task-1771383837-6c51, commit: e2f968a, tests: pass, lint: pass, typecheck: pass, audit: pass, coverage: pass, complexity: 0 C901 violations, duplication: pass, performance: pass, specs: pass","topic":"build.done","ts":"2026-02-18T03:09:09.307080475+00:00"}
-{"ts":"2026-02-18T03:11:17.785670513+00:00","iteration":7,"hat":"loop","topic":"loop.terminate","payload":"## Reason\nconsecutive_failures\n\n## Status\nToo many consecutive failures.\n\n## Summary\n- Iterations: 7\n- Duration: 10m 11s\n- Exit code: 1"}

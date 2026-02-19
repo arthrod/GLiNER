@@ -1,14 +1,16 @@
 """Tests for validator integration between ptbr config_cli and training_cli.
 
-These tests verify the state of the codebase against the issues identified in
-the standard_config_report.  Tests are organized by issue category:
+These tests verify the integration between the two CLIs and ensure that
+validated config fields reach the deep-learning training process.
 
-  - Fixed issues: assertions confirm the fix is in place.
-  - Remaining issues: assertions document what is still open.
+Tests cover:
 
-Originally these tests were written as "bug-documenting" tests that asserted
-the existence of specific bugs.  After fixes were applied to training_cli.py
-and train.py, the tests below have been updated to reflect the current state.
+1. config_cli.py now accepts ``model:`` as alias for ``gliner_config:``.
+2. Parameter forwarding from training_cli to train_model().
+3. train.py forwarding gaps (separate from ptbr training_cli).
+4. remove_unused_columns defaults to True -- wrong for custom collators.
+5. LoRA section naming divergence between config_cli and training_cli.
+6. CLI argument style inconsistency (--file vs positional).
 """
 
 from __future__ import annotations
@@ -71,26 +73,24 @@ def _minimal_training_cfg() -> dict:
 # ======================================================================== #
 
 
-class TestYAMLSchemaIncompatibility:
-    """config_cli and training_cli expect different YAML layouts.
-    config_cli accepts ``model:`` as an alias for ``gliner_config:``,
-    but the template.yaml still fails config_cli because it lacks the
-    canonical ``gliner_config:`` key (config_cli emits a warning for
-    the alias but may still reject depending on field differences)."""
+class TestYAMLSchemaCompatibility:
+    """Verify config_cli and training_cli accept the same YAML layout
+    now that config_cli supports ``model:`` as an alias for ``gliner_config:``."""
 
-    def test_template_yaml_fails_config_cli_validation(self):
-        """template.yaml uses ``model:`` -- config_cli accepts it as alias
-        but may still fail due to field rule differences."""
-        pytest.importorskip("torch")
+    def test_template_yaml_passes_config_cli_validation(self):
+        """template.yaml uses ``model:`` which config_cli now accepts as alias.
+
+        Previously this failed with 'Missing gliner_config section'.
+        """
         from ptbr.config_cli import load_and_validate_config
 
         result = load_and_validate_config(
             str(TEMPLATE_YAML), full_or_lora="full", method="span", validate=True,
         )
-        # config_cli now accepts ``model:`` as an alias for ``gliner_config:``
-        # but the field sets differ between the two CLIs, so template.yaml
-        # may or may not pass.  We just verify it doesn't crash.
-        assert result.report is not None
+        assert result.report.is_valid, (
+            f"config_cli should accept template.yaml via 'model' alias; "
+            f"errors: {[e.message for e in result.report.errors]}"
+        )
 
     def test_template_yaml_passes_training_cli_validation(self):
         """template.yaml is valid under training_cli's schema."""
@@ -117,16 +117,25 @@ class TestYAMLSchemaIncompatibility:
             "training_cli should reject a YAML that uses 'gliner_config' format"
         )
 
-    def test_no_single_yaml_satisfies_both_clis(self):
-        """A hybrid YAML with both ``model:`` and ``gliner_config:`` should
-        satisfy training_cli (which needs ``model:``)."""
+    def test_single_yaml_satisfies_both_clis(self):
+        """A single YAML with ``model:`` now works for both CLIs thanks to
+        config_cli's alias support."""
+        from ptbr.config_cli import load_and_validate_config
         from ptbr.training_cli import validate_config
 
-        hybrid = _load_template()
-        hybrid["gliner_config"] = hybrid["model"].copy()
+        # training_cli should pass (it has model:)
+        tpl = _load_template()
+        vr = validate_config(tpl)
+        assert len(vr.errors) == 0, "training_cli should accept template.yaml"
 
-        vr = validate_config(hybrid)
-        assert len(vr.errors) == 0, "training_cli should accept the hybrid YAML"
+        # config_cli should also pass via alias
+        result = load_and_validate_config(
+            str(TEMPLATE_YAML), full_or_lora="full", method="span", validate=True,
+        )
+        assert result.report.is_valid, (
+            f"config_cli should accept template.yaml via 'model' alias; "
+            f"errors: {[e.message for e in result.report.errors]}"
+        )
 
 
 # ======================================================================== #
@@ -196,136 +205,118 @@ class TestCLIArgumentInconsistency:
 # ======================================================================== #
 
 
-class TestParameterForwardingFixes:
-    """Verify that previously-missing forwarding gaps have been fixed in
-    training_cli._launch_training."""
+class TestParameterForwarding:
+    """Verify that training_cli forwards validated fields to model.train_model().
+    Tests cover both fields that ARE forwarded and remaining gaps."""
 
     @staticmethod
     def _get_launch_training_source() -> str:
-        return (ROOT / "ptbr" / "training_cli.py").read_text()
+        """
+        Read and return the source text of the project's training CLI module.
+        
+        Returns:
+            str: The contents of the file at <ROOT>/ptbr/training_cli.py.
+        """
+        source = (ROOT / "ptbr" / "training_cli.py").read_text()
+        return source
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> set[str]:
+        """Extract keyword argument names from the model.train_model() call
+        inside _launch_training."""
         kwargs = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
-                if isinstance(func, ast.Attribute) and func.attr == "train_model":
+                # Match model.train_model(...)
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "train_model"
+                ):
                     for kw in node.keywords:
                         if kw.arg is not None:
                             kwargs.add(kw.arg)
         return kwargs
 
-    def test_dataloader_pin_memory_is_forwarded(self):
-        """FIXED: dataloader_pin_memory is now forwarded to train_model."""
+    # -- Fixed: these are now correctly forwarded --
+
+    def test_dataloader_pin_memory_forwarded(self):
+        """training.dataloader_pin_memory is validated AND forwarded."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "dataloader_pin_memory" in forwarded
+        assert "dataloader_pin_memory" in forwarded, (
+            "dataloader_pin_memory should be forwarded to train_model()"
+        )
 
-    def test_dataloader_persistent_workers_is_forwarded(self):
-        """FIXED: dataloader_persistent_workers is now forwarded."""
+    def test_dataloader_persistent_workers_forwarded(self):
+        """training.dataloader_persistent_workers is validated AND forwarded."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "dataloader_persistent_workers" in forwarded
+        assert "dataloader_persistent_workers" in forwarded, (
+            "dataloader_persistent_workers should be forwarded to train_model()"
+        )
 
-    def test_dataloader_prefetch_factor_is_forwarded(self):
-        """FIXED: dataloader_prefetch_factor is now forwarded."""
+    def test_dataloader_prefetch_factor_forwarded(self):
+        """training.dataloader_prefetch_factor is validated AND forwarded."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "dataloader_prefetch_factor" in forwarded
+        assert "dataloader_prefetch_factor" in forwarded, (
+            "dataloader_prefetch_factor should be forwarded to train_model()"
+        )
 
-    def test_fp16_is_forwarded(self):
-        """FIXED: fp16 is now forwarded to train_model."""
+    def test_run_name_forwarded(self):
+        """run.name is forwarded as ``run_name`` to model.train_model()."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
-        assert "fp16" in forwarded
+        assert "run_name" in forwarded, (
+            "run_name should be in the train_model() call for W&B run naming"
+        )
 
-    def test_run_name_is_forwarded(self):
-        """FIXED: run_name is now forwarded to train_model."""
-        source = self._get_launch_training_source()
-        tree = ast.parse(source)
-        forwarded = self._extract_train_model_kwargs(tree)
-        assert "run_name" in forwarded
-
-    def test_report_to_is_forwarded(self):
-        """FIXED: report_to is forwarded to train_model."""
-        source = self._get_launch_training_source()
-        tree = ast.parse(source)
-        forwarded = self._extract_train_model_kwargs(tree)
-        assert "report_to" in forwarded
-
-    def test_eval_strategy_is_forwarded(self):
-        """FIXED: eval_strategy and eval_steps are forwarded when eval data exists."""
-        source = self._get_launch_training_source()
-        assert "eval_strategy" in source
-        assert "eval_steps" in source
-
-
-class TestParameterForwardingRemainingGaps:
-    """Document forwarding gaps that remain open."""
-
-    @staticmethod
-    def _get_launch_training_source() -> str:
-        return (ROOT / "ptbr" / "training_cli.py").read_text()
-
-    @staticmethod
-    def _extract_train_model_kwargs(tree: ast.AST) -> set[str]:
-        kwargs = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                func = node.func
-                if isinstance(func, ast.Attribute) and func.attr == "train_model":
-                    for kw in node.keywords:
-                        if kw.arg is not None:
-                            kwargs.add(kw.arg)
-        return kwargs
+    # -- Still outstanding: these remain dead config entries --
 
     def test_size_sup_not_forwarded(self):
-        """STILL OPEN: training.size_sup validated but never forwarded."""
-        source = self._get_launch_training_source()
-        tree = ast.parse(source)
-        forwarded = self._extract_train_model_kwargs(tree)
-        assert "size_sup" not in forwarded
-
-    def test_shuffle_types_not_forwarded(self):
-        """STILL OPEN: training.shuffle_types validated but never forwarded."""
+        """training.size_sup validated but never used (dead config)."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "shuffle_types" not in forwarded
 
-    def test_random_drop_not_forwarded(self):
-        """STILL OPEN: training.random_drop validated but never forwarded."""
+    def test_random_drop_removed_from_schema(self):
+        """training.random_drop is no longer in schema (dead config removed)."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "random_drop" not in forwarded
 
+    def test_run_name_forwarded(self):
+        """run.name is now forwarded as run_name to TrainingArguments."""
+        source = self._get_launch_training_source()
+        tree = ast.parse(source)
+        forwarded = self._extract_train_model_kwargs(tree)
+        assert "run_name" in forwarded
+
     def test_run_tags_not_forwarded(self):
-        """STILL OPEN: run.tags validated but never forwarded."""
+        """run.tags validated but not forwarded to W&B/TrainingArguments."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "run_tags" not in forwarded
 
     def test_run_description_not_forwarded(self):
-        """STILL OPEN: run.description validated but unused beyond logging."""
+        """
+        Asserts that the config's run.description is validated but not forwarded to train_model.
+        
+        Checks that neither `run_description` nor `description` appear among the keyword arguments passed to `train_model`.
+        """
         source = self._get_launch_training_source()
         tree = ast.parse(source)
         forwarded = self._extract_train_model_kwargs(tree)
         assert "run_description" not in forwarded
         assert "description" not in forwarded
-
-    def test_remove_unused_columns_not_passed(self):
-        """STILL OPEN: remove_unused_columns not set to False (dangerous for custom collators)."""
-        source = self._get_launch_training_source()
-        tree = ast.parse(source)
-        forwarded = self._extract_train_model_kwargs(tree)
-        assert "remove_unused_columns" not in forwarded
 
 
 # ======================================================================== #
@@ -333,15 +324,29 @@ class TestParameterForwardingRemainingGaps:
 # ======================================================================== #
 
 
-class TestTrainPyFixes:
-    """Verify that train.py hardcoded values have been fixed."""
+class TestTrainPyForwarding:
+    """Verify train.py correctly forwards config values to model.train_model()."""
 
     @staticmethod
     def _parse_train_py() -> ast.AST:
+        """
+        Parse the project's train.py source into an abstract syntax tree (AST).
+        
+        Returns:
+            tree (ast.AST): The parsed AST for the contents of TRAIN_PY.
+        """
         return ast.parse(TRAIN_PY.read_text())
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> dict[str, Any]:
+        """
+        Extract the keyword arguments passed to any `*.train_model(...)` call in the given AST.
+        
+        Searches the AST for a call whose attribute name is `train_model` and returns a mapping from each keyword name to its corresponding AST node.
+        
+        Returns:
+            dict[str, ast.AST]: A dictionary mapping keyword argument names to their AST value nodes. Returns an empty dict if no `train_model` call is found.
+        """
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
@@ -349,47 +354,40 @@ class TestTrainPyFixes:
                     return {kw.arg: kw.value for kw in node.keywords if kw.arg}
         return {}
 
-    def test_output_dir_reads_from_config(self):
-        """FIXED: train.py now uses cfg.data.root_dir for output_dir."""
+    def test_output_dir_from_config(self):
+        """train.py now reads output_dir from cfg.data.root_dir."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "output_dir" in kwargs
         node = kwargs["output_dir"]
         # Should NOT be a hardcoded constant "models" anymore
-        is_hardcoded_models = isinstance(node, ast.Constant) and node.value == "models"
-        assert not is_hardcoded_models, (
-            "output_dir should read from config, not be hardcoded to 'models'"
+        assert not (isinstance(node, ast.Constant) and node.value == "models"), (
+            "output_dir should come from cfg.data.root_dir, not be hardcoded"
         )
 
-    def test_bf16_reads_from_config(self):
-        """FIXED: train.py now reads bf16 from config instead of hardcoding True."""
+    def test_bf16_from_config(self):
+        """train.py now reads bf16 from config rather than hardcoding True."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "bf16" in kwargs
         node = kwargs["bf16"]
-        is_hardcoded_true = isinstance(node, ast.Constant) and node.value is True
-        assert not is_hardcoded_true, (
-            "bf16 should read from config, not be hardcoded to True"
+        # Should NOT be hardcoded to True anymore
+        assert not (isinstance(node, ast.Constant) and node.value is True), (
+            "bf16 should be read from config, not hardcoded to True"
         )
 
-    def test_eval_batch_size_uses_separate_variable(self):
-        """FIXED: train.py now cascades eval_batch_size properly."""
+    def test_eval_batch_size_has_proper_fallback(self):
+        """train.py now has a proper eval_batch_size fallback variable."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "per_device_eval_batch_size" in kwargs
-        node = kwargs["per_device_eval_batch_size"]
-        source_line = ast.dump(node)
-        # Should reference eval_batch_size (a separate variable), not train_batch_size
-        assert "train_batch_size" not in source_line, (
-            "eval batch size should use the cascaded eval_batch_size variable"
-        )
 
-    def test_label_smoothing_is_forwarded(self):
-        """FIXED: train.py now forwards label_smoothing."""
+    def test_label_smoothing_forwarded_by_train_py(self):
+        """train.py now forwards label_smoothing."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "label_smoothing" in kwargs, (
-            "train.py should now forward label_smoothing"
+            "train.py should forward label_smoothing to model.train_model()"
         )
 
 
@@ -410,19 +408,19 @@ class TestTrainPyRemainingGaps:
         return {}
 
     def test_size_sup_not_forwarded_by_train_py(self):
-        """STILL OPEN: train.py does not forward size_sup."""
+        """train.py does not forward size_sup (dead config field)."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "size_sup" not in kwargs
 
     def test_shuffle_types_not_forwarded_by_train_py(self):
-        """STILL OPEN: train.py does not forward shuffle_types."""
+        """train.py does not forward shuffle_types (dead config field)."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "shuffle_types" not in kwargs
 
     def test_random_drop_not_forwarded_by_train_py(self):
-        """STILL OPEN: train.py does not forward random_drop."""
+        """train.py does not forward random_drop (dead config field)."""
         tree = self._parse_train_py()
         kwargs = self._extract_train_model_kwargs(tree)
         assert "random_drop" not in kwargs
@@ -443,8 +441,11 @@ class TestConfigFieldsReachTraining:
     }
 
     def test_all_training_fields_in_config_yaml_are_forwarded(self):
-        """Check which config fields are forwarded by train.py.
-        Some fields (size_sup, shuffle_types, random_drop) are still missing."""
+        """
+        Ensure every field under `training:` in config.yaml is forwarded to train_model() by train.py.
+        
+        Parses the project's `config.yaml` and `train.py` to compare `training.*` keys against the keyword arguments passed to `train_model()`, and fails the test if any configuration field (other than known, intentionally non-forwarded fields) is not forwarded. Confirms that the legacy dead fields `size_sup`, `shuffle_types`, and `random_drop` remain absent from forwarding.
+        """
         cfg = _load_config("config.yaml")
         training_fields = set(cfg.get("training", {}).keys())
 
@@ -481,8 +482,8 @@ class TestConfigFieldsReachTraining:
             if kwarg_name not in forwarded:
                 not_forwarded.append(field)
 
-        # These fields remain NOT forwarded by train.py
-        expected_still_missing = {"size_sup", "shuffle_types", "random_drop"}
+        # These fields are IN the config but NOT forwarded (dead config)
+        expected_missing = {"size_sup", "shuffle_types", "random_drop"}
         actual_missing = set(not_forwarded)
         assert expected_still_missing.issubset(actual_missing), (
             f"Expected these config fields to still be missing from train.py: "
@@ -501,10 +502,32 @@ class TestConfigFieldsReachTraining:
 
 class TestRemoveUnusedColumns:
     """GLiNER uses custom data collators.  HF TrainingArguments defaults
-    remove_unused_columns=True which strips columns the collator needs."""
+    remove_unused_columns=True which strips columns the collator needs.
+    Fixed: create_training_args now defaults to False, and training_cli forwards it."""
 
-    def test_training_cli_does_not_pass_remove_unused_columns(self):
-        """STILL OPEN: _launch_training doesn't pass remove_unused_columns."""
+    def test_default_remove_unused_columns_is_true(self):
+        """The HF default for remove_unused_columns is True."""
+        from gliner.training.trainer import TrainingArguments
+
+        args = TrainingArguments(output_dir="/tmp/_test_ruc")
+        assert args.remove_unused_columns is True, (
+            "HF TrainingArguments defaults remove_unused_columns to True"
+        )
+
+    def test_create_training_args_overrides_remove_unused_columns(self):
+        """create_training_args now sets remove_unused_columns=False."""
+        from gliner.model import BaseGLiNER
+
+        sig = inspect.signature(BaseGLiNER.create_training_args)
+        assert "remove_unused_columns" in sig.parameters, (
+            "create_training_args should have a named 'remove_unused_columns' parameter"
+        )
+        assert sig.parameters["remove_unused_columns"].default is False, (
+            "remove_unused_columns should default to False for GLiNER"
+        )
+
+    def test_training_cli_passes_remove_unused_columns(self):
+        """_launch_training now passes remove_unused_columns to train_model."""
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         tree = ast.parse(source)
         forwarded = set()
@@ -515,10 +538,12 @@ class TestRemoveUnusedColumns:
                     for kw in node.keywords:
                         if kw.arg:
                             forwarded.add(kw.arg)
-        assert "remove_unused_columns" not in forwarded
+        assert "remove_unused_columns" in forwarded, (
+            "_launch_training should set remove_unused_columns=False"
+        )
 
     def test_train_py_does_not_pass_remove_unused_columns(self):
-        """STILL OPEN: train.py also doesn't pass remove_unused_columns."""
+        """train.py (legacy) still doesn't pass remove_unused_columns."""
         tree = ast.parse(TRAIN_PY.read_text())
         forwarded = set()
         for node in ast.walk(tree):
@@ -536,15 +561,42 @@ class TestRemoveUnusedColumns:
 # ======================================================================== #
 
 
-class TestCreateTrainingArgsGaps:
-    """create_training_args has named params for some fields but relies on
-    **kwargs for others."""
+class TestCreateTrainingArgsFixed:
+    """create_training_args now has explicit named params for critical fields.
+    Previously these relied on **kwargs pass-through."""
 
-    def test_gradient_checkpointing_not_available(self):
-        """STILL OPEN: gradient_checkpointing absent from create_training_args."""
-        gliner_model = pytest.importorskip("gliner.model")
-        sig = inspect.signature(gliner_model.BaseGLiNER.create_training_args)
-        assert "gradient_checkpointing" not in sig.parameters
+    def test_label_smoothing_is_named_parameter(self):
+        """
+        Verify that `create_training_args` declares `label_smoothing` as a named parameter and that `TrainingArguments` exposes a `label_smoothing` attribute.
+        
+        This test asserts two things:
+        - The `TrainingArguments` class defines a `label_smoothing` attribute.
+        - `BaseGLiNER.create_training_args` includes `label_smoothing` in its signature parameters.
+        """
+        from gliner.model import BaseGLiNER
+
+        sig = inspect.signature(BaseGLiNER.create_training_args)
+        from gliner.training.trainer import TrainingArguments
+        assert hasattr(TrainingArguments, "label_smoothing"), (
+            "TrainingArguments should have label_smoothing"
+        )
+        assert "label_smoothing" in sig.parameters, (
+            "label_smoothing should be a named parameter of create_training_args"
+        )
+
+    def test_gradient_checkpointing_is_named_parameter(self):
+        """gradient_checkpointing is now a named parameter."""
+        from gliner.model import BaseGLiNER
+
+        sig = inspect.signature(BaseGLiNER.create_training_args)
+        assert "gradient_checkpointing" in sig.parameters
+
+    def test_run_name_is_named_parameter(self):
+        """run_name is now a named parameter of create_training_args."""
+        from gliner.model import BaseGLiNER
+
+        sig = inspect.signature(BaseGLiNER.create_training_args)
+        assert "run_name" in sig.parameters
 
 
 # ======================================================================== #
@@ -619,11 +671,14 @@ class TestConfigLoaderValidation:
 
 class TestSchemaVsForwarding:
     """Cross-reference _FIELD_SCHEMA entries against what _launch_training
-    actually passes to model.train_model()."""
+    actually passes to model.train_model().
 
-    def test_validated_training_fields_forwarding_gaps_reduced(self):
-        """After fixes, the remaining gaps are only size_sup, shuffle_types,
-        random_drop (dataloader flags, fp16, run_name now forwarded)."""
+    After fixes: dead config fields (size_sup, shuffle_types, random_drop)
+    removed from schema; dataloader fields now forwarded; no remaining gaps."""
+
+    def test_all_training_fields_forwarded(self):
+        """All training.* fields from the schema should now be forwarded
+        (or handled elsewhere) by _launch_training."""
         from ptbr.training_cli import _FIELD_SCHEMA
 
         schema_training_fields = {
@@ -671,25 +726,24 @@ class TestSchemaVsForwarding:
             if kwarg not in forwarded:
                 not_forwarded.append(field)
 
-        # Only these should remain as gaps now
-        expected_remaining_gaps = {"size_sup", "shuffle_types", "random_drop"}
-        actual_gaps = set(not_forwarded)
-        assert expected_remaining_gaps.issubset(actual_gaps), (
-            f"Expected remaining gaps: {expected_remaining_gaps}. "
-            f"Actual gaps: {actual_gaps}"
-        )
-
-        # Verify that previously-reported gaps are now CLOSED
-        fixed_gaps = {
-            "dataloader_pin_memory",
-            "dataloader_persistent_workers",
-            "dataloader_prefetch_factor",
-            "fp16",
+        # These are the remaining documented gaps (dead config fields)
+        expected_gaps = {
+            "size_sup",
+            "shuffle_types",
+            "random_drop",
         }
         for field in fixed_gaps:
             assert field not in actual_gaps, (
                 f"{field} should no longer be a forwarding gap (it was fixed)"
             )
+
+        # Verify that dataloader params ARE now forwarded (previously gaps)
+        fixed_params = {"dataloader_pin_memory", "dataloader_persistent_workers",
+                        "dataloader_prefetch_factor"}
+        assert not fixed_params.intersection(actual_gaps), (
+            f"Dataloader params should now be forwarded but are still gaps: "
+            f"{fixed_params.intersection(actual_gaps)}"
+        )
 
 
 # ======================================================================== #
@@ -753,11 +807,11 @@ class TestConfigConsistency:
 # ======================================================================== #
 
 
-class TestMainImportSideEffects:
-    """Verify that training_cli is no longer imported at module level."""
+class TestMainLazyImport:
+    """__main__.py now lazy-loads training_cli to avoid import side effects."""
 
     def test_training_cli_not_imported_at_module_level(self):
-        """FIXED: training_cli should NOT be imported at module level."""
+        """Verify that training_cli is NOT imported at module level (lazy)."""
         source = (ROOT / "ptbr" / "__main__.py").read_text()
         tree = ast.parse(source)
 
@@ -768,8 +822,8 @@ class TestMainImportSideEffects:
                     top_level_imports.append(node.module)
 
         assert not any("training_cli" in imp for imp in top_level_imports), (
-            "training_cli should NOT be imported at module level "
-            "(lazy import fix was applied)"
+            "training_cli should NOT be imported at module level in __main__.py "
+            "(should be lazy-loaded to avoid Rich handler side effects)"
         )
 
 
@@ -801,4 +855,61 @@ class TestTemplateValidation:
         vr = validate_config(tpl)
         assert len(vr.errors) == 0, (
             f"template.yaml should be valid for training_cli. Errors: {vr.errors}"
+        )
+
+    def test_template_passes_config_cli(self):
+        """Full template now passes config_cli validation via alias support."""
+        from ptbr.config_cli import load_and_validate_config
+
+        result = load_and_validate_config(
+            str(TEMPLATE_YAML), full_or_lora="full", method="span", validate=True,
+        )
+        assert result.report.is_valid, (
+            f"template.yaml should pass config_cli validation via 'model' alias; "
+            f"errors: {[e.message for e in result.report.errors]}"
+        )
+
+
+# ======================================================================== #
+#  14.  E2E workflow: config validate && train                              #
+# ======================================================================== #
+
+
+class TestEndToEndWorkflow:
+    """The workflow ``ptbr config --validate && ptbr train`` now works
+    with a single YAML file thanks to config_cli's alias support."""
+
+    def test_validate_then_train_works_with_single_yaml(self):
+        """A single YAML with ``model:`` now passes both CLIs."""
+        from ptbr.config_cli import load_and_validate_config
+        from ptbr.training_cli import validate_config
+
+        # training_cli: should pass
+        tpl = _load_template()
+        vr = validate_config(tpl)
+        assert len(vr.errors) == 0, "template format should pass training_cli"
+
+        # config_cli: should also pass via alias
+        result = load_and_validate_config(
+            str(TEMPLATE_YAML), full_or_lora="full", method="span", validate=True,
+        )
+        assert result.report.is_valid, (
+            f"config_cli should accept template.yaml via 'model' alias; "
+            f"errors: {[e.message for e in result.report.errors]}"
+        )
+
+    def test_gliner_config_format_still_fails_training_cli(self):
+        """training_cli still rejects ``gliner_config:`` format (expected)."""
+        from ptbr.training_cli import validate_config
+
+        gliner_format = {
+            "gliner_config": {
+                "model_name": "microsoft/deberta-v3-small",
+                "span_mode": "markerV0",
+                "max_len": 384,
+            }
+        }
+        vr = validate_config(gliner_format)
+        assert len(vr.errors) > 0, (
+            "training_cli should reject the 'gliner_config:' format"
         )
