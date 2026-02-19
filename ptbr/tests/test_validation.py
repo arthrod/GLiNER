@@ -11,17 +11,17 @@ Usage:
     python ptbr/tests/test_validation.py
 """
 
-import importlib.util
-import json
 import os
 import re
-import subprocess
 import sys
+import json
 import tempfile
+import subprocess
+import importlib.util
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from ptbr import GLiNERData, extract_labels, load_data, prepare, validate_data
+from ptbr import GLiNERData, prepare, load_data, validate_data
 
 MOCKS = Path(__file__).resolve().parent / "mocks"
 PASS = 0
@@ -41,7 +41,7 @@ def report(name, passed, detail=""):
 
 def load_mock(filename):
     path = MOCKS / filename
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -63,7 +63,7 @@ def test_sample_data():
     if not sample.exists():
         report("examples/sample_data.json", False, "file not found")
         return
-    with open(sample, "r", encoding="utf-8") as f:
+    with open(sample, encoding="utf-8") as f:
         data = json.load(f)
     ok, errs = validate_data(data)
     report("examples/sample_data.json passes", ok, f"{len(data)} entries, {len(errs)} errors")

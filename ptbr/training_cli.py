@@ -13,22 +13,20 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import copy
 import logging
-import os
-import sys
-import time
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Optional
+from pathlib import Path
+from datetime import datetime, timezone
 
-import typer
 import yaml
-from rich.console import Console
-from rich.logging import RichHandler
+import typer
+from rich.text import Text
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
+from rich.console import Console
+from rich.logging import RichHandler
 
 # ---------------------------------------------------------------------------
 # Typer app
@@ -68,7 +66,7 @@ _file_handler: Optional[logging.FileHandler] = None
 def _attach_file_handler(log_path: Path) -> None:
     """
     Attach a file log handler that writes logs to the given path, replacing any previously attached file handler.
-    
+
     Parameters:
         log_path (Path): Destination file path for the log; parent directories will be created if missing.
     """
@@ -209,13 +207,13 @@ _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
 def _deep_get(d: dict, dotted_key: str) -> tuple[bool, Any]:
     """
     Retrieve a value from a nested dictionary following a dotted path.
-    
+
     If the full path exists, returns (True, value) where value is the final value; otherwise returns (False, None).
-    
+
     Parameters:
         d (dict): Mapping to traverse.
         dotted_key (str): Dotted path (e.g., "a.b.c") of nested keys.
-    
+
     Returns:
         tuple[bool, Any]: `(True, value)` if the path exists, `(False, None)` otherwise.
     """
@@ -230,13 +228,15 @@ def _deep_get(d: dict, dotted_key: str) -> tuple[bool, Any]:
 
 def _deep_set(d: dict, dotted_key: str, value: Any) -> None:
     """
-    Set a value in a nested dictionary at the location specified by a dotted key, creating intermediate dictionaries as needed.
-    
+    Set a value in a nested dictionary at the location specified by a dotted key.
+
+    Creates intermediate dictionaries as needed.
+
     Parameters:
         d (dict): Dictionary to modify in place.
         dotted_key (str): Dotted path to the target key (e.g., "section.sub.key").
         value (Any): Value to assign to the final key.
-    
+
     Notes:
         - Intermediate dictionaries are created when a path segment is missing.
         - The final key's value is overwritten if it already exists.
@@ -263,10 +263,10 @@ def _deep_set(d: dict, dotted_key: str, value: Any) -> None:
 def _type_name(t: type | tuple) -> str:
     """
     Return a human-readable name for a type or a tuple of types.
-    
+
     Parameters:
         t (type | tuple): A type object or a tuple of type objects.
-    
+
     Returns:
         str: The type's __name__ or the joined type names separated by " | ".
     """
@@ -278,14 +278,15 @@ def _type_name(t: type | tuple) -> str:
 def _check_type(value: Any, expected: type | tuple[type, ...]) -> bool:
     """
     Perform a relaxed type check allowing integers where floats are expected.
-    
+
     Parameters:
         value (Any): The value to test.
         expected (type | tuple[type, ...]): A type or tuple of types that `value` should conform to.
-    
+
     Returns:
-        bool: `True` if `value` matches any of the `expected` types (treating `int` as compatible with `float`), `False` otherwise.
-    
+        bool: `True` if `value` matches any of the `expected` types
+            (treating `int` as compatible with `float`), `False` otherwise.
+
     Notes:
         - A `bool` value is not considered a match unless `bool` is explicitly included in `expected`.
     """
@@ -335,11 +336,12 @@ class ValidationResult:
     def __init__(self) -> None:
         """
         Initialize a ValidationResult with empty collections for errors, warnings, and per-field info.
-        
+
         Attributes:
             errors (list[str]): Collected error messages.
             warnings (list[str]): Collected warning messages.
-            info (list[tuple[str, str, Any]]): Per-field tuples of (key, status, value) where status is one of "OK", "DEFAULT", or "ERROR".
+            info (list[tuple[str, str, Any]]): Per-field tuples of (key, status, value)
+                where status is one of "OK", "DEFAULT", or "ERROR".
         """
         self.errors: list[str] = []
         self.warnings: list[str] = []
@@ -349,7 +351,7 @@ class ValidationResult:
     def ok(self) -> bool:
         """
         Indicates whether validation produced no errors.
-        
+
         Returns:
             True if there are no errors recorded, False otherwise.
         """
@@ -430,7 +432,7 @@ def _check_extra_keys(
 ) -> None:
     """
     Record warnings for configuration keys that are not defined in the schema.
-    
+
     Parameters:
         cfg (dict): Configuration mapping (or subtree) to inspect for unknown keys.
         known (set[str]): Set of dotted keys that are recognized by the schema.
@@ -441,11 +443,10 @@ def _check_extra_keys(
         full = f"{prefix}{key}" if not prefix else f"{prefix}.{key}"
         if isinstance(value, dict):
             _check_extra_keys(value, known, result, full)
-        else:
-            if full not in known:
-                msg = f"[EXTRA]    '{full}' is not in the schema (will be ignored)"
-                result.warnings.append(msg)
-                logger.warning(msg)
+        elif full not in known:
+            msg = f"[EXTRA]    '{full}' is not in the schema (will be ignored)"
+            result.warnings.append(msg)
+            logger.warning(msg)
 
 
 # ======================================================================== #
@@ -469,7 +470,7 @@ _VALID_ATTN_IMPL = {"eager", "sdpa", "flash_attention_2"}
 def semantic_checks(cfg: dict, result: ValidationResult) -> None:
     """
     Perform cross-field semantic and enum validations on the resolved configuration.
-    
+
     This routine inspects related configuration fields and appends entries to the provided ValidationResult:
     - Validates enumerated fields and records enum-related errors/warnings.
     - Ensures dependent fields are present when required (e.g., decoder_mode when labels_decoder is set).
@@ -477,7 +478,7 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
     - Requires a Hugging Face Hub model id when `push_to_hub` is enabled.
     - Enforces that certain numeric training parameters are greater than zero.
     - Ensures `training.bf16` and `training.fp16` are not both enabled.
-    
+
     Parameters:
         cfg (dict): Resolved configuration dictionary to validate.
         result (ValidationResult): Collector for errors, warnings, and info updated by this function.
@@ -562,17 +563,18 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
 def _check_enum(
     cfg: dict, result: ValidationResult, key: str, valid: set[str]
 ) -> None:
-    """
-    Check that a configuration value is one of an allowed set of string values and record an error if not.
-    
+    """Check that a configuration value is one of an allowed set of string values and record an error if not.
+
     Parameters:
-    	cfg (dict): Configuration mapping to read the dotted `key` from.
-    	result (ValidationResult): Accumulates validation errors and warnings; an error is appended here when the value is invalid.
-    	key (str): Dotted path into `cfg` (e.g., "model.span_mode") to validate.
-    	valid (set[str]): Allowed string values for the configuration key.
-    
+        cfg (dict): Configuration mapping to read the dotted `key` from.
+        result (ValidationResult): Accumulates validation errors and warnings;
+            an error is appended here when the value is invalid.
+        key (str): Dotted path into `cfg` (e.g., "model.span_mode") to validate.
+        valid (set[str]): Allowed string values for the configuration key.
+
     Behavior:
-    	If the key exists in `cfg` with a non-None value that is not a member of `valid`, an error message describing the invalid value is appended to `result.errors` and also logged.
+        If the key exists in `cfg` with a non-None value that is not a member of `valid`,
+        an error message describing the invalid value is appended to `result.errors` and also logged.
     """
     _, val = _deep_get(cfg, key)
     if val is not None and val not in valid:
@@ -609,7 +611,7 @@ def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> 
 def check_huggingface(cfg: dict, result: ValidationResult) -> None:
     """
     Check HuggingFace credentials and record any authentication errors.
-    
+
     If cfg["environment"]["push_to_hub"] is false, this function does nothing.
     If push_to_hub is true it looks for a token in cfg["environment"]["hf_token"] or the HF_TOKEN environment variable;
     if no token is found an error is recorded on result. When a token is present the function queries the HuggingFace
@@ -651,18 +653,17 @@ def check_huggingface(cfg: dict, result: ValidationResult) -> None:
 
 
 def check_wandb(cfg: dict, result: ValidationResult) -> None:
-    """
-    Verify WandB credentials when WandB reporting is enabled.
-    
+    """Verify WandB credentials when WandB reporting is enabled.
+
     If `environment.report_to` in `cfg` includes "wandb" or "all", this function looks for an API key
     in `cfg["environment"]["wandb_api_key"]` or the `WANDB_API_KEY` environment variable and performs a
     GraphQL request to WandB to validate the key. On success it logs the authenticated username; on
     failure it appends a descriptive error to `result.errors` and logs the failure.
-    
+
     Parameters:
-    	cfg (dict): Resolved configuration dictionary.
-    	result (ValidationResult): ValidationResult instance to record errors and warnings; this function
-    		mutates `result.errors` on failure.
+        cfg (dict): Resolved configuration dictionary.
+        result (ValidationResult): ValidationResult instance to record errors and warnings; this function
+            mutates `result.errors` on failure.
     """
     _, report = _deep_get(cfg, "environment.report_to")
     if report not in ("wandb", "all"):
@@ -708,13 +709,13 @@ def check_wandb(cfg: dict, result: ValidationResult) -> None:
 def check_resume(cfg: dict, output_folder: Path, result: ValidationResult) -> None:
     """
     Verify the output folder contains a compatible checkpoint for resuming a run.
-    
+
     Performs these validations and appends errors to `result` when they fail:
     - Ensures `run.name` exists in `cfg`.
     - Ensures at least one `checkpoint-*` directory exists inside `output_folder`.
     - Ensures a saved `config.yaml` exists in `output_folder`.
     - Ensures the saved config's `run.name` matches `cfg["run"]["name"]`.
-    
+
     Parameters:
         cfg (dict): The resolved configuration dictionary to validate (expects `run.name`).
         output_folder (Path): Path to the run's output directory to inspect for checkpoints and saved config.
@@ -767,10 +768,11 @@ def check_resume(cfg: dict, output_folder: Path, result: ValidationResult) -> No
 def print_summary(result: ValidationResult) -> str:
     """
     Display a formatted validation summary to the console.
-    
+
     Parameters:
-        result (ValidationResult): ValidationResult containing per-field info tuples (key, status, value), plus lists of warnings and errors.
-    
+        result (ValidationResult): ValidationResult containing per-field info tuples
+            (key, status, value), plus lists of warnings and errors.
+
     Returns:
         str: Plain-text multi-line summary of the validated fields, warnings, and errors suitable for saving to a file.
     """
@@ -1014,7 +1016,9 @@ def _launch_training(
 
     # Lazy-import heavy dependencies so validation stays fast
     import json
+
     import torch
+
     from gliner import GLiNER
 
     # -- Seed --
@@ -1166,17 +1170,21 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
     Apply a LoRA adapter to the model's HuggingFace backbone (PreTrainedModel).
 
     Parameters:
-        model (Any): Model object expected to contain attribute `model.token_rep_layer.bert_layer.model` (the HF PreTrainedModel backbone); this function replaces that attribute in-place with a PEFT-wrapped model when found.
-        lora_cfg (dict): LoRA configuration mapping with required keys `r`, `lora_alpha`, `lora_dropout`, `bias`, and `target_modules`; optional keys include `task_type` and `modules_to_save`.
-    
+        model (Any): Model object expected to contain attribute
+            `model.token_rep_layer.bert_layer.model` (the HF PreTrainedModel backbone);
+            this function replaces that attribute in-place with a PEFT-wrapped model when found.
+        lora_cfg (dict): LoRA configuration mapping with required keys `r`, `lora_alpha`,
+            `lora_dropout`, `bias`, and `target_modules`; optional keys include `task_type`
+            and `modules_to_save`.
+
     Raises:
         typer.Exit: If the `peft` package is not installed.
     """
     try:
-        from peft import LoraConfig, get_peft_model, TaskType
-    except ImportError:
+        from peft import TaskType, LoraConfig, get_peft_model
+    except ImportError as err:
         logger.error("peft is not installed.  Install with: pip install peft")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from err
 
     task_map = {
         "TOKEN_CLS": TaskType.TOKEN_CLS,

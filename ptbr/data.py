@@ -5,10 +5,10 @@ Compatible with all model variants: span, token, bi-encoder, decoder,
 relation extraction (relex), and multitask pipelines.
 """
 
-import json
 import os
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+import json
+from typing import Any, Dict, List, Tuple, Optional
+from dataclasses import field, dataclass
 
 
 @dataclass
@@ -35,7 +35,7 @@ def load_data(
     Extra columns (relations, ner_negatives, ner_labels, etc.) are preserved.
     """
     if os.path.exists(file_or_repo):
-        with open(file_or_repo, "r", encoding="utf-8") as f:
+        with open(file_or_repo, encoding="utf-8") as f:
             if file_or_repo.endswith(".jsonl"):
                 raw = [json.loads(line) for line in f if line.strip()]
             else:

@@ -1,4 +1,4 @@
-"""Central CLI entry point: python -m ptbr <command>
+"""Central CLI entry point: python -m ptbr <command>.
 
 Commands:
     data    Load, validate, and prepare GLiNER datasets
@@ -7,8 +7,8 @@ Commands:
 """
 
 import json
-from pathlib import Path
 from typing import Optional
+from pathlib import Path
 
 import typer
 
@@ -47,7 +47,7 @@ def data_cmd(
     ),
 ):
     """Load GLiNER data, validate, or generate label embeddings."""
-    from ptbr.data import extract_labels, load_data, validate_data
+    from ptbr.data import load_data, validate_data, extract_labels
 
     data = load_data(file_or_repo, text_column, ner_column, split=split)
     labels = extract_labels(data)
@@ -102,7 +102,7 @@ def config_cmd(
     method: str = typer.Option("span", help="GLiNER method: span, token, biencoder, decoder, relex."),
 ):
     """Validate a GLiNER training configuration YAML file."""
-    from ptbr.config_cli import load_and_validate_config, print_and_log_result
+    from ptbr.config_cli import print_and_log_result, load_and_validate_config
 
     result = load_and_validate_config(
         file, full_or_lora=full_or_lora, method=method, validate=validate,
