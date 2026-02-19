@@ -40,6 +40,15 @@ def report(name, passed, detail=""):
 
 
 def load_mock(filename):
+    """
+    Load and parse a JSON mock file from the test mocks directory.
+    
+    Parameters:
+        filename (str): Name of the mock file relative to the global MOCKS directory.
+    
+    Returns:
+        obj: The parsed JSON content (typically a dict or list) from the specified file.
+    """
     path = MOCKS / filename
     with open(path, encoding="utf-8") as f:
         return json.load(f)

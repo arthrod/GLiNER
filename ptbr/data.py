@@ -29,10 +29,22 @@ def load_data(
     ner_column: str = "ner",
     split: str = "train",
 ) -> List[Dict[str, Any]]:
-    """Load data from a local JSON file or a HuggingFace dataset repo.
-
-    Columns are mapped to GLiNER's native keys (tokenized_text, ner).
-    Extra columns (relations, ner_negatives, ner_labels, etc.) are preserved.
+    """
+    Load dataset from a local JSON/JSONL file or a HuggingFace dataset repository and map columns to GLiNER's native format.
+    
+    If a local path is provided, the file is read as JSONL when it ends with ".jsonl" or as JSON otherwise. If the provided column names differ from GLiNER's native keys, the specified text_column and ner_column are remapped to "tokenized_text" and "ner" respectively; other fields are preserved. If a HuggingFace dataset identifier is provided, the specified split is loaded and the dataset columns are similarly remapped.
+    
+    Parameters:
+        file_or_repo (str): Local filesystem path or HuggingFace dataset identifier.
+        text_column (str): Name of the column containing tokenized text in the source data (defaults to "tokenized_text").
+        ner_column (str): Name of the column containing NER spans in the source data (defaults to "ner").
+        split (str): Dataset split to load when using a HuggingFace dataset (defaults to "train").
+    
+    Returns:
+        List[Dict[str, Any]]: A list of records in GLiNER native format where each record contains at least the keys "tokenized_text" and "ner"; additional source fields are preserved.
+    
+    Raises:
+        ValueError: If the required text or ner columns are missing in the provided local file or dataset split.
     """
     if os.path.exists(file_or_repo):
         with open(file_or_repo, encoding="utf-8") as f:

@@ -281,13 +281,12 @@ class TestSemanticChecks:
 
     def test_positive_num_steps(self, valid_cfg: dict) -> None:
         """
-        Checks that semantic validation reports an error when training.num_steps is not positive.
-
-        Sets training.num_steps to 0 on the provided configuration, runs semantic_checks,
-        and asserts that an error referencing "num_steps" is present in the ValidationResult.
-
+        Verify semantic validation reports an error when training.num_steps is not greater than zero.
+        
+        This test sets `training.num_steps` to 0 and asserts that `ValidationResult` contains an error mentioning "num_steps".
+        
         Parameters:
-            valid_cfg (dict): A baseline valid configuration dictionary used for the test.
+            valid_cfg (dict): Baseline valid configuration used by the test.
         """
         valid_cfg["training"]["num_steps"] = 0
         result = ValidationResult()
