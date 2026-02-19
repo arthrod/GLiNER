@@ -1,0 +1,70 @@
+# =============================================================================
+# Example 3: Token-Level NER (Sequence Labeling)
+# =============================================================================
+# Train a token-level GLiNER model (BIO sequence labeling) instead of span-based.
+# Useful for benchmarks that expect token-level predictions (e.g. CoNLL format).
+#
+# Usage:
+#   python -m ptbr config --file examples/config_token_level.yaml --validate
+#   python -m ptbr train main examples/config_token_level.yaml
+# =============================================================================
+
+run:
+  name: "gliner-token-level-ner"
+  description: "Token-level NER using sequence labeling"
+  tags:
+    - "ner"
+    - "token-level"
+    - "conll"
+  seed: 7
+
+model:
+  model_name: "microsoft/deberta-v3-small"
+  name: "gliner-token-ner"
+  span_mode: "token_level"
+  max_width: 12
+  hidden_size: 512
+  dropout: 0.3
+  fine_tune: true
+  subtoken_pooling: "first"
+  max_len: 256
+  max_types: 50
+  max_neg_type_ratio: 1
+  num_rnn_layers: 1
+
+data:
+  root_dir: "logs/token_ner"
+  train_data: "data/train.json"
+  val_data_dir: "data/val.json"
+
+training:
+  num_steps: 20000
+  train_batch_size: 16
+  eval_every: 1000
+  warmup_ratio: 0.1
+  scheduler_type: "cosine"
+  lr_encoder: 2.0e-5
+  lr_others: 5.0e-5
+  weight_decay_encoder: 0.01
+  weight_decay_other: 0.01
+  max_grad_norm: 5.0
+  optimizer: "adamw_torch"
+  loss_alpha: -1
+  loss_gamma: 0
+  label_smoothing: 0
+  loss_reduction: "mean"
+  bf16: false
+  fp16: true
+  save_total_limit: 5
+  dataloader_num_workers: 2
+  dataloader_pin_memory: true
+  dataloader_persistent_workers: true
+  dataloader_prefetch_factor: 4
+
+lora:
+  enabled: false
+
+environment:
+  push_to_hub: true
+  hub_model_id: "my-org/gliner-token-ner-v1"
+  report_to: "none"

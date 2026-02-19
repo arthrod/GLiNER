@@ -345,7 +345,7 @@ class TestParameterForwarding:
         forwarded = self._extract_train_model_kwargs(tree)
         assert "random_drop" not in forwarded
 
-    def test_run_name_forwarded(self):
+    def test_run_name_forwarded_to_training_args(self):
         """run.name is now forwarded as run_name to TrainingArguments."""
         source = self._get_launch_training_source()
         tree = ast.parse(source)
@@ -773,16 +773,12 @@ class TestSchemaVsForwarding:
             if kwarg not in forwarded:
                 not_forwarded.append(field)
 
-        # These are the remaining documented gaps (dead config fields)
-        expected_gaps = {
-            "size_sup",
-            "shuffle_types",
-            "random_drop",
-        }
+        # Dead config fields (size_sup, shuffle_types, random_drop) have been
+        # removed from _FIELD_SCHEMA, so there should be no forwarding gaps.
         actual_gaps = set(not_forwarded)
-        assert expected_gaps.issubset(actual_gaps), (
-            f"Expected forwarding gaps: {expected_gaps}. "
-            f"Actual gaps: {actual_gaps}"
+        assert len(actual_gaps) == 0, (
+            f"All schema training fields should be forwarded or handled elsewhere. "
+            f"Unforwarded: {actual_gaps}"
         )
 
         # Verify that dataloader params ARE now forwarded (previously gaps)
@@ -792,6 +788,17 @@ class TestSchemaVsForwarding:
             f"Dataloader params should now be forwarded but are still gaps: "
             f"{fixed_params.intersection(actual_gaps)}"
         )
+
+    def test_dead_config_fields_removed_from_schema(self):
+        """size_sup, shuffle_types, random_drop were dead config entries that
+        have been removed from _FIELD_SCHEMA."""
+        from ptbr.training_cli import _FIELD_SCHEMA
+
+        schema_keys = {key for key, *_ in _FIELD_SCHEMA}
+        for dead_field in ("training.size_sup", "training.shuffle_types", "training.random_drop"):
+            assert dead_field not in schema_keys, (
+                f"{dead_field} should have been removed from _FIELD_SCHEMA (dead config)"
+            )
 
 
 # ======================================================================== #

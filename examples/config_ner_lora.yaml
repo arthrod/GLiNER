@@ -1,0 +1,76 @@
+# =============================================================================
+# Example 2: LoRA Fine-Tuning (Memory-Efficient)
+# =============================================================================
+# Fine-tune a GLiNER model using LoRA adapters for reduced VRAM usage.
+# Ideal for consumer GPUs (8-16 GB) or when you want to keep adapter weights
+# small and portable.
+#
+# Usage:
+#   python -m ptbr config --file examples/config_ner_lora.yaml --full-or-lora lora --validate
+#   python -m ptbr train main examples/config_ner_lora.yaml
+# =============================================================================
+
+run:
+  name: "gliner-ner-lora-finetune"
+  description: "LoRA fine-tuning for domain-specific NER"
+  tags:
+    - "ner"
+    - "lora"
+    - "efficient"
+  seed: 123
+
+model:
+  model_name: "microsoft/deberta-v3-base"
+  name: "gliner-ner-lora"
+  span_mode: "markerV0"
+  max_width: 12
+  hidden_size: 768
+  dropout: 0.4
+  fine_tune: true
+  subtoken_pooling: "first"
+  max_len: 512
+  max_types: 25
+  max_neg_type_ratio: 1
+
+data:
+  root_dir: "logs/ner_lora"
+  train_data: "data/train.json"
+  val_data_dir: "data/val.json"
+
+training:
+  num_steps: 5000
+  train_batch_size: 4
+  eval_every: 250
+  warmup_ratio: 0.05
+  scheduler_type: "linear"
+  lr_encoder: 5.0e-5
+  lr_others: 1.0e-4
+  weight_decay_encoder: 0.01
+  weight_decay_other: 0.01
+  max_grad_norm: 1.0
+  optimizer: "adamw_torch"
+  loss_alpha: 0.75
+  loss_gamma: 2.0
+  label_smoothing: 0.1
+  loss_reduction: "sum"
+  bf16: true
+  save_total_limit: 2
+  gradient_accumulation_steps: 4
+  dataloader_num_workers: 4
+  dataloader_pin_memory: true
+
+lora:
+  enabled: true
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+  task_type: "TOKEN_CLS"
+
+environment:
+  push_to_hub: false
+  report_to: "wandb"
+  wandb_project: "gliner-lora-experiments"
