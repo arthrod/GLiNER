@@ -70,7 +70,7 @@ class TestExtractWordEmbeddings:
 
     def test_extracts_correct_embeddings(self, basic_setup):
         """Should place token embeddings at correct word positions."""
-        words_embedding, mask = extract_word_embeddings(**basic_setup)
+        words_embedding, _mask = extract_word_embeddings(**basic_setup)
 
         # Check that embeddings were copied correctly
         # words_mask[0, 1] = 1 means token at position 1 goes to word position 0
@@ -84,20 +84,20 @@ class TestExtractWordEmbeddings:
 
     def test_creates_valid_mask(self, basic_setup):
         """Should create mask based on text_lengths."""
-        words_embedding, mask = extract_word_embeddings(**basic_setup)
+        _words_embedding, mask = extract_word_embeddings(**basic_setup)
 
         # First batch has text_length=2, so first 2 positions should be True
-        assert mask[0, 0] == True
-        assert mask[0, 1] == True
+        assert mask[0, 0]
+        assert mask[0, 1]
 
         # Second batch has text_length=1, so only first position should be True
-        assert mask[1, 0] == True
+        assert mask[1, 0]
         if basic_setup["max_text_length"] > 1:
-            assert mask[1, 1] == False
+            assert not mask[1, 1]
 
     def test_preserves_dtype_and_device(self, basic_setup):
         """Should preserve dtype and device of input tensors."""
-        words_embedding, mask = extract_word_embeddings(**basic_setup)
+        words_embedding, _mask = extract_word_embeddings(**basic_setup)
 
         assert words_embedding.dtype == basic_setup["token_embeds"].dtype
         assert words_embedding.device == basic_setup["token_embeds"].device
@@ -120,7 +120,7 @@ class TestExtractWordEmbeddings:
 
         # Should return all zeros
         assert torch.allclose(words_embedding, torch.zeros_like(words_embedding))
-        assert torch.all(mask == False)
+        assert torch.all(~mask)
 
 
 class TestExtractPromptFeatures:
@@ -320,8 +320,8 @@ class TestExtractPromptFeaturesAndWordEmbeddings:
         assert prompts_mask[0, 1] == 1
 
         # First batch has text_length=2
-        assert word_mask[0, 0] == True
-        assert word_mask[0, 1] == True
+        assert word_mask[0, 0]
+        assert word_mask[0, 1]
 
     def test_preserves_dtype_and_device(self, combined_setup):
         """Should preserve dtype and device throughout."""
@@ -478,7 +478,7 @@ class TestBuildEntityPairs:
         # Should return tensors with at least one position for padding
         assert pair_idx.shape == (B, 1, 2)
         assert torch.all(pair_idx == -1)
-        assert torch.all(pair_mask == False)
+        assert torch.all(~pair_mask)
         assert head_rep.shape == (B, 1, D)
         assert tail_rep.shape == (B, 1, D)
 
@@ -1024,8 +1024,6 @@ class TestBiEncoderSpanModel:
 
     def test_forward_output_shape_without_labels(self, mock_config, model_inputs):
         """Should return output with correct logits shape without labels."""
-        from unittest.mock import Mock
-
         # Remove labels to test inference mode
         model_inputs_no_labels = {k: v for k, v in model_inputs.items() if k != "labels"}
 
@@ -1047,8 +1045,6 @@ class TestBiEncoderSpanModel:
 
     def test_forward_with_precomputed_labels_embeds(self, mock_config, model_inputs):
         """Should accept precomputed labels embeddings instead of ids."""
-        from unittest.mock import Mock
-
         # Replace labels_input_ids with labels_embeds
         C, D = 5, 64
         model_inputs_with_embeds = {

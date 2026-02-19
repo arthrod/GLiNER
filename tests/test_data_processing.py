@@ -305,7 +305,7 @@ class TestMakeMapping:
     def test_deduplicates_while_preserving_order(self):
         """Should remove duplicates while keeping first occurrence order."""
         types = ["PER", "LOC", "PER", "ORG", "LOC"]
-        fwd, rev = make_mapping(types)
+        fwd, _rev = make_mapping(types)
 
         # Should only have 3 unique types
         assert len(fwd) == 3
@@ -591,7 +591,7 @@ class TestBaseProcessor:
         texts = [["word"]]
         entities = [["PER", "LOC"]]
 
-        input_texts, prompt_lengths = processor.prepare_inputs(texts, entities, blank="entity")
+        input_texts, _prompt_lengths = processor.prepare_inputs(texts, entities, blank="entity")
 
         assert "[ENT]" in input_texts[0]
         assert "entity" in input_texts[0]
@@ -662,7 +662,7 @@ class TestBaseProcessor:
         ]
         negatives = ["LOC", "ORG"]
 
-        class_to_ids, id_to_classes = processor.batch_generate_class_mappings(batch_list, negatives=negatives)
+        class_to_ids, _id_to_classes = processor.batch_generate_class_mappings(batch_list, negatives=negatives)
 
         # At least some negatives should be included
         all_types = set(class_to_ids[0].keys())
@@ -688,7 +688,7 @@ class TestBaseProcessor:
             {"tokenized_text": ["word"], "relations": [(0, 1, "WORKS_FOR")]},
         ]
 
-        class_to_ids, id_to_classes = processor.batch_generate_class_mappings(batch_list, key="relations")
+        class_to_ids, _id_to_classes = processor.batch_generate_class_mappings(batch_list, key="relations")
 
         assert "WORKS_FOR" in class_to_ids[0]
 
@@ -1076,7 +1076,7 @@ class TestBiEncoderSpanProcessor:
         labels_tokenizer.unk_token = "[UNK]"
         labels_tokenizer.pad_token = "[PAD]"
 
-        def mock_label_tokenize(texts, **kwargs):
+        def mock_label_tokenize(texts, **_kwargs):
             batch_size = len(texts) if isinstance(texts, list) else 1
             return {
                 "input_ids": torch.randint(0, 100, (batch_size, 5)),
@@ -1174,7 +1174,7 @@ class TestUniEncoderSpanDecoderProcessor:
         decoder_tokenizer.unk_token = "[UNK]"
         decoder_tokenizer.pad_token = "[PAD]"
 
-        def mock_decode_tokenize(texts, **kwargs):
+        def mock_decode_tokenize(texts, **_kwargs):
             batch_size = len(texts) if isinstance(texts, list) else 1
             return {
                 "input_ids": torch.randint(0, 100, (batch_size, 8)),
@@ -1327,7 +1327,7 @@ class TestRelationExtractionSpanProcessor:
         entities = [["PER", "ORG"]]
         relations = [["WORKS_FOR"]]
 
-        input_texts, prompt_lengths = processor.prepare_inputs(texts, entities, blank=None, relations=relations)
+        input_texts, _prompt_lengths = processor.prepare_inputs(texts, entities, blank=None, relations=relations)
 
         # Should have entity tokens, sep, relation tokens, sep
         assert "[ENT]" in input_texts[0]

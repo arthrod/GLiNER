@@ -12,6 +12,7 @@ These tests catch issues identified in the training parameters audit:
 
 import ast
 import inspect
+import tempfile
 
 import pytest
 import transformers
@@ -57,17 +58,40 @@ def _get_train_model_call():
     return None
 
 
+def _extract_dict_keys(node):
+    """Extract string keys from an ast.Dict node (handles **{k: v} expansion)."""
+    keys = set()
+    if isinstance(node, ast.Dict):
+        for key in node.keys:
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                keys.add(key.value)
+    return keys
+
+
 def _get_train_model_kwarg_names():
-    """Extract keyword-argument names from the model.train_model() call."""
+    """Extract keyword-argument names from the model.train_model() call.
+
+    Handles both normal keyword arguments and dict-expansion (**{...})
+    patterns such as ``**({"eval_strategy": ...} if ... else {})``.
+    """
     call = _get_train_model_call()
     if call is None:
         return set()
-    return {kw.arg for kw in call.keywords if kw.arg is not None}
+    names = set()
+    for kw in call.keywords:
+        if kw.arg is not None:
+            names.add(kw.arg)
+        else:
+            # **expr — try to extract keys from dict literals inside the expression
+            for child in ast.walk(kw.value):
+                if isinstance(child, ast.Dict):
+                    names |= _extract_dict_keys(child)
+    return names
 
 
 def _make_args(**overrides):
     """Shortcut: create TrainingArguments via the factory with safe defaults."""
-    defaults = dict(output_dir="/tmp/test_gliner_params", use_cpu=True, report_to="none")
+    defaults = dict(output_dir=tempfile.mkdtemp(prefix="test_gliner_params_"), use_cpu=True, report_to="none")
     defaults.update(overrides)
     return BaseGLiNER.create_training_args(**defaults)
 

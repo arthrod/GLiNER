@@ -1165,7 +1165,12 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             current_strategy = getattr(training_args, "eval_strategy",
                                        getattr(training_args, "evaluation_strategy", "no"))
             if current_strategy == "no":
-                training_args.eval_strategy = "steps"
+                # Set both attributes for cross-version compatibility:
+                # transformers < 5.0 uses evaluation_strategy, >= 5.0 uses eval_strategy.
+                if hasattr(training_args, "eval_strategy"):
+                    training_args.eval_strategy = "steps"
+                if hasattr(training_args, "evaluation_strategy"):
+                    training_args.evaluation_strategy = "steps"
                 # If no explicit eval_steps, fall back to save_steps so that
                 # evaluation runs at the same cadence as checkpointing.
                 if getattr(training_args, "eval_steps", None) is None:
