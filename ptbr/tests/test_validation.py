@@ -37,6 +37,7 @@ def report(name, passed, detail=""):
         FAIL += 1
     suffix = f"  ({detail})" if detail else ""
     print(f"  [{status}] {name}{suffix}")
+    assert passed, f"[FAIL] {name}{suffix}"
 
 
 def load_mock(filename):
@@ -341,7 +342,7 @@ def _run_validate_cli(path):
     if importlib.util.find_spec("typer") is None:
         return None
     return subprocess.run(
-        [sys.executable, "-m", "ptbr", "--file-or-repo", str(path), "--validate"],
+        [sys.executable, "-m", "ptbr", "data", "--file-or-repo", str(path), "--validate"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,

@@ -166,7 +166,7 @@ _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
     ("training.label_smoothing",            (float, int),  False,  0,   "Label smoothing"),
     ("training.loss_reduction",             str,    False,  "sum",      "Loss reduction"),
     ("training.negatives",                  float,  False,  1.0,        "Negative sampling ratio"),
-    ("training.masking",                    str,    False,  "none",     "Masking strategy"),
+    ("training.masking",                    str,    False,  "global",   "Masking strategy"),
     ("training.eval_every",                 int,    True,   None,       "Eval/save interval (steps)"),
     ("training.save_total_limit",           int,    False,  3,          "Max checkpoints kept"),
     ("training.logging_steps",              (int, type(None)),  False,  None,   "Logging interval"),
@@ -178,6 +178,8 @@ _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
     ("training.dataloader_persistent_workers", bool, False, False,      "Persistent workers"),
     ("training.dataloader_prefetch_factor",  int,   False,  2,          "Prefetch factor"),
     ("training.freeze_components",          (list, type(None)),  False,  None,  "Components to freeze"),
+    ("training.gradient_checkpointing",     bool,   False,  False,      "Gradient checkpointing"),
+    ("training.eval_steps",                 (int, type(None)),  False,  None,   "Eval steps override (defaults to eval_every)"),
     ("training.compile_model",              bool,   False,  False,      "torch.compile"),
 
     # -- lora --
@@ -1142,11 +1144,13 @@ def _launch_training(
         save_total_limit=train_cfg["save_total_limit"],
         # Evaluation — run eval at the same cadence as checkpointing when
         # an eval dataset is available.
-        **({"eval_strategy": "steps", "eval_steps": train_cfg["eval_every"]}
+        **({"eval_strategy": "steps", "eval_steps": train_cfg.get("eval_steps") or train_cfg["eval_every"]}
            if eval_dataset is not None else {}),
         # Precision
         bf16=train_cfg.get("bf16", False),
         fp16=train_cfg.get("fp16", False),
+        # Gradient checkpointing
+        gradient_checkpointing=train_cfg.get("gradient_checkpointing", False),
         # Hardware
         use_cpu=train_cfg.get("use_cpu", False),
         dataloader_num_workers=train_cfg.get("dataloader_num_workers", 2),

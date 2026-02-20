@@ -58,11 +58,9 @@ tokenizers = [
     "camel_tools",
     "indic-nlp-library",
     "spacy",
-    "stanza"
 ]
 training = ["accelerate"]
 stanza = [
-    "stanza",
     "langdetect"
 ]
 
@@ -78,7 +76,7 @@ dev = [
 line-length = 120
 indent-width = 4
 output-format = "grouped"
-target-version = "py39"
+target-version = "py311"
 
 # Exclude common directories
 exclude = [

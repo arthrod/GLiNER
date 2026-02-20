@@ -93,7 +93,15 @@ def data_cmd(
             raise typer.Exit(code=1) from exc
 
         typer.echo(f"Encoding {len(labels)} labels...")
-        embeddings = model.encode_labels(labels)
+        try:
+            embeddings = model.encode_labels(labels)
+        except NotImplementedError:
+            typer.echo(
+                f"Model '{generate_label_embeddings}' does not support label encoding "
+                f"(not a bi-encoder model). Use a bi-encoder model for label embeddings.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
 
         torch.save(embeddings, output_embeddings_path)
         with open(output_labels_path, "w", encoding="utf-8") as f:
