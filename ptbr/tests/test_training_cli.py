@@ -640,6 +640,7 @@ class TestApplyLora:
             "bias": "none",
             "target_modules": ["q_proj", "v_proj"],
             "task_type": "TOKEN_CLS",
+            "modules_to_save": ["extra_layer"],
         }
 
         with mock.patch.dict(sys.modules, {"peft": fake_peft}):
@@ -648,6 +649,15 @@ class TestApplyLora:
         assert calls["target"] is backbone
         assert model.model.token_rep_layer is token_rep_layer
         assert model.model.token_rep_layer.bert_layer.model == ("wrapped", backbone)
+
+        peft_config = calls["peft_config"]
+        assert peft_config.kwargs["r"] == 8
+        assert peft_config.kwargs["lora_alpha"] == 16
+        assert peft_config.kwargs["lora_dropout"] == 0.05
+        assert peft_config.kwargs["bias"] == "none"
+        assert peft_config.kwargs["target_modules"] == ["q_proj", "v_proj"]
+        assert peft_config.kwargs["task_type"] == "TOKEN_CLS"
+        assert peft_config.kwargs["modules_to_save"] == ["extra_layer"]
 
 
 class TestLaunchTrainingPropagation:
@@ -711,12 +721,20 @@ class TestLaunchTrainingPropagation:
             "environment": {
                 "report_to": "none",
                 "cuda_visible_devices": None,
+                "push_to_hub": True,
+                "hub_model_id": "user/model-id",
             },
         }
 
     @staticmethod
     def _patch_fake_runtime(monkeypatch: pytest.MonkeyPatch):
-        captured: dict = {"seed": None, "to_dtype": None, "train_kwargs": None}
+        captured: dict = {
+            "seed": None,
+            "to_dtype": None,
+            "train_kwargs": None,
+            "from_pretrained_path": None,
+            "from_config_dict": None,
+        }
 
         fake_torch = ModuleType("torch")
         fake_torch.float32 = "float32"
@@ -738,11 +756,13 @@ class TestLaunchTrainingPropagation:
 
         class FakeGLiNER:
             @staticmethod
-            def from_pretrained(_path: str):
+            def from_pretrained(path: str):
+                captured["from_pretrained_path"] = path
                 return fake_model
 
             @staticmethod
-            def from_config(_cfg: dict):
+            def from_config(cfg: dict):
+                captured["from_config_dict"] = cfg
                 return fake_model
 
         fake_gliner = ModuleType("gliner")
@@ -763,11 +783,15 @@ class TestLaunchTrainingPropagation:
         out_dir = tmp_path / "artifacts"
         _launch_training(cfg, out_dir, resume=False, config_dir=tmp_path)
 
+        assert captured["from_config_dict"] == cfg["model"]
         kwargs = captured["train_kwargs"]
         assert captured["seed"] == cfg["run"]["seed"]
         assert captured["to_dtype"] == "float32"
         assert kwargs is not None
+        assert kwargs["train_dataset"] == []
+        assert kwargs["eval_dataset"] == []
         assert kwargs["output_dir"] == str(out_dir)
+        assert kwargs["resume_from_checkpoint"] is None
         assert kwargs["max_steps"] == cfg["training"]["num_steps"]
         assert kwargs["per_device_train_batch_size"] == cfg["training"]["train_batch_size"]
         assert kwargs["per_device_eval_batch_size"] == cfg["training"]["eval_batch_size"]
@@ -775,6 +799,8 @@ class TestLaunchTrainingPropagation:
         assert kwargs["others_lr"] == float(cfg["training"]["lr_others"])
         assert kwargs["label_smoothing"] == float(cfg["training"]["label_smoothing"])
         assert kwargs["gradient_accumulation_steps"] == cfg["training"]["gradient_accumulation_steps"]
+        assert kwargs["seed"] == cfg["run"]["seed"]
+        assert kwargs["remove_unused_columns"] is False
         assert kwargs["bf16"] is True
         assert kwargs["fp16"] is False
         assert kwargs["use_cpu"] is True
@@ -782,6 +808,27 @@ class TestLaunchTrainingPropagation:
         assert kwargs["report_to"] == cfg["environment"]["report_to"]
         assert kwargs["eval_strategy"] == "steps"
         assert kwargs["eval_steps"] == cfg["training"]["eval_every"]
+
+        # Newly mapped / missing assertions
+        assert kwargs["freeze_components"] == cfg["training"]["freeze_components"]
+        assert kwargs["compile_model"] is cfg["training"]["compile_model"]
+        assert kwargs["lr_scheduler_type"] == cfg["training"]["scheduler_type"]
+        assert kwargs["warmup_ratio"] == cfg["training"]["warmup_ratio"]
+        assert kwargs["weight_decay"] == float(cfg["training"]["weight_decay_encoder"])
+        assert kwargs["others_weight_decay"] == float(cfg["training"]["weight_decay_other"])
+        assert kwargs["max_grad_norm"] == float(cfg["training"]["max_grad_norm"])
+        assert kwargs["optim"] == cfg["training"]["optimizer"]
+        assert kwargs["focal_loss_alpha"] == float(cfg["training"]["loss_alpha"])
+        assert kwargs["focal_loss_gamma"] == float(cfg["training"]["loss_gamma"])
+        assert kwargs["focal_loss_prob_margin"] == float(cfg["training"]["loss_prob_margin"])
+        assert kwargs["loss_reduction"] == cfg["training"]["loss_reduction"]
+        assert kwargs["negatives"] == float(cfg["training"]["negatives"])
+        assert kwargs["masking"] == cfg["training"]["masking"]
+        assert kwargs["save_steps"] == cfg["training"]["eval_every"]
+        assert kwargs["logging_steps"] == cfg["training"]["logging_steps"]
+        assert kwargs["save_total_limit"] == cfg["training"]["save_total_limit"]
+        assert kwargs["push_to_hub"] is cfg["environment"]["push_to_hub"]
+        assert kwargs["hub_model_id"] == cfg["environment"]["hub_model_id"]
 
     def test_launch_training_forwards_dataloader_flags_and_run_name(
         self,
@@ -799,3 +846,115 @@ class TestLaunchTrainingPropagation:
         assert kwargs["dataloader_persistent_workers"] is cfg["training"]["dataloader_persistent_workers"]
         assert kwargs["dataloader_prefetch_factor"] == cfg["training"]["dataloader_prefetch_factor"]
         assert kwargs["run_name"] == cfg["run"]["name"]
+
+    def test_launch_training_uses_from_pretrained_when_prev_path_set(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        cfg["training"]["prev_path"] = "some/pretrained/path"
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        assert captured["from_pretrained_path"] == "some/pretrained/path"
+        assert captured["from_config_dict"] is None
+
+    def test_launch_training_applies_lora_if_enabled(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        cfg["lora"]["enabled"] = True
+        cfg["lora"]["r"] = 16
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        with mock.patch("ptbr.training_cli._apply_lora") as mock_apply:
+            _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+            mock_apply.assert_called_once()
+            args, _ = mock_apply.call_args
+            assert args[1] == cfg["lora"]
+
+    def test_launch_training_sets_env_vars(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        cfg["environment"]["cuda_visible_devices"] = "0,1"
+        cfg["environment"]["hf_token"] = "hf_env_token"
+        cfg["environment"]["report_to"] = "wandb"
+        cfg["environment"]["wandb_api_key"] = "w_key"
+        cfg["environment"]["wandb_project"] = "w_proj"
+        cfg["environment"]["wandb_entity"] = "w_ent"
+
+        self._patch_fake_runtime(monkeypatch)
+
+        # Use mock.patch.dict to avoid polluting actual os.environ permanently
+        with mock.patch.dict(os.environ, {}, clear=True):
+            _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+            assert os.environ["CUDA_VISIBLE_DEVICES"] == "0,1"
+            assert os.environ["HF_TOKEN"] == "hf_env_token"
+            assert os.environ["WANDB_API_KEY"] == "w_key"
+            assert os.environ["WANDB_PROJECT"] == "w_proj"
+            assert os.environ["WANDB_ENTITY"] == "w_ent"
+
+    def test_launch_training_fallbacks(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        # Remove fields to trigger fallbacks
+        cfg["training"]["eval_batch_size"] = None
+        cfg["training"]["logging_steps"] = None
+
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        # eval_batch_size falls back to train_batch_size
+        assert kwargs["per_device_eval_batch_size"] == cfg["training"]["train_batch_size"]
+        # logging_steps falls back to eval_every
+        assert kwargs["logging_steps"] == cfg["training"]["eval_every"]
+
+    def test_launch_training_resume_checkpoint_detection(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        out_dir = tmp_path / "artifacts"
+        out_dir.mkdir()
+        (out_dir / "checkpoint-10").mkdir()
+        (out_dir / "checkpoint-20").mkdir()
+        (out_dir / "checkpoint-5").mkdir()
+
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        _launch_training(cfg, out_dir, resume=True, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        # Should pick the one with highest index
+        assert kwargs["resume_from_checkpoint"] == str(out_dir / "checkpoint-20")
+
+    def test_launch_training_omits_eval_strategy_without_eval_dataset(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        cfg["data"]["val_data_dir"] = "none"
+
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        assert kwargs["eval_dataset"] is None
+        assert "eval_strategy" not in kwargs
+        assert "eval_steps" not in kwargs
+            

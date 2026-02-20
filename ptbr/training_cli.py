@@ -1030,6 +1030,11 @@ def _launch_training(
     if cuda_devs is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_devs)
 
+    # -- HF Token --
+    hf_token = cfg["environment"].get("hf_token")
+    if hf_token:
+        os.environ["HF_TOKEN"] = hf_token
+
     # -- WandB env vars --
     report_to = cfg["environment"]["report_to"]
     if report_to in ("wandb", "all"):
