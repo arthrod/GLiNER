@@ -536,7 +536,7 @@ class TestCLI:
         assert result.exit_code == 0
         mock_launch.assert_called_once()
 
-    def test_validate_writes_summary(self, cfg_file: Path, tmp_path: Path) -> None:
+    def test_validate_writes_summary(self, cfg_file: Path) -> None:
         result = runner.invoke(app, [str(cfg_file), "--validate"])
         assert result.exit_code == 0
         summaries = list(cfg_file.parent.glob("summary_*.txt"))

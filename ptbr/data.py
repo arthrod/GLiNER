@@ -245,7 +245,7 @@ def prepare(
         result.is_valid = is_valid
         result.validation_errors = errs
 
-    if generate_label_embeddings:
+    if generate_label_embeddings and (not validate or is_valid):
         from gliner import GLiNER
 
         model = GLiNER.from_pretrained(

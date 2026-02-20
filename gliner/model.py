@@ -363,10 +363,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         """
         tokenizer_config_path = model_dir / "tokenizer_config.json"
 
+        trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         if tokenizer_config_path.is_file():
-            tokenizer = AutoTokenizer.from_pretrained(model_dir, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(model_dir, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
         else:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
 
         return cls._set_tokenizer_spec_tokens(tokenizer)
 
@@ -526,7 +527,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         # Load tokenizer if requested
         tokenizer = None
         if load_tokenizer:
-            tokenizer = AutoTokenizer.from_pretrained(config_instance.model_name, cache_dir=cache_dir)
+            trust_remote_code = bool(getattr(config_instance, "trust_remote_code", False))
+            tokenizer = AutoTokenizer.from_pretrained(config_instance.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             cls._set_tokenizer_spec_tokens(tokenizer)
         # Create model instance from scratch
         instance = cls(
@@ -1216,7 +1218,8 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            trust_remote_code = bool(getattr(config, "trust_remote_code", False))
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
         self.data_processor = self.data_processor_class(config, tokenizer, words_splitter)
         return self.data_processor
@@ -1673,9 +1676,10 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
 class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
-        labels_tokenizer = AutoTokenizer.from_pretrained(config.labels_encoder, cache_dir=cache_dir)
+        trust_remote_code = bool(getattr(config, "trust_remote_code", False))
+        labels_tokenizer = AutoTokenizer.from_pretrained(config.labels_encoder, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
 
         self.data_processor = self.data_processor_class(
@@ -2146,8 +2150,9 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
 
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         """Create data processor with decoder tokenizer."""
+        trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
 
         if words_splitter is None:
@@ -2157,7 +2162,7 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
         decoder_tokenizer = None
         if config.labels_decoder is not None:
             decoder_tokenizer = AutoTokenizer.from_pretrained(
-                config.labels_decoder, cache_dir=cache_dir, add_prefix_space=True
+                config.labels_decoder, cache_dir=cache_dir, add_prefix_space=True, trust_remote_code=trust_remote_code
             )
             if decoder_tokenizer.pad_token is None:
                 decoder_tokenizer.pad_token = decoder_tokenizer.eos_token
@@ -2438,7 +2443,8 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         """Create relation extraction data processor."""
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            trust_remote_code = bool(getattr(config, "trust_remote_code", False))
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
 
         if words_splitter is None:
