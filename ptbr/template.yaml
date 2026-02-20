@@ -363,8 +363,8 @@ training:
 
   # Masking strategy during training.
   # Options: "none", "global"
-  # Default: "none"
-  masking: "none"
+  # Default: "global"
+  masking: "global"
 
   # ---- Checkpointing & logging ----
 

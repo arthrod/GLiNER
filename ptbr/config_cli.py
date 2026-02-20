@@ -13,6 +13,7 @@ Usage as module:
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 from typing import Any, Dict, List, Tuple, Literal, Optional
@@ -238,7 +239,7 @@ def _validate_section(
                         field_path,
                         f"Not set; using default: {default!r}",
                     )
-                result[key] = default
+                result[key] = copy.deepcopy(default)
                 continue
 
         # --- Type coercion ---

@@ -16,9 +16,6 @@ event_loop:
 cli:
   backend: "claude"
 
-core:
-  specs_dir: "./specs/"
-
 # Define what each custom event means
 events:
   deploy.ready:

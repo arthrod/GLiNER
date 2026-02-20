@@ -869,7 +869,7 @@ class TestLaunchTrainingPropagation:
         cfg = self._make_cfg(tmp_path)
         cfg["lora"]["enabled"] = True
         cfg["lora"]["r"] = 16
-        captured = self._patch_fake_runtime(monkeypatch)
+        self._patch_fake_runtime(monkeypatch)
 
         with mock.patch("ptbr.training_cli._apply_lora") as mock_apply:
             _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)

@@ -102,6 +102,9 @@ def main(cfg_path: str):
         freeze_components=freeze_components,
         # Dtype
         bf16=getattr(cfg.training, "bf16", False),
+        fp16=getattr(cfg.training, "fp16", False),
+        # Gradient checkpointing
+        gradient_checkpointing=getattr(cfg.training, "gradient_checkpointing", False),
     )
 
     print(f"\n✓ Training complete! Model saved to {output_dir}")
