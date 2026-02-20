@@ -1144,7 +1144,7 @@ def _launch_training(
         save_total_limit=train_cfg["save_total_limit"],
         # Evaluation — run eval at the same cadence as checkpointing when
         # an eval dataset is available.
-        **({"eval_strategy": "steps", "eval_steps": train_cfg.get("eval_steps") or train_cfg["eval_every"]}
+        **({"eval_strategy": "steps", "eval_steps": val if (val := train_cfg.get("eval_steps")) is not None else train_cfg["eval_every"]}
            if eval_dataset is not None else {}),
         # Precision
         bf16=train_cfg.get("bf16", False),
