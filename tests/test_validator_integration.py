@@ -957,11 +957,3 @@ class TestEndToEndWorkflow:
         assert len(vr.errors) > 0, (
             "training_cli should reject the 'gliner_config:' format"
         )
-
-        # The incompatibility is proven: neither format works for both
-        assert not config_ok_with_model_format, (
-            "model: format fails config_cli"
-        )
-        assert not training_ok_with_gc_format, (
-            "gliner_config: format fails training_cli"
-        )

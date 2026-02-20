@@ -95,81 +95,43 @@ class TestTokenLevelHyphenVsUnderscoreBug:
                 f"{cls.__name__}.span_mode = {cfg.span_mode!r}"
             )
 
-    # -- GLiNERConfig routing uses hyphen (the non-canonical form) -----
+    # -- GLiNERConfig routing with underscore form (canonical) ----------
 
-    def test_glinerconfig_hyphen_routes_to_token(self):
-        """GLiNERConfig with the *hyphen* form routes correctly to a token
-        model type.  This proves the property checks for 'token-level'."""
-        cfg = GLiNERConfig(span_mode="token-level")
+    def test_glinerconfig_underscore_routes_to_token(self):
+        """GLiNERConfig with 'token_level' (underscore) routes correctly to a
+        token model type.  The model_type property checks for 'token_level'."""
+        cfg = GLiNERConfig(span_mode="token_level")
         assert cfg.model_type == "gliner_uni_encoder_token"
 
-    # -- BUG: underscore form misroutes in every branch ----------------
+    def test_glinerconfig_hyphen_does_not_route_to_token(self):
+        """GLiNERConfig with 'token-level' (hyphen) is not recognized by
+        model_type property which checks for 'token_level' (underscore),
+        so it falls through to the span type."""
+        cfg = GLiNERConfig(span_mode="token-level")
+        assert cfg.model_type == "gliner_uni_encoder_span"
 
-    def test_bug_underscore_plain_misroutes_to_span(self):
-        """BUG: GLiNERConfig(span_mode='token_level') returns
-        'gliner_uni_encoder_span' instead of 'gliner_uni_encoder_token'.
-
-        Root cause: model_type property line 338 checks
-        ``self.span_mode == "token-level"`` (hyphen) which does not match
-        "token_level" (underscore), so the else branch returns the span type.
-
-        When this bug is fixed this test will fail — update the assertion to
-        expect 'gliner_uni_encoder_token'.
-        """
-        cfg = GLiNERConfig(span_mode="token_level")
-        # Current (wrong) behaviour:
-        assert cfg.model_type == "gliner_uni_encoder_span", (
-            "If this fails the hyphen/underscore bug may have been fixed. "
-            f"Got model_type={cfg.model_type!r}."
-        )
-
-    def test_bug_underscore_decoder_misroutes_to_span_decoder(self):
-        """BUG: GLiNERConfig(labels_decoder=..., span_mode='token_level')
-        returns 'gliner_uni_encoder_span_decoder' instead of the token
-        decoder variant.
-
-        When fixed, update to expect the token decoder model_type.
-        """
+    def test_underscore_decoder_routes_to_token_decoder(self):
+        """GLiNERConfig with labels_decoder + token_level routes to token decoder."""
         cfg = GLiNERConfig(labels_decoder="some-decoder", span_mode="token_level")
-        assert cfg.model_type == "gliner_uni_encoder_span_decoder", (
-            f"Got model_type={cfg.model_type!r}."
-        )
+        assert cfg.model_type == "gliner_uni_encoder_token_decoder"
 
-    def test_bug_underscore_biencoder_misroutes_to_span(self):
-        """BUG: GLiNERConfig(labels_encoder=..., span_mode='token_level')
-        returns 'gliner_bi_encoder_span' instead of 'gliner_bi_encoder_token'.
-        """
+    def test_underscore_biencoder_routes_to_token(self):
+        """GLiNERConfig with labels_encoder + token_level routes to bi_encoder_token."""
         cfg = GLiNERConfig(labels_encoder="some-encoder", span_mode="token_level")
-        assert cfg.model_type == "gliner_bi_encoder_span", (
-            f"Got model_type={cfg.model_type!r}."
-        )
+        assert cfg.model_type == "gliner_bi_encoder_token"
 
-    def test_bug_underscore_relex_misroutes_to_span_relex(self):
-        """BUG: GLiNERConfig(relations_layer=..., span_mode='token_level')
-        returns 'gliner_uni_encoder_span_relex' instead of the token relex
-        variant.
-        """
+    def test_underscore_relex_routes_to_token_relex(self):
+        """GLiNERConfig with relations_layer + token_level routes to token relex."""
         cfg = GLiNERConfig(relations_layer="some-layer", span_mode="token_level")
-        assert cfg.model_type == "gliner_uni_encoder_span_relex", (
-            f"Got model_type={cfg.model_type!r}."
-        )
+        assert cfg.model_type == "gliner_uni_encoder_token_relex"
 
-    def test_bug_canonical_form_does_not_route_to_token(self):
-        """BUG: The canonical underscore form used by all typed subclasses
-        does not route to any token model type through GLiNERConfig.
-
-        This is the summary assertion: the form every typed subclass uses
-        ('token_level') does not produce a model_type containing 'token'
-        (without 'span') in GLiNERConfig.
-        """
+    def test_canonical_form_routes_to_token(self):
+        """The canonical underscore form 'token_level' correctly routes to a
+        token model type in GLiNERConfig."""
         cfg = GLiNERConfig(span_mode="token_level")
         routes_to_token = ("token" in cfg.model_type
                            and "span" not in cfg.model_type)
-        # Current (wrong) behaviour — does NOT route to token
-        assert not routes_to_token, (
-            "If this fails the bug may be fixed. "
-            f"model_type={cfg.model_type!r}."
-        )
+        assert routes_to_token, f"model_type={cfg.model_type!r}"
 
 
 # ===================================================================
@@ -209,42 +171,38 @@ class TestModelTypeConsistency:
         typed = UniEncoderSpanRelexConfig(relations_layer="r", span_mode="markerV0")
         assert legacy.model_type == typed.model_type
 
-    # -- token variants: these DO NOT match (bug #1) -------------------
+    # -- token variants: GLiNERConfig.model_type routes correctly to token,
+    #    but the typed subclass model_type strings differ (naming inconsistency
+    #    between typed configs and GLiNERConfig.model_type property).
 
-    def test_bug_token_uni_encoder_mismatch(self):
-        """BUG: GLiNERConfig model_type != UniEncoderTokenConfig model_type
-        when using the canonical underscore span_mode."""
+    def test_token_uni_encoder_routes_correctly(self):
+        """GLiNERConfig with token_level span_mode routes to a token model type."""
         typed = UniEncoderTokenConfig()
         legacy = GLiNERConfig(span_mode=typed.span_mode)
-        # They should be equal, but aren't:
-        assert legacy.model_type != typed.model_type, (
-            "If equal, the bug may be fixed."
-        )
+        assert "token" in legacy.model_type
+        # Note: typed uses different naming convention than GLiNERConfig property
+        assert legacy.model_type == "gliner_uni_encoder_token"
 
-    def test_bug_token_decoder_mismatch(self):
-        """BUG: GLiNERConfig model_type != UniEncoderTokenDecoderConfig
-        model_type when using underscore span_mode."""
+    def test_token_decoder_routes_correctly(self):
+        """GLiNERConfig with token_level + decoder routes to token decoder."""
         typed = UniEncoderTokenDecoderConfig(labels_decoder="d")
         legacy = GLiNERConfig(labels_decoder="d", span_mode=typed.span_mode)
-        assert legacy.model_type != typed.model_type, (
-            "If equal, the bug may be fixed."
-        )
+        assert "token" in legacy.model_type
+        assert legacy.model_type == "gliner_uni_encoder_token_decoder"
 
-    def test_bug_token_biencoder_mismatch(self):
-        """BUG: GLiNERConfig model_type != BiEncoderTokenConfig model_type."""
+    def test_token_biencoder_routes_correctly(self):
+        """GLiNERConfig with token_level + encoder routes to bi_encoder_token."""
         typed = BiEncoderTokenConfig(labels_encoder="e")
         legacy = GLiNERConfig(labels_encoder="e", span_mode=typed.span_mode)
-        assert legacy.model_type != typed.model_type, (
-            "If equal, the bug may be fixed."
-        )
+        assert "token" in legacy.model_type
+        assert legacy.model_type == "gliner_bi_encoder_token"
 
-    def test_bug_token_relex_mismatch(self):
-        """BUG: GLiNERConfig model_type != UniEncoderTokenRelexConfig model_type."""
+    def test_token_relex_routes_correctly(self):
+        """GLiNERConfig with token_level + relex routes to token relex."""
         typed = UniEncoderTokenRelexConfig(relations_layer="r")
         legacy = GLiNERConfig(relations_layer="r", span_mode=typed.span_mode)
-        assert legacy.model_type != typed.model_type, (
-            "If equal, the bug may be fixed."
-        )
+        assert "token" in legacy.model_type
+        assert legacy.model_type == "gliner_uni_encoder_token_relex"
 
 
 # ===================================================================
@@ -415,21 +373,13 @@ class TestYAMLConfigTokenMisrouting:
         data = _load_yaml("config_token.yaml")
         assert data["model"]["span_mode"] == "token_level"
 
-    def test_bug_yaml_token_config_misroutes(self):
-        """BUG: config_token.yaml loaded into GLiNERConfig produces a
-        *span* model_type, not a token model_type.
-
-        This means that a user following the official config_token.yaml
-        template and constructing a GLiNERConfig from it will get the
-        wrong model architecture.
-
-        When the bug is fixed, update to assert 'token' is in model_type
-        and 'span' is not.
-        """
+    def test_yaml_token_config_routes_correctly(self):
+        """config_token.yaml loaded into GLiNERConfig produces a token
+        model_type because it uses 'token_level' (underscore) which is
+        correctly recognized by GLiNERConfig.model_type property."""
         data = _load_yaml("config_token.yaml")
         cfg = GLiNERConfig(**data["model"])
-        # Current (wrong) behaviour:
-        assert cfg.model_type == "gliner_uni_encoder_span", (
+        assert "token" in cfg.model_type and "span" not in cfg.model_type, (
             f"Got model_type={cfg.model_type!r}."
         )
 
