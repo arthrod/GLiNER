@@ -84,9 +84,13 @@ def data_cmd(
         from gliner import GLiNER
 
         typer.echo(f"Loading model: {generate_label_embeddings}")
-        model = GLiNER.from_pretrained(
-            generate_label_embeddings, trust_remote_code=trust_remote_code
-        )
+        try:
+            model = GLiNER.from_pretrained(
+                generate_label_embeddings, trust_remote_code=trust_remote_code
+            )
+        except Exception as exc:
+            typer.echo(f"Failed to load model '{generate_label_embeddings}': {exc}", err=True)
+            raise typer.Exit(code=1) from exc
 
         typer.echo(f"Encoding {len(labels)} labels...")
         embeddings = model.encode_labels(labels)
