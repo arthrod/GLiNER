@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import copy
+import re
 import logging
 from typing import Any, Optional
 from pathlib import Path
@@ -609,21 +610,39 @@ def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> 
     """Validate dataset paths after schema/type checks and before training."""
     _, train_data = _deep_get(cfg, "data.train_data")
     if isinstance(train_data, str) and train_data.strip():
-        train_path = _resolve_data_path(train_data.strip(), config_dir)
-        if not train_path.exists() or not train_path.is_file():
-            msg = f"'data.train_data' not found or not a file: {train_path}"
-            result.errors.append(msg)
-            logger.error(msg)
+        train_source, train_split, train_is_hf = _resolve_data_source(
+            train_data.strip(), config_dir, default_split="train"
+        )
+        if train_is_hf:
+            logger.info(
+                f"[DATA]     Training source is HF dataset repo '{train_source}' "
+                f"(split='{train_split}')"
+            )
+        else:
+            train_path = Path(train_source)
+            if not train_path.exists() or not train_path.is_file():
+                msg = f"'data.train_data' not found or not a file: {train_path}"
+                result.errors.append(msg)
+                logger.error(msg)
 
     _, val_data = _deep_get(cfg, "data.val_data_dir")
     if isinstance(val_data, str):
         val_data = val_data.strip()
         if val_data and val_data.lower() not in ("none", "null"):
-            val_path = _resolve_data_path(val_data, config_dir)
-            if not val_path.exists() or not val_path.is_file():
-                msg = f"'data.val_data_dir' not found or not a file: {val_path}"
-                result.errors.append(msg)
-                logger.error(msg)
+            val_source, val_split, val_is_hf = _resolve_data_source(
+                val_data, config_dir, default_split="eval"
+            )
+            if val_is_hf:
+                logger.info(
+                    f"[DATA]     Validation source is HF dataset repo '{val_source}' "
+                    f"(split='{val_split}')"
+                )
+            else:
+                val_path = Path(val_source)
+                if not val_path.exists() or not val_path.is_file():
+                    msg = f"'data.val_data_dir' not found or not a file: {val_path}"
+                    result.errors.append(msg)
+                    logger.error(msg)
 
 
 # ======================================================================== #
@@ -1015,6 +1034,48 @@ def _resolve_data_path(path_value: str, config_dir: Path) -> Path:
     return path
 
 
+_HF_DATASET_REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _looks_like_hf_dataset_repo(value: str) -> bool:
+    """Return True when `value` looks like a HF dataset repo id `owner/name`."""
+    return bool(_HF_DATASET_REPO_RE.match(value.strip()))
+
+
+def _resolve_data_source(path_value: str, config_dir: Path, default_split: str) -> tuple[str, str, bool]:
+    """
+    Resolve a data source into `(source, split, is_hf_dataset)`.
+
+    Supported formats:
+    - Local path (absolute or relative to config file dir)
+    - HF dataset repo id: `owner/name` (uses `default_split`)
+    - HF dataset repo id with explicit split: `owner/name::split`
+    """
+    raw = str(path_value).strip()
+    if not raw:
+        return "", default_split, False
+
+    # Explicit HF split override: owner/name::split
+    if "::" in raw:
+        repo_id, split = raw.split("::", 1)
+        repo_id = repo_id.strip()
+        split = split.strip() or default_split
+        if _looks_like_hf_dataset_repo(repo_id):
+            return repo_id, split, True
+
+    # Existing local path (absolute or relative)
+    resolved_path = _resolve_data_path(raw, config_dir)
+    if resolved_path.exists():
+        return str(resolved_path), default_split, False
+
+    # HF dataset repo id without explicit split
+    if _looks_like_hf_dataset_repo(raw):
+        return raw, default_split, True
+
+    # Fallback to local path resolution (will fail later with a clear error)
+    return str(resolved_path), default_split, False
+
+
 def _launch_training(
     cfg: dict,
     output_folder: Path,
@@ -1122,17 +1183,27 @@ def _launch_training(
         _apply_lora(model, cfg["lora"])
 
     # -- Load data --
-    train_data_path = _resolve_data_path(cfg["data"]["train_data"], config_dir)
-    logger.info(f"Loading training data from {train_data_path}")
-    train_dataset = load_data(str(train_data_path))
+    train_source, train_split, train_is_hf = _resolve_data_source(
+        cfg["data"]["train_data"], config_dir, default_split="train"
+    )
+    if train_is_hf:
+        logger.info(f"Loading training data from HF dataset '{train_source}' (split='{train_split}')")
+    else:
+        logger.info(f"Loading training data from {train_source}")
+    train_dataset = load_data(str(train_source), split=train_split)
     logger.info(f"Training samples: {len(train_dataset)}")
 
     eval_dataset = None
     val_path = cfg["data"].get("val_data_dir", "none")
     if val_path and val_path.lower() not in ("none", "null", ""):
-        val_data_path = _resolve_data_path(val_path, config_dir)
-        logger.info(f"Loading validation data from {val_data_path}")
-        eval_dataset = load_data(str(val_data_path))
+        val_source, val_split, val_is_hf = _resolve_data_source(
+            val_path, config_dir, default_split="eval"
+        )
+        if val_is_hf:
+            logger.info(f"Loading validation data from HF dataset '{val_source}' (split='{val_split}')")
+        else:
+            logger.info(f"Loading validation data from {val_source}")
+        eval_dataset = load_data(str(val_source), split=val_split)
         logger.info(f"Validation samples: {len(eval_dataset)}")
 
     # -- Freeze components --

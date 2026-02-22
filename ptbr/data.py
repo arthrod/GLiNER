@@ -23,6 +23,32 @@ class GLiNERData:
     is_valid: bool = False
 
 
+def _normalize_ner_spans(ner: Any) -> List[List[Any]]:
+    """Normalize NER spans to GLiNER native shape: [[start, end, label], ...]."""
+    if not isinstance(ner, list):
+        return []
+
+    out: List[List[Any]] = []
+    for span in ner:
+        if isinstance(span, dict):
+            try:
+                start = int(span.get("start"))
+                end = int(span.get("end"))
+                label = str(span.get("label"))
+            except (TypeError, ValueError):
+                continue
+            out.append([start, end, label])
+        elif isinstance(span, (list, tuple)) and len(span) >= 3:
+            try:
+                start = int(span[0])
+                end = int(span[1])
+                label = str(span[2])
+            except (TypeError, ValueError):
+                continue
+            out.append([start, end, label])
+    return out
+
+
 def load_data(
     file_or_repo: str,
     text_column: str = "tokenized_text",
@@ -66,7 +92,15 @@ def load_data(
                         f"Available keys: {available}. "
                         f"Pass text_column= / ner_column= to remap."
                     )
-            return raw
+            # Normalize potential HF-style dict spans to GLiNER native list spans.
+            data: List[Dict[str, Any]] = []
+            for item in raw:
+                if not isinstance(item, dict):
+                    continue
+                mapped = dict(item)
+                mapped["ner"] = _normalize_ner_spans(mapped.get("ner", []))
+                data.append(mapped)
+            return data
         missing_columns = [
             col
             for col in (text_column, ner_column)
@@ -94,6 +128,7 @@ def load_data(
                 mapped["tokenized_text"] = mapped.pop(text_column)
             if ner_column != "ner" and ner_column in mapped:
                 mapped["ner"] = mapped.pop(ner_column)
+            mapped["ner"] = _normalize_ner_spans(mapped.get("ner", []))
             data.append(mapped)
         return data
 
@@ -112,7 +147,10 @@ def load_data(
             )
     data = []
     for item in dataset:
-        mapped = {"tokenized_text": item[text_column], "ner": item[ner_column]}
+        mapped = {
+            "tokenized_text": item[text_column],
+            "ner": _normalize_ner_spans(item[ner_column]),
+        }
         for key in item:
             if key not in (text_column, ner_column):
                 mapped[key] = item[key]
