@@ -222,7 +222,7 @@ class TestValidateSection:
         assert report.is_valid
         assert result["r"] == 8
         assert result["lora_alpha"] == 16
-        assert result["lora_dropout"] == 0.1
+        assert result["lora_dropout"] == 0.05
 
     def test_lora_section_fully_specified(self):
         report = ValidationReport()

@@ -1,0 +1,472 @@
+_name_or_path:
+    value: ""
+_wandb:
+    value:
+        cli_version: 0.25.0
+        e:
+            7cyx14ll11cv2m98wk06l09uwzv7lqyq:
+                apple:
+                    ecpuCores: 4
+                    gpuCores: 16
+                    memoryGb: 24
+                    name: Apple M4 Pro
+                    pcpuCores: 8
+                    ramTotalBytes: "25769803776"
+                    swapTotalBytes: "8589934592"
+                args:
+                    - --output-folder
+                    - /tmp/gliner_tiny_1k
+                    - configs/config_tiny_test.yaml
+                cpu_count: 12
+                cpu_count_logical: 12
+                disk:
+                    /:
+                        total: "494384795648"
+                        used: "451207225344"
+                email: arthrod@umich.edu
+                executable: /opt/homebrew/opt/python@3.14/bin/python3.14
+                git:
+                    commit: 31def2c4b8be9002908583a5c9a9d6a8551e70c7
+                    remote: https://github.com/arthrod/GLiNER
+                host: Mac
+                memory:
+                    total: "25769803776"
+                os: macOS-26.3-arm64-arm-64bit-Mach-O
+                program: -m ptbr.training_cli
+                python: CPython 3.14.3
+                root: /Users/arthrod/temp/T/_train/GLiNER
+                startedAt: "2026-02-22T12:54:59.276874Z"
+                writerId: 7cyx14ll11cv2m98wk06l09uwzv7lqyq
+        m:
+            - "1": train/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.14.3
+        t:
+            "1":
+                - 1
+                - 11
+                - 49
+                - 71
+                - 98
+            "2":
+                - 1
+                - 11
+                - 49
+                - 71
+                - 98
+            "3":
+                - 7
+                - 13
+                - 62
+                - 66
+            "4": 3.14.3
+            "5": 0.25.0
+            "6": 5.1.0
+            "9":
+                "1": transformers_trainer
+            "12": 0.25.0
+            "13": darwin-arm64
+accelerator_config:
+    value:
+        dispatch_batches: null
+        even_batches: true
+        gradient_accumulation_kwargs: null
+        non_blocking: false
+        split_batches: false
+        use_seedable_sampler: true
+adam_beta1:
+    value: 0.9
+adam_beta2:
+    value: 0.999
+adam_epsilon:
+    value: 1e-08
+adjacency_loss_coef:
+    value: 1
+architectures:
+    value: null
+auto_find_batch_size:
+    value: false
+average_tokens_across_devices:
+    value: true
+batch_eval_metrics:
+    value: false
+bf16:
+    value: false
+bf16_full_eval:
+    value: false
+blank_entity_prob:
+    value: 0.1
+cache_dir:
+    value: null
+chunk_size_feed_forward:
+    value: 0
+class_token_index:
+    value: 30523
+data_seed:
+    value: null
+dataloader_drop_last:
+    value: false
+dataloader_num_workers:
+    value: 0
+dataloader_persistent_workers:
+    value: false
+dataloader_pin_memory:
+    value: false
+dataloader_prefetch_factor:
+    value: null
+ddp_backend:
+    value: null
+ddp_broadcast_buffers:
+    value: null
+ddp_bucket_cap_mb:
+    value: null
+ddp_find_unused_parameters:
+    value: null
+ddp_timeout:
+    value: 1800
+debug:
+    value: []
+decoder_loss_coef:
+    value: 0.5
+decoder_mode:
+    value: span
+deepspeed:
+    value: null
+disable_tqdm:
+    value: false
+do_eval:
+    value: true
+do_predict:
+    value: false
+do_train:
+    value: false
+dropout:
+    value: 0.3
+dtype:
+    value: null
+embed_ent_token:
+    value: true
+embed_rel_token:
+    value: true
+enable_jit_checkpoint:
+    value: false
+encoder_config:
+    value:
+        _name_or_path: prajjwal1/bert-tiny
+        add_cross_attention: false
+        architectures: null
+        attention_probs_dropout_prob: 0.1
+        bos_token_id: null
+        chunk_size_feed_forward: 0
+        classifier_dropout: null
+        dtype: null
+        eos_token_id: null
+        hidden_act: gelu
+        hidden_dropout_prob: 0.1
+        hidden_size: 128
+        id2label:
+            "0": LABEL_0
+            "1": LABEL_1
+        initializer_range: 0.02
+        intermediate_size: 512
+        is_decoder: false
+        is_encoder_decoder: false
+        label2id:
+            LABEL_0: 0
+            LABEL_1: 1
+        layer_norm_eps: 1e-12
+        max_position_embeddings: 512
+        model_type: bert
+        num_attention_heads: 2
+        num_hidden_layers: 2
+        output_attentions: false
+        output_hidden_states: false
+        pad_token_id: 0
+        problem_type: null
+        return_dict: true
+        tie_word_embeddings: true
+        type_vocab_size: 2
+        use_cache: true
+        vocab_size: 30525
+ent_token:
+    value: <<ENT>>
+eval_accumulation_steps:
+    value: null
+eval_delay:
+    value: 0
+eval_do_concat_batches:
+    value: true
+eval_on_start:
+    value: true
+eval_steps:
+    value: 100
+eval_strategy:
+    value: steps
+eval_use_gather_object:
+    value: false
+fine_tune:
+    value: true
+focal_loss_alpha:
+    value: 0.75
+focal_loss_gamma:
+    value: 0
+focal_loss_prob_margin:
+    value: 0
+fp16:
+    value: false
+fp16_full_eval:
+    value: false
+fsdp:
+    value: []
+fsdp_config:
+    value:
+        min_num_params: 0
+        xla: false
+        xla_fsdp_grad_ckpt: false
+        xla_fsdp_v2: false
+full_decoder_context:
+    value: true
+full_determinism:
+    value: false
+fuse_layers:
+    value: false
+gradient_accumulation_steps:
+    value: 1
+gradient_checkpointing:
+    value: false
+gradient_checkpointing_kwargs:
+    value: null
+greater_is_better:
+    value: null
+group_by_length:
+    value: false
+hidden_size:
+    value: 128
+hub_always_push:
+    value: false
+hub_model_id:
+    value: null
+hub_private_repo:
+    value: null
+hub_revision:
+    value: null
+hub_strategy:
+    value: every_save
+hub_token:
+    value: <HUB_TOKEN>
+id2label:
+    value:
+        "0": LABEL_0
+        "1": LABEL_1
+ignore_data_skip:
+    value: false
+include_for_metrics:
+    value: []
+include_num_input_tokens_seen:
+    value: "no"
+is_encoder_decoder:
+    value: false
+label_names:
+    value: null
+label_smoothing:
+    value: 0
+label_smoothing_factor:
+    value: 0
+label2id:
+    value:
+        LABEL_0: 0
+        LABEL_1: 1
+labels_decoder:
+    value: null
+labels_decoder_config:
+    value: null
+labels_encoder:
+    value: null
+labels_encoder_config:
+    value: null
+learning_rate:
+    value: 1e-05
+length_column_name:
+    value: length
+liger_kernel_config:
+    value: null
+load_best_model_at_end:
+    value: false
+local_rank:
+    value: -1
+log_level:
+    value: passive
+log_level_replica:
+    value: warning
+log_on_each_node:
+    value: true
+logging_dir:
+    value: null
+logging_first_step:
+    value: false
+logging_nan_inf_filter:
+    value: true
+logging_steps:
+    value: 100
+logging_strategy:
+    value: steps
+loss_reduction:
+    value: sum
+lr_scheduler_kwargs:
+    value: null
+lr_scheduler_type:
+    value: cosine
+masking:
+    value: none
+max_grad_norm:
+    value: 10
+max_len:
+    value: 64
+max_neg_type_ratio:
+    value: 1
+max_steps:
+    value: 1000
+max_types:
+    value: 25
+max_width:
+    value: 6
+metric_for_best_model:
+    value: null
+model_name:
+    value: prajjwal1/bert-tiny
+model_type:
+    value: null
+name:
+    value: span level gliner
+neftune_noise_alpha:
+    value: null
+neg_spans_ratio:
+    value: 1
+negatives:
+    value: 1
+num_post_fusion_layers:
+    value: 1
+num_rnn_layers:
+    value: 1
+num_train_epochs:
+    value: 3
+optim:
+    value: adamw_torch
+optim_args:
+    value: null
+optim_target_modules:
+    value: null
+others_lr:
+    value: 3e-05
+others_weight_decay:
+    value: 0.01
+output_attentions:
+    value: false
+output_dir:
+    value: /tmp/gliner_tiny_1k
+output_hidden_states:
+    value: false
+pad_token_id:
+    value: 0
+parallelism_config:
+    value: null
+per_device_eval_batch_size:
+    value: 2
+per_device_train_batch_size:
+    value: 2
+post_fusion_schema:
+    value: ""
+prediction_loss_only:
+    value: false
+problem_type:
+    value: null
+project:
+    value: huggingface
+push_to_hub:
+    value: false
+rel_token:
+    value: <<REL>>
+rel_token_index:
+    value: -1
+relation_loss_coef:
+    value: 1
+relations_layer:
+    value: null
+remove_unused_columns:
+    value: false
+report_to:
+    value:
+        - wandb
+represent_spans:
+    value: false
+restore_callback_states_from_checkpoint:
+    value: false
+resume_from_checkpoint:
+    value: null
+return_dict:
+    value: true
+run_name:
+    value: tiny-test-1k
+save_on_each_node:
+    value: false
+save_only_model:
+    value: false
+save_steps:
+    value: 100
+save_strategy:
+    value: steps
+save_total_limit:
+    value: 3
+seed:
+    value: 42
+sep_token:
+    value: <<SEP>>
+skip_memory_metrics:
+    value: true
+span_loss_coef:
+    value: 1
+span_mode:
+    value: markerV0
+subtoken_pooling:
+    value: first
+tf32:
+    value: null
+token_loss_coef:
+    value: 1
+torch_compile:
+    value: false
+torch_compile_backend:
+    value: null
+torch_compile_mode:
+    value: null
+torch_empty_cache_steps:
+    value: null
+trackio_space_id:
+    value: trackio
+transformers_version:
+    value: 5.1.0
+triples_layer:
+    value: null
+use_cache:
+    value: false
+use_cpu:
+    value: true
+use_liger_kernel:
+    value: false
+vocab_size:
+    value: 30525
+warmup_ratio:
+    value: 0.1
+warmup_steps:
+    value: 0.1
+weight_decay:
+    value: 0.1
+words_splitter_type:
+    value: whitespace

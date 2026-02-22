@@ -1,0 +1,40 @@
+{
+  "os": "macOS-26.3-arm64-arm-64bit-Mach-O",
+  "python": "CPython 3.14.3",
+  "startedAt": "2026-02-22T12:54:59.276874Z",
+  "args": [
+    "--output-folder",
+    "/tmp/gliner_tiny_1k",
+    "configs/config_tiny_test.yaml"
+  ],
+  "program": "-m ptbr.training_cli",
+  "git": {
+    "remote": "https://github.com/arthrod/GLiNER",
+    "commit": "31def2c4b8be9002908583a5c9a9d6a8551e70c7"
+  },
+  "email": "arthrod@umich.edu",
+  "root": "/Users/arthrod/temp/T/_train/GLiNER",
+  "host": "Mac",
+  "executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+  "cpu_count": 12,
+  "cpu_count_logical": 12,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "451207225344"
+    }
+  },
+  "memory": {
+    "total": "25769803776"
+  },
+  "apple": {
+    "name": "Apple M4 Pro",
+    "ecpuCores": 4,
+    "pcpuCores": 8,
+    "gpuCores": 16,
+    "memoryGb": 24,
+    "swapTotalBytes": "8589934592",
+    "ramTotalBytes": "25769803776"
+  },
+  "writerId": "7cyx14ll11cv2m98wk06l09uwzv7lqyq"
+}

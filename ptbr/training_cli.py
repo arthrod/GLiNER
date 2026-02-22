@@ -173,10 +173,11 @@ _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
     ("training.dataloader_num_workers", int, False, 2, "Dataloader workers"),
     ("training.dataloader_pin_memory", bool, False, True, "Pin memory"),
     ("training.dataloader_persistent_workers", bool, False, False, "Persistent workers"),
-    ("training.dataloader_prefetch_factor", int, False, 2, "Prefetch factor"),
+    ("training.dataloader_prefetch_factor", (int, type(None)), False, 2, "Prefetch factor"),
     ("training.freeze_components", (list, type(None)), False, None, "Components to freeze"),
     ("training.gradient_checkpointing", bool, False, False, "Gradient checkpointing"),
     ("training.eval_steps", (int, type(None)), False, None, "Eval steps override (defaults to eval_every)"),
+    ("training.eval_on_start", bool, False, False, "Run evaluation before training starts"),
     ("training.compile_model", bool, False, False, "torch.compile"),
     # -- lora --
     ("lora.enabled", bool, False, False, "Enable LoRA"),
@@ -550,6 +551,10 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
         "training.lr_others",
     ):
         _, val = _deep_get(cfg, key)
+        try:
+            val = float(val) if val is not None else None
+        except (TypeError, ValueError):
+            pass
         if val is not None and val <= 0:
             msg = f"'{key}' must be > 0, got {val}"
             result.errors.append(msg)
@@ -904,6 +909,13 @@ def main(
     ),
 ) -> None:
     """Validate configuration and optionally launch a GLiNER training run."""
+    # Load .env so HF_TOKEN / WANDB_API_KEY are available for validation & training
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
     # ---- Load YAML ----
@@ -1075,6 +1087,36 @@ def _launch_training(
         model = model.to(dtype=torch.float32)
     logger.info(f"Model class: {model.__class__.__name__}")
 
+    # -- Override model-config values that affect training data pipeline --
+    # When loading from prev_path, the model's saved config is used.
+    # YAML model-section values for training-relevant params (sampling,
+    # truncation, regularisation, span enumeration) must be applied
+    # explicitly; they are NOT forwarded through train_model() kwargs.
+    if prev_path and str(prev_path).lower() not in ("none", "null", ""):
+        _TRAINING_RELEVANT_CONFIG_KEYS = (
+            "max_types",
+            "max_neg_type_ratio",
+            "max_len",
+            "max_width",
+            "dropout",
+            "neg_spans_ratio",
+            "words_splitter_type",
+        )
+        overridden = []
+        for key in _TRAINING_RELEVANT_CONFIG_KEYS:
+            yaml_val = model_cfg.get(key)
+            if yaml_val is not None and hasattr(model.config, key):
+                saved_val = getattr(model.config, key)
+                if saved_val != yaml_val:
+                    setattr(model.config, key, yaml_val)
+                    overridden.append(f"{key}: {saved_val!r} → {yaml_val!r}")
+        if overridden:
+            logger.info("[CONFIG]   Overrode pretrained config with YAML values:")
+            for o in overridden:
+                logger.info(f"           {o}")
+        else:
+            logger.info("[CONFIG]   No training-relevant config overrides needed")
+
     # -- LoRA --
     if cfg.get("lora", {}).get("enabled", False):
         _apply_lora(model, cfg["lora"])
@@ -1115,75 +1157,107 @@ def _launch_training(
     # -- Hub fields --
     env_cfg = cfg.get("environment", {})
 
-    # -- Train --
-    logger.info("Starting training ...")
-    model.train_model(
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        output_dir=str(output_folder),
-        freeze_components=freeze,
-        compile_model=train_cfg.get("compile_model", False),
-        resume_from_checkpoint=resume_checkpoint,
+    # -- Build training kwargs --
+    train_kwargs: dict = {
+        "train_dataset": train_dataset,
+        "eval_dataset": eval_dataset,
+        "output_dir": str(output_folder),
+        "freeze_components": freeze,
+        "compile_model": train_cfg.get("compile_model", False),
+        "resume_from_checkpoint": resume_checkpoint,
         # Schedule
-        max_steps=train_cfg["num_steps"],
-        lr_scheduler_type=train_cfg["scheduler_type"],
-        warmup_ratio=train_cfg["warmup_ratio"],
+        "max_steps": train_cfg["num_steps"],
+        "lr_scheduler_type": train_cfg["scheduler_type"],
+        "warmup_ratio": train_cfg["warmup_ratio"],
         # Batch
-        per_device_train_batch_size=train_cfg["train_batch_size"],
-        per_device_eval_batch_size=eval_bs,
+        "per_device_train_batch_size": train_cfg["train_batch_size"],
+        "per_device_eval_batch_size": eval_bs,
         # Optimisation
-        learning_rate=float(train_cfg["lr_encoder"]),
-        others_lr=float(train_cfg["lr_others"]),
-        weight_decay=float(train_cfg["weight_decay_encoder"]),
-        others_weight_decay=float(train_cfg["weight_decay_other"]),
-        max_grad_norm=float(train_cfg["max_grad_norm"]),
-        optim=train_cfg.get("optimizer", "adamw_torch"),
+        "learning_rate": float(train_cfg["lr_encoder"]),
+        "others_lr": float(train_cfg["lr_others"]),
+        "weight_decay": float(train_cfg["weight_decay_encoder"]),
+        "others_weight_decay": float(train_cfg["weight_decay_other"]),
+        "max_grad_norm": float(train_cfg["max_grad_norm"]),
+        "optim": train_cfg.get("optimizer", "adamw_torch"),
         # Loss
-        focal_loss_alpha=float(train_cfg["loss_alpha"]),
-        focal_loss_gamma=float(train_cfg["loss_gamma"]),
-        focal_loss_prob_margin=float(train_cfg.get("loss_prob_margin", 0)),
-        label_smoothing=float(train_cfg.get("label_smoothing", 0)),
-        loss_reduction=train_cfg["loss_reduction"],
-        negatives=float(train_cfg["negatives"]),
-        masking=train_cfg["masking"],
+        "focal_loss_alpha": float(train_cfg["loss_alpha"]),
+        "focal_loss_gamma": float(train_cfg["loss_gamma"]),
+        "focal_loss_prob_margin": float(train_cfg.get("loss_prob_margin", 0)),
+        "label_smoothing": float(train_cfg.get("label_smoothing", 0)),
+        "loss_reduction": train_cfg["loss_reduction"],
+        "negatives": float(train_cfg["negatives"]),
+        "masking": train_cfg["masking"],
         # Logging & checkpoints
-        save_steps=train_cfg["eval_every"],
-        logging_steps=log_steps,
-        save_total_limit=train_cfg["save_total_limit"],
+        "save_steps": train_cfg["eval_every"],
+        "logging_steps": log_steps,
+        "save_total_limit": train_cfg["save_total_limit"],
         # Evaluation — run eval at the same cadence as checkpointing when
         # an eval dataset is available.
         **(
             {
                 "eval_strategy": "steps",
                 "eval_steps": val if (val := train_cfg.get("eval_steps")) is not None else train_cfg["eval_every"],
+                "eval_on_start": train_cfg.get("eval_on_start", False),
             }
             if eval_dataset is not None
             else {}
         ),
         # Precision
-        bf16=train_cfg.get("bf16", False),
-        fp16=train_cfg.get("fp16", False),
+        "bf16": train_cfg.get("bf16", False),
+        "fp16": train_cfg.get("fp16", False),
         # Gradient checkpointing
-        gradient_checkpointing=train_cfg.get("gradient_checkpointing", False),
+        "gradient_checkpointing": train_cfg.get("gradient_checkpointing", False),
         # Hardware
-        use_cpu=train_cfg.get("use_cpu", False),
-        dataloader_num_workers=train_cfg.get("dataloader_num_workers", 2),
-        dataloader_pin_memory=train_cfg.get("dataloader_pin_memory", True),
-        dataloader_persistent_workers=train_cfg.get("dataloader_persistent_workers", False),
-        dataloader_prefetch_factor=train_cfg.get("dataloader_prefetch_factor", 2),
+        "use_cpu": train_cfg.get("use_cpu", False),
+        "dataloader_num_workers": train_cfg.get("dataloader_num_workers", 2),
+        "dataloader_pin_memory": train_cfg.get("dataloader_pin_memory", True),
+        "dataloader_persistent_workers": train_cfg.get("dataloader_persistent_workers", False),
+        "dataloader_prefetch_factor": (
+            train_cfg.get("dataloader_prefetch_factor", 2)
+            if train_cfg.get("dataloader_num_workers", 2) > 0
+            else None
+        ),
         # Reporting
-        report_to=report_to,
-        run_name=cfg["run"]["name"],
+        "report_to": report_to,
+        "run_name": cfg["run"]["name"],
         # Gradient accumulation
-        gradient_accumulation_steps=train_cfg.get("gradient_accumulation_steps", 1),
+        "gradient_accumulation_steps": train_cfg.get("gradient_accumulation_steps", 1),
         # Seed
-        seed=cfg["run"]["seed"],
+        "seed": cfg["run"]["seed"],
         # GLiNER requires remove_unused_columns=False for custom batch dicts
-        remove_unused_columns=False,
+        "remove_unused_columns": False,
         # Hub integration
-        push_to_hub=env_cfg.get("push_to_hub", False),
-        hub_model_id=env_cfg.get("hub_model_id"),
-    )
+        "push_to_hub": env_cfg.get("push_to_hub", False),
+        "hub_model_id": env_cfg.get("hub_model_id"),
+    }
+
+    # -- Diagnostic logging --
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info("=" * 60)
+    logger.info("[DIAG]  Model architecture summary")
+    logger.info(f"[DIAG]    Class:            {type(model).__name__}")
+    logger.info(f"[DIAG]    Total params:     {total_params:,}")
+    logger.info(f"[DIAG]    Trainable params: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)")
+    logger.info("[DIAG]  Dataset sizes")
+    logger.info(f"[DIAG]    Train: {len(train_dataset)}")
+    logger.info(f"[DIAG]    Eval:  {len(eval_dataset) if eval_dataset else 'None'}")
+    logger.info("[DIAG]  Model config snapshot")
+    try:
+        for k, v in vars(model.config).items():
+            if not k.startswith("_"):
+                logger.info(f"[DIAG]    {k}: {v!r}")
+    except Exception:
+        logger.info(f"[DIAG]    (raw) {model.config}")
+    logger.info("[DIAG]  Training kwargs (non-dataset)")
+    for k, v in train_kwargs.items():
+        if k not in ("train_dataset", "eval_dataset"):
+            logger.info(f"[DIAG]    {k}: {v!r}")
+    logger.info("=" * 60)
+
+    # -- Train --
+    logger.info("Starting training ...")
+    model.train_model(**train_kwargs)
 
     logger.info(f"Training complete.  Checkpoints in {output_folder}")
 
@@ -1246,6 +1320,9 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
             f"alpha={lora_cfg['lora_alpha']}) to "
             f"token_rep_layer.bert_layer.model (PreTrainedModel backbone)"
         )
+        trainable = sum(p.numel() for p in model.model.token_rep_layer.bert_layer.model.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in model.model.token_rep_layer.bert_layer.model.parameters())
+        logger.info(f"[LORA]     Trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)")
     else:
         logger.warning("[LORA]     Could not locate model.model.token_rep_layer.bert_layer.model; LoRA not applied")
 

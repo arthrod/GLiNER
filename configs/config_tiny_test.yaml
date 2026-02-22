@@ -1,0 +1,49 @@
+run:
+  name: "tiny-test-1k"
+  seed: 42
+
+model:
+  model_name: prajjwal1/bert-tiny
+  hidden_size: 128
+  span_mode: markerV0
+  max_len: 64
+  max_width: 6
+  name: "span level gliner"
+  dropout: 0.3
+  fine_tune: true
+  subtoken_pooling: first
+  fuse_layers: false
+  max_types: 25
+  max_neg_type_ratio: 1
+  decoder_mode: "span"
+
+data:
+  root_dir: /tmp/gliner_tiny_1k
+  train_data: "../examples/sample_data.json"
+  val_data_dir: "../data/tiny_eval.json"
+
+training:
+  num_steps: 1000
+  train_batch_size: 2
+  eval_every: 100
+  eval_on_start: true
+  warmup_ratio: 0.1
+  scheduler_type: "cosine"
+  loss_alpha: 0.75
+  loss_gamma: 0
+  loss_reduction: "sum"
+  negatives: 1.0
+  masking: "none"
+  lr_encoder: 0.00001
+  lr_others: 0.00003
+  weight_decay_encoder: 0.1
+  weight_decay_other: 0.01
+  max_grad_norm: 10.0
+  save_total_limit: 3
+  use_cpu: true
+  dataloader_num_workers: 0
+  dataloader_prefetch_factor: null
+
+environment:
+  report_to: "wandb"
+  wandb_project: "gliner-tiny-test"

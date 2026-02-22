@@ -216,7 +216,7 @@ class Trainer(transformers.Trainer):
                 loss = loss.mean()
 
             # Match upstream Trainer behavior: scale loss for grad accumulation before backward
-            if self.args.gradient_accumulation_steps > 1 and self.deepspeed is None:
+            if self.args.gradient_accumulation_steps > 1 and not self.is_deepspeed_enabled:
                 loss = loss / self.args.gradient_accumulation_steps
 
             self.accelerator.backward(loss)
@@ -306,12 +306,8 @@ class Trainer(transformers.Trainer):
                 },
             ]
 
-        # Works across v4/v5
-        if hasattr(transformers.Trainer, "get_optimizer_cls_and_kwargs"):
-            optimizer_cls, optimizer_kwargs = transformers.Trainer.get_optimizer_cls_and_kwargs(self.args)
-        else:
-            # very old fallback
-            optimizer_cls, optimizer_kwargs = super().get_optimizer_cls_and_kwargs(self.args)
+        # Works across v4/v5 – static method on Trainer
+        optimizer_cls, optimizer_kwargs = transformers.Trainer.get_optimizer_cls_and_kwargs(self.args)
 
         self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
         return self.optimizer

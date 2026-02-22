@@ -618,6 +618,7 @@ class TestApplyLora:
             SEQ_CLS = "SEQ_CLS"
             CAUSAL_LM = "CAUSAL_LM"
             SEQ_2_SEQ_LM = "SEQ_2_SEQ_LM"
+            FEATURE_EXTRACTION = "FEATURE_EXTRACTION"
 
         class FakeLoraConfig:
             def __init__(self, **kwargs):
@@ -744,7 +745,13 @@ class TestLaunchTrainingPropagation:
 
         fake_torch.manual_seed = _manual_seed  # type: ignore[attr-defined]
 
+        class FakeConfig:
+            """Minimal stand-in for model.config used by config-override logic."""
+            pass
+
         class FakeModel:
+            config = FakeConfig()
+
             def to(self, dtype=None):
                 captured["to_dtype"] = dtype
                 return self
@@ -756,7 +763,7 @@ class TestLaunchTrainingPropagation:
 
         class FakeGLiNER:
             @staticmethod
-            def from_pretrained(path: str):
+            def from_pretrained(path: str, **kwargs):
                 captured["from_pretrained_path"] = path
                 return fake_model
 
@@ -786,7 +793,8 @@ class TestLaunchTrainingPropagation:
         assert captured["from_config_dict"] == cfg["model"]
         kwargs = captured["train_kwargs"]
         assert captured["seed"] == cfg["run"]["seed"]
-        assert captured["to_dtype"] == "float32"
+        # bf16=True in config, so float32 cast is correctly skipped
+        assert captured["to_dtype"] is None
         assert kwargs is not None
         assert kwargs["train_dataset"] == []
         assert kwargs["eval_dataset"] == []

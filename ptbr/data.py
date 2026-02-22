@@ -55,6 +55,17 @@ def load_data(
         if not isinstance(raw, list):
             raw = [raw]
         if text_column == "tokenized_text" and ner_column == "ner":
+            # Spot-check that at least the first record has the expected keys
+            if raw and isinstance(raw[0], dict):
+                if "tokenized_text" not in raw[0] or "ner" not in raw[0]:
+                    available_columns = sorted(raw[0].keys())
+                    available = ", ".join(repr(col) for col in available_columns)
+                    raise ValueError(
+                        f"Data file uses default column mapping but first record "
+                        f"is missing 'tokenized_text' and/or 'ner'. "
+                        f"Available keys: {available}. "
+                        f"Pass text_column= / ner_column= to remap."
+                    )
             return raw
         missing_columns = [
             col
