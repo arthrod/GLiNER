@@ -1525,7 +1525,13 @@ class TokenGenerativeDecoder(TokenDecoder, SpanGenerativeDecoder):
                         entity_type = id_to_class_i[class_id]
                         score = probs[class_idx].item()
                         gen_label = span_label_map_i.get(span_pos.item())
-                        span_scores.append((span_start, span_end, entity_type, gen_label, score))
+                        span_scores.append(Span(
+                            start=span_start,
+                            end=span_end,
+                            entity_type=entity_type,
+                            score=score,
+                            generated_labels=gen_label
+                        ))
 
             span_i = self.greedy_search(span_scores, flat_ner, multi_label)
             spans.append(span_i)

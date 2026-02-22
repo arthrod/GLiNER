@@ -1027,6 +1027,7 @@ def _launch_training(
     import torch
 
     from gliner import GLiNER
+    from ptbr.data import load_data
 
     # -- Seed --
     seed = cfg["run"]["seed"]
@@ -1063,12 +1064,15 @@ def _launch_training(
     prev_path = train_cfg.get("prev_path")
     if prev_path and str(prev_path).lower() not in ("none", "null", ""):
         logger.info(f"Loading pretrained model from: {prev_path}")
-        model = GLiNER.from_pretrained(prev_path)
+        model = GLiNER.from_pretrained(prev_path, load_tokenizer=True)
     else:
         logger.info("Initialising model from config ...")
         model = GLiNER.from_config(model_cfg)
 
-    model = model.to(dtype=torch.float32)
+    # Only force float32 when mixed precision is not requested, otherwise
+    # the explicit cast undercuts bf16/fp16 training.
+    if not train_cfg.get("bf16", False) and not train_cfg.get("fp16", False):
+        model = model.to(dtype=torch.float32)
     logger.info(f"Model class: {model.__class__.__name__}")
 
     # -- LoRA --
@@ -1078,8 +1082,7 @@ def _launch_training(
     # -- Load data --
     train_data_path = _resolve_data_path(cfg["data"]["train_data"], config_dir)
     logger.info(f"Loading training data from {train_data_path}")
-    with open(train_data_path) as f:
-        train_dataset = json.load(f)
+    train_dataset = load_data(str(train_data_path))
     logger.info(f"Training samples: {len(train_dataset)}")
 
     eval_dataset = None
@@ -1087,8 +1090,7 @@ def _launch_training(
     if val_path and val_path.lower() not in ("none", "null", ""):
         val_data_path = _resolve_data_path(val_path, config_dir)
         logger.info(f"Loading validation data from {val_data_path}")
-        with open(val_data_path) as f:
-            eval_dataset = json.load(f)
+        eval_dataset = load_data(str(val_data_path))
         logger.info(f"Validation samples: {len(eval_dataset)}")
 
     # -- Freeze components --

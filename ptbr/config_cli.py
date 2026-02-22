@@ -384,10 +384,10 @@ def _validate_cross_constraints(
         )
         gliner_data["span_mode"] = "token_level"
     elif method in ("span", "biencoder", "decoder", "relex") and span_mode == "token_level":
-        report.add_warning(
+        report.add_error(
             "gliner_config.span_mode",
-            f"Method is {method!r} but span_mode is 'token_level'; this may be intentional "
-            f"for a token-level variant. If not, change span_mode.",
+            f"Method is {method!r} but span_mode is 'token_level'. These select different "
+            f"trainer/collator pipelines and cannot coexist. Use method='token' or change span_mode.",
         )
 
     # --- decoder fields when method is not decoder ---
@@ -399,11 +399,20 @@ def _validate_cross_constraints(
                 "decoder architecture may still be selected.",
             )
         if gliner_data.get("labels_decoder") is None:
-            for fld in ("decoder_mode", "full_decoder_context", "blank_entity_prob", "decoder_loss_coef"):
-                if fld in explicit_keys:
+            # Only warn when the user explicitly set a decoder field to a
+            # non-default value.  Default values sitting in the resolved config
+            # are not actionable and just create noise.
+            _decoder_defaults = {
+                "decoder_mode": None,
+                "full_decoder_context": True,
+                "blank_entity_prob": 0.1,
+                "decoder_loss_coef": 0.5,
+            }
+            for fld, default_val in _decoder_defaults.items():
+                if fld in explicit_keys and gliner_data.get(fld) != default_val:
                     report.add_warning(
                         f"gliner_config.{fld}",
-                        f"Field {fld!r} is set but labels_decoder is not set; it will be ignored.",
+                        f"Field {fld!r} is set to {gliner_data.get(fld)!r} but labels_decoder is not set; it will be ignored.",
                     )
 
     # --- relex fields when method is not relex ---
@@ -480,12 +489,9 @@ def load_and_validate_config(
         gliner_section = raw.get(gliner_key)
         selected_gliner_key = gliner_key
     elif "model" in raw:
+        # 'model' is the canonical name used in docs; accept it silently.
         gliner_section = raw.get("model")
         selected_gliner_key = "model"
-        report.add_warning(
-            "gliner_config",
-            "Using 'model' section as an alias for 'gliner_config'.",
-        )
     else:
         report.add_error(
             "gliner_config",
@@ -686,7 +692,12 @@ def _save_validation_log(
     }
     # Add resolved config if valid
     if result.gliner_config is not None:
-        log_data["resolved_gliner_config"] = result.gliner_config.to_dict()
+        resolved = result.gliner_config.to_dict()
+        # GLiNERConfig.model_type is a @property, so to_dict() may serialize
+        # the descriptor object instead of the computed value.  Evaluate it on
+        # the live instance to get the real model type string.
+        resolved["model_type"] = result.gliner_config.model_type
+        log_data["resolved_gliner_config"] = resolved
     if result.lora_config is not None:
         log_data["resolved_lora_config"] = result.lora_config
 

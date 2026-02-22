@@ -2,130 +2,75 @@
 
 ## Summary
 
-- **Total comments**: 24
-- **Implemented**: 16
-- **Skipped**: 8
+- **Total comments**: 13
+- **Implemented**: 8
+- **Skipped**: 5
 
 ## Implemented Changes
 
-### Comment 3: Safer default insertion and parent mapping checks
+### Comment 1: Remove duplicate output-folder tests
 - **Reviewer**: coderabbitai[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Updated `_deep_set` to raise clear `ValueError`s when intermediate parents are not mappings. Updated default application in `validate_config` to deep-copy defaults and convert parent-shape failures into validation errors instead of crashing.
+- **File**: `ptbr/tests/test_training_cli.py`
+- **What was done**: Confirmed the duplicate test methods were removed and ensured the remaining tests assert `mock_launch.assert_called_once()`.
 
-### Comment 4: Redact sensitive values in validation output
+### Comment 2: Fix indentation error in noisy JSONL generator
 - **Reviewer**: coderabbitai[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Added key-based redaction helpers and applied them in `validate_config` and `print_summary` so sensitive environment values are masked in logs and summary output.
+- **File**: `ptbr/tests/generate_noisy_jsonl.py`
+- **What was done**: Aligned the error-index parsing block with surrounding validation logic to avoid indentation errors.
 
-### Comment 5: Use POST for WandB GraphQL check
+### Comment 3: Guard noise coverage when too few corruptions
 - **Reviewer**: coderabbitai[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Changed the WandB connectivity request from `requests.get` to `requests.post` while preserving existing headers, payload, timeout, and error handling.
+- **File**: `ptbr/tests/generate_noisy_jsonl.py`
+- **What was done**: Added a runtime guard that raises when `num_corrupt` is less than the number of noise types.
 
-### Comment 7: Forward fp16 setting to training
-- **Reviewer**: chatgpt-codex-connector[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Added `fp16=train_cfg.get("fp16", False)` to the `model.train_model(...)` call so the configured mixed-precision mode is applied.
+### Comment 4: Validate required columns for local data files
+- **Reviewer**: coderabbitai[bot]
+- **File**: `ptbr/data.py`
+- **What was done**: Added a missing-column check for local JSON/JSONL inputs and surfaced available columns in the error message.
 
-### Comment 8: Redact API keys in validation summary
+### Comment 5: Avoid unused `errs` unpacking in validation tests
+- **Reviewer**: coderabbitai[bot]
+- **File**: `ptbr/tests/test_validation.py`
+- **What was done**: Updated unused error variables to underscore-prefixed names to satisfy lint rules.
+
+### Comment 6: Replace `os.system` with `subprocess.run`
+- **Reviewer**: coderabbitai[bot]
+- **File**: `ptbr/tests/test_validation.py`
+- **What was done**: Switched CLI invocations to `subprocess.run` using `sys.executable` and removed shell execution.
+
+### Comment 7: Pass `Path` to `print_and_log_result`
+- **Reviewer**: coderabbitai[bot]
+- **File**: `ptbr/__main__.py`
+- **What was done**: Ensured the config file path is wrapped as a `Path` before calling `print_and_log_result`.
+
+### Comment 8: Remove unused import in validator integration test
+- **Reviewer**: coderabbitai[bot]
+- **File**: `tests/test_validator_integration.py`
+- **What was done**: Verified the unused `train_app` import was removed from the test.
+
+### Comment 9: Replace hardcoded `/tmp` in training validation tests
 - **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Implemented summary redaction for sensitive fields through shared sanitizer logic used by both validation logging and summary rendering.
+- **File**: `tests/test_training_validation.py`
+- **What was done**: Updated helpers/tests to take `tmp_path` so each run uses a unique temp directory.
 
-### Comment 9: Fix flawed output-folder test
+### Comment 10: Remove unused `sig` variable
 - **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/tests/test_training_cli.py`
-- **What was done**: Replaced the prior validate-only test with a true non-validate run using `--output-folder` and mocked `_launch_training` to isolate folder-check behavior.
-
-### Comment 10: Ignore summary artifacts when checking output-folder emptiness
-- **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Updated non-resume folder checks to ignore both `validation_*.log` and `summary_*.txt` artifacts. Added a test that validates this behavior.
-
-### Comment 11: Remove unused textwrap import
-- **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/tests/test_training_cli.py`
-- **What was done**: Removed the unused `textwrap` import.
-
-### Comment 12: Remove unused sys/time imports
-- **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Removed unused `sys` and `time` imports.
-
-### Comment 13: Remove unused TrainingArguments/Trainer import in launcher
-- **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Removed the unused `from gliner.training import TrainingArguments, Trainer` import inside `_launch_training`.
-
-### Comment 14: Resolve data paths relative to config location
-- **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Added config-relative path resolution via `_resolve_data_path(...)` and passed `config.parent` from `main()` into `_launch_training` so train/validation data paths resolve relative to the YAML file.
-
-### Comment 15: Mask hf_token and wandb_api_key in logs
-- **Reviewer**: gemini-code-assist[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Applied redaction to values before they are stored in `result.info` and logged as `[OK]` entries.
-
-### Comment 16: Ensure fp16 config is not a no-op
-- **Reviewer**: sourcery-ai[bot]
-- **File**: `ptbr/training_cli.py`
-- **What was done**: Forwarded `fp16` into training arguments at launch time.
-
-### Comment 19: Correct modules_to_save documentation
-- **Reviewer**: sourcery-ai[bot]
-- **File**: `ptbr/template.yaml`
-- **What was done**: Reworded the `modules_to_save` comment to reflect PEFT behavior (modules kept/saved alongside LoRA), replacing the incorrect exclusion/regex wording.
-
-### Comment 20: Add test for required field explicitly set to None
-- **Reviewer**: sourcery-ai[bot]
-- **File**: `ptbr/tests/test_training_cli.py`
-- **What was done**: Added `test_required_field_set_to_none` asserting `run.name = None` fails validation.
-
-### Comment 21: Add resume test for missing run.name
-- **Reviewer**: sourcery-ai[bot]
-- **File**: `ptbr/tests/test_training_cli.py`
-- **What was done**: Added `test_missing_run_name_in_current_config` in `TestCheckResume` to cover the early-failure branch and expected error message.
+- **File**: `tests/test_training_validation.py`
+- **What was done**: Confirmed the unused `sig` assignment was removed and the test inspects the real signature directly.
 
 ## Skipped Comments
 
-### Comment 1: Docstrings generation success note
-- **Reviewer**: coderabbitai[bot]
-- **File**: `N/A`
-- **Reason**: SKIP — trivial — This was informational status output, not a requested code change.
-
-### Comment 2: Resume flag validated but not used
+### Comment 11: Remove duplicate `import copy`
 - **Reviewer**: coderabbitai[bot]
 - **File**: `ptbr/training_cli.py`
-- **Reason**: SKIP — risky — Full checkpoint-state resume would require reworking training invocation semantics beyond a minimal CLI edit, with elevated regression risk in training behavior.
+- **Reason**: SKIP — not applicable — `ptbr/training_cli.py` does not exist in this repo (only `training_cli_old.py` remains).
 
-### Comment 6: Actually resume training when --resume is requested
-- **Reviewer**: chatgpt-codex-connector[bot]
-- **File**: `ptbr/training_cli.py`
-- **Reason**: SKIP — risky — Same underlying concern as Comment 2; implementing true optimizer/scheduler state resume in this layer would require a broader training flow refactor.
-
-### Comment 17: Validate train/val data paths exist in semantic_checks
-- **Reviewer**: sourcery-ai[bot]
-- **File**: `ptbr/training_cli.py`
-- **Reason**: SKIP — risky — Enforcing file existence at semantic-check time would change current validate-only behavior and could reject workflows that intentionally validate configs before datasets are materialized.
-
-### Comment 18: Add broader numeric bounds constraints
-- **Reviewer**: sourcery-ai[bot]
-- **File**: `ptbr/training_cli.py`
-- **Reason**: SKIP — risky — This introduces new hard validation policy across multiple hyperparameters and may reject currently accepted configs without clear project-wide consensus.
-
-### Comment 22: CodeRabbit PR summary/walkthrough
+### Comment 12: Close removed file handlers in `_attach_file_handler`
 - **Reviewer**: coderabbitai[bot]
-- **File**: `N/A`
-- **Reason**: SKIP — trivial — Informational summary only, no actionable fix requested.
+- **File**: `ptbr/training_cli.py`
+- **Reason**: SKIP — not applicable — The referenced module path is absent from the repo.
 
-### Comment 23: Gemini summary placeholder
+### Comment 13: Refactor training CLI validation to reuse config_cli
 - **Reviewer**: gemini-code-assist[bot]
-- **File**: `N/A`
-- **Reason**: SKIP — trivial — Informational status message, not a concrete review action.
-
-### Comment 24: Sourcery reviewer guide
-- **Reviewer**: sourcery-ai[bot]
-- **File**: `N/A`
-- **Reason**: SKIP — trivial — High-level guide content only, no specific code change request.
+- **File**: `ptbr/training_cli.py`
+- **Reason**: SKIP — risky — Large refactor beyond the requested minimal changes, and the referenced module is not present.

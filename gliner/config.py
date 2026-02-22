@@ -320,25 +320,25 @@ class GLiNERConfig(BaseGLiNERConfig):
         self.labels_decoder = labels_decoder
         self.relations_layer = relations_layer
 
-    @property
-    def model_type(self):
-        """Auto-detect model type based on configuration."""
+        # Auto-detect model type based on configuration.
+        # Set as an instance attribute (not a @property) so that
+        # PretrainedConfig.to_dict() serializes the string correctly.
         if self.labels_decoder:
             if self.span_mode == "token_level":
-                return "gliner_uni_encoder_token_decoder"
+                self.model_type = "gliner_uni_encoder_token_decoder"
             else:
-                return "gliner_uni_encoder_span_decoder"
+                self.model_type = "gliner_uni_encoder_span_decoder"
         elif self.labels_encoder:
-            return "gliner_bi_encoder_span" if self.span_mode != "token_level" else "gliner_bi_encoder_token"
+            self.model_type = "gliner_bi_encoder_span" if self.span_mode != "token_level" else "gliner_bi_encoder_token"
         elif self.relations_layer is not None:
             if self.span_mode == "token_level":
-                return "gliner_uni_encoder_token_relex"
+                self.model_type = "gliner_uni_encoder_token_relex"
             else:
-                return "gliner_uni_encoder_span_relex"
+                self.model_type = "gliner_uni_encoder_span_relex"
         elif self.span_mode == "token_level":
-            return "gliner_uni_encoder_token"
+            self.model_type = "gliner_uni_encoder_token"
         else:
-            return "gliner_uni_encoder_span"
+            self.model_type = "gliner_uni_encoder_span"
 
 
 # Register all configurations

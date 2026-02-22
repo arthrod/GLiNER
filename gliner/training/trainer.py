@@ -200,10 +200,6 @@ class Trainer(transformers.Trainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
 
-        # Guardrail: if labels are missing, fail loudly (otherwise you end up with loss=None -> silent 0)
-        if "labels" not in inputs:
-            raise KeyError(f"Batch has no 'labels'. Keys: {list(inputs.keys())}")
-
         try:
             if is_sagemaker_mp_enabled():
                 loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps)
@@ -351,14 +347,16 @@ class Trainer(transformers.Trainer):
             "collate_fn": data_collator,
             "num_workers": self.args.dataloader_num_workers,
             "pin_memory": self.args.dataloader_pin_memory,
-            "persistent_workers": self.args.dataloader_persistent_workers,
         }
+
+        if self.args.dataloader_num_workers > 0:
+            dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
+            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(train_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_train_sampler()
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
             dataloader_params["worker_init_fn"] = seed_worker
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         return self.accelerator.prepare(DataLoader(train_dataset, **dataloader_params))
 
@@ -387,13 +385,15 @@ class Trainer(transformers.Trainer):
             "collate_fn": self.data_collator,
             "num_workers": self.args.dataloader_num_workers,
             "pin_memory": self.args.dataloader_pin_memory,
-            "persistent_workers": self.args.dataloader_persistent_workers,
         }
+
+        if self.args.dataloader_num_workers > 0:
+            dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
+            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(eval_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(eval_dataset)
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         eval_dataloader = DataLoader(eval_dataset, **dataloader_params)
 
