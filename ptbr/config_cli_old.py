@@ -43,94 +43,147 @@ console = Console()
 
 _GLINER_RULES: List[Tuple[str, type, bool, Any, Any]] = [
     # 1.1 Backbone / Encoder
-    ("model_name",          str,   True,  None,          None),
-    ("name",                str,   False, "gliner",      None),
-    ("fine_tune",           bool,  False, True,          ("literals", {True, False})),
+    ("model_name", str, True, None, None),
+    ("name", str, False, "gliner", None),
+    ("fine_tune", bool, False, True, ("literals", {True, False})),
     # 1.2 Architecture
-    ("span_mode",           str,   False, "markerV0",    ("literals", {
-        "markerV0", "markerV1", "marker", "query", "mlp", "cat",
-        "conv_conv", "conv_max", "conv_mean", "conv_sum", "conv_share",
-        "token_level",
-    })),
-    ("max_width",           int,   False, 12,            ("range", 1, 128)),
+    (
+        "span_mode",
+        str,
+        False,
+        "markerV0",
+        (
+            "literals",
+            {
+                "markerV0",
+                "markerV1",
+                "marker",
+                "query",
+                "mlp",
+                "cat",
+                "conv_conv",
+                "conv_max",
+                "conv_mean",
+                "conv_sum",
+                "conv_share",
+                "token_level",
+            },
+        ),
+    ),
+    ("max_width", int, False, 12, ("range", 1, 128)),
     # 1.3 BiEncoder
-    ("labels_encoder",      str,   False, None,          None),
+    ("labels_encoder", str, False, None, None),
+    ("labels_encoder_config", dict, False, None, None),
     # 1.4 Decoder
-    ("labels_decoder",      str,   False, None,          None),
-    ("decoder_mode",        str,   False, "span",        ("literals", {"span", "prompt"})),
-    ("full_decoder_context", bool, False, True,          ("literals", {True, False})),
-    ("blank_entity_prob",   float, False, 0.1,           ("range", 0.0, 1.0)),
-    ("decoder_loss_coef",   float, False, 0.5,           ("range", 0.0, 10.0)),
+    ("labels_decoder", str, False, None, None),
+    ("decoder_mode", str, False, None, ("literals", {None, "span", "prompt"})),
+    ("labels_decoder_config", dict, False, None, None),
+    ("full_decoder_context", bool, False, True, ("literals", {True, False})),
+    ("blank_entity_prob", float, False, 0.1, ("range", 0.0, 1.0)),
+    ("decoder_loss_coef", float, False, 0.5, ("range", 0.0, 10.0)),
     # 1.5 Relex
-    ("relations_layer",     str,   False, None,          None),
-    ("triples_layer",       str,   False, None,          None),
-    ("embed_rel_token",     bool,  False, True,          ("literals", {True, False})),
-    ("rel_token_index",     int,   False, -1,            ("range", -1, 100000)),
-    ("rel_token",           str,   False, "<<REL>>",     None),
-    ("adjacency_loss_coef", float, False, 1.0,           ("range", 0.0, 10.0)),
-    ("relation_loss_coef",  float, False, 1.0,           ("range", 0.0, 10.0)),
+    ("relations_layer", str, False, None, None),
+    ("triples_layer", str, False, None, None),
+    ("embed_rel_token", bool, False, True, ("literals", {True, False})),
+    ("rel_token_index", int, False, -1, ("range", -1, 100000)),
+    ("rel_token", str, False, "<<REL>>", None),
+    ("adjacency_loss_coef", float, False, 1.0, ("range", 0.0, 10.0)),
+    ("relation_loss_coef", float, False, 1.0, ("range", 0.0, 10.0)),
     # 1.6 Hidden dims
-    ("hidden_size",         int,   False, 512,           ("range", 64, 4096)),
-    ("dropout",             float, False, 0.4,           ("range", 0.0, 0.9)),
+    ("hidden_size", int, False, 512, ("range", 64, 4096)),
+    ("dropout", float, False, 0.4, ("range", 0.0, 0.9)),
     # 1.7 Subtoken
-    ("subtoken_pooling",    str,   False, "first",       ("literals", {"first", "mean", "max"})),
-    ("words_splitter_type", str,   False, "whitespace",  ("literals", {
-        "whitespace", "spacy", "stanza", "mecab", "jieba", "janome", "camel",
-    })),
+    ("subtoken_pooling", str, False, "first", ("literals", {"first", "mean", "max"})),
+    (
+        "words_splitter_type",
+        str,
+        False,
+        "whitespace",
+        (
+            "literals",
+            {
+                "whitespace",
+                "spacy",
+                "stanza",
+                "mecab",
+                "jieba",
+                "janome",
+                "camel",
+            },
+        ),
+    ),
     # 1.8 Sequence limits
-    ("max_len",             int,   False, 384,           ("range", 32, 8192)),
-    ("max_types",           int,   False, 25,            ("range", 1, 1000)),
-    ("max_neg_type_ratio",  int,   False, 1,             ("range", 0, 100)),
+    ("max_len", int, False, 384, ("range", 32, 8192)),
+    ("max_types", int, False, 25, ("range", 1, 1000)),
+    ("max_neg_type_ratio", int, False, 1, ("range", 0, 100)),
     # 1.9 Post-fusion & layers
-    ("post_fusion_schema",  str,   False, "",            None),
-    ("num_post_fusion_layers", int, False, 1,            ("range", 1, 12)),
-    ("fuse_layers",         bool,  False, False,         ("literals", {True, False})),
-    ("num_rnn_layers",      int,   False, 1,             ("range", 0, 4)),
+    ("post_fusion_schema", str, False, "", None),
+    ("num_post_fusion_layers", int, False, 1, ("range", 1, 12)),
+    ("fuse_layers", bool, False, False, ("literals", {True, False})),
+    ("num_rnn_layers", int, False, 1, ("range", 0, 4)),
     # 1.10 Special tokens
-    ("embed_ent_token",     bool,  False, True,          ("literals", {True, False})),
-    ("class_token_index",   int,   False, -1,            ("range", -1, 100000)),
-    ("vocab_size",          int,   False, -1,            ("range", -1, 1000000)),
-    ("ent_token",           str,   False, "<<ENT>>",     None),
-    ("sep_token",           str,   False, "<<SEP>>",     None),
+    ("embed_ent_token", bool, False, True, ("literals", {True, False})),
+    ("class_token_index", int, False, -1, ("range", -1, 100000)),
+    ("vocab_size", int, False, -1, ("range", -1, 1000000)),
+    ("ent_token", str, False, "<<ENT>>", None),
+    ("sep_token", str, False, "<<SEP>>", None),
     # 1.11 Loss coefficients
-    ("token_loss_coef",     float, False, 1.0,           ("range", 0.0, 10.0)),
-    ("span_loss_coef",      float, False, 1.0,           ("range", 0.0, 10.0)),
-    ("represent_spans",     bool,  False, False,         ("literals", {True, False})),
-    ("neg_spans_ratio",     float, False, 1.0,           ("range", 0.0, 10.0)),
+    ("token_loss_coef", float, False, 1.0, ("range", 0.0, 10.0)),
+    ("span_loss_coef", float, False, 1.0, ("range", 0.0, 10.0)),
+    ("represent_spans", bool, False, False, ("literals", {True, False})),
+    ("neg_spans_ratio", float, False, 1.0, ("range", 0.0, 10.0)),
     # 1.12 Attention
-    ("_attn_implementation", str,  False, None,          ("literals", {None, "eager", "sdpa", "flash_attention_2"})),
+    ("_attn_implementation", str, False, None, ("literals", {None, "eager", "sdpa", "flash_attention_2"})),
+    # 1.13 Encoder config snapshot
+    ("encoder_config", dict, False, None, None),
 ]
 
 _LORA_RULES: List[Tuple[str, type, bool, Any, Any]] = [
-    ("r",                  int,   False, 8,                ("range", 1, 256)),
-    ("lora_alpha",         int,   False, 16,               ("range", 1, 512)),
-    ("lora_dropout",       float, False, 0.1,              ("range", 0.0, 0.9)),
-    ("target_modules",     list,  False, ["query_proj", "value_proj"], None),
-    ("bias",               str,   False, "none",           ("literals", {"none", "all", "lora_only"})),
-    ("task_type",          str,   False, "FEATURE_EXTRACTION", ("literals", {
-        "FEATURE_EXTRACTION", "TOKEN_CLS", "SEQ_CLS", "CAUSAL_LM", "SEQ_2_SEQ_LM",
-    })),
-    ("modules_to_save",    list,  False, None,             None),
-    ("fan_in_fan_out",     bool,  False, False,            ("literals", {True, False})),
-    ("use_rslora",         bool,  False, False,            ("literals", {True, False})),
-    ("init_lora_weights",  bool,  False, True,             ("literals", {True, False})),
+    ("r", int, False, 8, ("range", 1, 256)),
+    ("lora_alpha", int, False, 16, ("range", 1, 512)),
+    ("lora_dropout", float, False, 0.05, ("range", 0.0, 0.9)),
+    ("target_modules", list, False, ["q_proj", "v_proj"], None),
+    ("bias", str, False, "none", ("literals", {"none", "all", "lora_only"})),
+    (
+        "task_type",
+        str,
+        False,
+        "TOKEN_CLS",
+        (
+            "literals",
+            {
+                "FEATURE_EXTRACTION",
+                "TOKEN_CLS",
+                "SEQ_CLS",
+                "CAUSAL_LM",
+                "SEQ_2_SEQ_LM",
+            },
+        ),
+    ),
+    ("modules_to_save", list, False, None, None),
+    ("fan_in_fan_out", bool, False, False, ("literals", {True, False})),
+    ("use_rslora", bool, False, False, ("literals", {True, False})),
+    ("init_lora_weights", bool, False, True, ("literals", {True, False})),
 ]
 
 # ============================================================================
 # Validation Issue Tracking
 # ============================================================================
 
+
 @dataclass
 class ValidationIssue:
     """A single validation finding."""
-    level: str          # "ERROR" or "WARNING"
-    field: str          # dotted path: "gliner_config.model_name"
+
+    level: str  # "ERROR" or "WARNING"
+    field: str  # dotted path: "gliner_config.model_name"
     message: str
 
 
 @dataclass
 class ValidationReport:
     """Collection of all issues found during validation."""
+
     issues: List[ValidationIssue] = field(default_factory=list)
 
     @property
@@ -156,6 +209,7 @@ class ValidationReport:
 # Result Object
 # ============================================================================
 
+
 @dataclass
 class GLiNERConfigResult:
     """Validated configuration result returned when used as a module.
@@ -169,9 +223,10 @@ class GLiNERConfigResult:
         full_or_lora: Whether this is a "full" or "lora" configuration.
         method: The resolved method string.
     """
-    gliner_config: Optional[GLiNERConfig]
+
+    gliner_config: GLiNERConfig | None
     validated_gliner: Dict[str, Any]
-    lora_config: Optional[Dict[str, Any]]
+    lora_config: Dict[str, Any] | None
     raw_yaml: Dict[str, Any]
     report: ValidationReport
     full_or_lora: str
@@ -181,6 +236,7 @@ class GLiNERConfigResult:
 # ============================================================================
 # Core Validation Logic
 # ============================================================================
+
 
 def _coerce_type(value: Any, expected_type: type) -> Any:
     """Try to coerce a value to the expected type."""
@@ -248,8 +304,7 @@ def _validate_section(
         except (TypeError, ValueError) as exc:
             report.add_error(
                 field_path,
-                f"Type error: expected {expected_type.__name__}, got {type(raw_value).__name__} "
-                f"({raw_value!r}). {exc}",
+                f"Type error: expected {expected_type.__name__}, got {type(raw_value).__name__} ({raw_value!r}). {exc}",
             )
             continue
 
@@ -292,7 +347,7 @@ def _validate_cross_constraints(
     method: str,
     full_or_lora: str,
     report: ValidationReport,
-    raw_gliner_section: Optional[Dict[str, Any]] = None,
+    raw_gliner_section: Dict[str, Any] | None = None,
 ) -> None:
     """Check cross-field constraints that depend on method and mode."""
     if isinstance(raw_gliner_section, dict):
@@ -356,8 +411,7 @@ def _validate_cross_constraints(
         if "relations_layer" in explicit_keys and gliner_data.get("relations_layer") is not None:
             report.add_warning(
                 "gliner_config.relations_layer",
-                "Field 'relations_layer' is set while method is not 'relex'; "
-                "relex architecture may still be selected.",
+                "Field 'relations_layer' is set while method is not 'relex'; relex architecture may still be selected.",
             )
         if (
             "triples_layer" in explicit_keys
@@ -380,6 +434,7 @@ def _build_gliner_config(
 # ============================================================================
 # Public API: load_and_validate_config
 # ============================================================================
+
 
 def load_and_validate_config(
     file: str | Path,
@@ -453,7 +508,10 @@ def load_and_validate_config(
         gliner_section = {}
 
     validated_gliner = _validate_section(
-        gliner_section, _GLINER_RULES, "gliner_config", report,
+        gliner_section,
+        _GLINER_RULES,
+        "gliner_config",
+        report,
     )
 
     # --- Cross-field validation ---
@@ -466,7 +524,7 @@ def load_and_validate_config(
     )
 
     # --- Resolve + validate lora_config section (only for lora mode) ---
-    validated_lora: Optional[Dict[str, Any]] = None
+    validated_lora: Dict[str, Any] | None = None
     if full_or_lora == "lora":
         lora_key = "lora_config"
         if lora_key in raw and "lora" in raw:
@@ -505,7 +563,10 @@ def load_and_validate_config(
             )
             lora_section = {}
         validated_lora = _validate_section(
-            lora_section, _LORA_RULES, "lora_config", report,
+            lora_section,
+            _LORA_RULES,
+            "lora_config",
+            report,
         )
 
     # --- Build GLiNERConfig object ---
@@ -529,6 +590,7 @@ def load_and_validate_config(
 # ============================================================================
 # Rich Output: Summary Printing
 # ============================================================================
+
 
 def _is_default_warning(issue: ValidationIssue) -> bool:
     """Return True when a warning indicates a default value was applied."""
@@ -609,7 +671,7 @@ def _print_issues(report: ValidationReport) -> None:
 def _save_validation_log(
     result: GLiNERConfigResult,
     log_path: Path,
-    source_file: Optional[Path] = None,
+    source_file: Path | None = None,
 ) -> None:
     """Save a structured JSON log of the validation run."""
     log_data = {
@@ -620,10 +682,7 @@ def _save_validation_log(
         "valid": result.report.is_valid,
         "error_count": len(result.report.errors),
         "warning_count": len(result.report.warnings),
-        "issues": [
-            {"level": i.level, "field": i.field, "message": i.message}
-            for i in result.report.issues
-        ],
+        "issues": [{"level": i.level, "field": i.field, "message": i.message} for i in result.report.issues],
     }
     # Add resolved config if valid
     if result.gliner_config is not None:
@@ -639,7 +698,7 @@ def _save_validation_log(
 def print_and_log_result(
     result: GLiNERConfigResult,
     file_path: Path,
-    log_dir: Optional[Path] = None,
+    log_dir: Path | None = None,
 ) -> Path:
     """Print the rich summary to the terminal and save a log file.
 
@@ -652,13 +711,15 @@ def print_and_log_result(
         Path to the saved log file.
     """
     console.print()
-    console.print(Panel(
-        f"[bold]Config Validation Report[/]\n"
-        f"File: {file_path}\n"
-        f"Mode: [cyan]{result.full_or_lora}[/]  |  Method: [cyan]{result.method}[/]",
-        title="GLiNER ptbr Config",
-        style="blue",
-    ))
+    console.print(
+        Panel(
+            f"[bold]Config Validation Report[/]\n"
+            f"File: {file_path}\n"
+            f"Mode: [cyan]{result.full_or_lora}[/]  |  Method: [cyan]{result.method}[/]",
+            title="GLiNER ptbr Config",
+            style="blue",
+        )
+    )
     console.print()
 
     console.print(_make_gliner_table(result.validated_gliner, result.report))
@@ -691,12 +752,13 @@ def print_and_log_result(
 # Typer CLI Application
 # ============================================================================
 
+
 def _build_app():
     """
     Constructs and returns a Typer CLI application for validating and inspecting GLiNER fine-tuning YAML configurations.
-    
+
     The app exposes a `main` command that loads a YAML config file, runs validation (optionally printing a rich summary and saving a log), and exits with a nonzero code on validation failure.
-    
+
     Returns:
         typer.Typer: A configured Typer application exposing the `main` command.
     """
@@ -743,8 +805,7 @@ def _build_app():
             raise typer.Exit(code=1)
         if method not in ("biencoder", "decoder", "relex", "span", "token"):
             console.print(
-                f"[bold red]Error:[/] --method must be one of: biencoder, decoder, relex, span, token. "
-                f"Got {method!r}"
+                f"[bold red]Error:[/] --method must be one of: biencoder, decoder, relex, span, token. Got {method!r}"
             )
             raise typer.Exit(code=1)
 

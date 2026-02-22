@@ -18,7 +18,7 @@ import copy
 import logging
 from typing import Any, Optional
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import yaml
 import typer
@@ -60,17 +60,17 @@ _rich_handler.setLevel(logging.DEBUG)
 logger.addHandler(_rich_handler)
 
 # File handler is attached later once we know the output folder.
-_file_handler: Optional[logging.FileHandler] = None
+_file_handler: logging.FileHandler | None = None
 
 
 def _attach_file_handler(log_path: Path) -> None:
     """
     Attach a file-based logging handler writing to log_path, replacing any previously attached file handler.
-    
+
     The handler opens the file in write mode with UTF-8 encoding, logs messages at DEBUG level, and uses the formatter "%(asctime)s | %(levelname)-8s | %(message)s". Parent directories for log_path will be created if they do not exist.
-    
+
     Parameters:
-    	log_path (Path): Destination file path for the log file; parent directories will be created if missing.
+        log_path (Path): Destination file path for the log file; parent directories will be created if missing.
     """
     global _file_handler
     if _file_handler is not None:
@@ -79,9 +79,7 @@ def _attach_file_handler(log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     _file_handler = logging.FileHandler(str(log_path), mode="w", encoding="utf-8")
     _file_handler.setLevel(logging.DEBUG)
-    _file_handler.setFormatter(
-        logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s")
-    )
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s"))
     logger.addHandler(_file_handler)
 
 
@@ -94,119 +92,120 @@ def _attach_file_handler(log_path: Path) -> None:
 
 _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
     # -- run --
-    ("run.name",        str,    True,   None,       "Run name"),
-    ("run.description", str,    False,  "",         "Run description"),
-    ("run.tags",        list,   False,  [],         "Run tags"),
-    ("run.seed",        int,    False,  42,         "Random seed"),
-
+    ("run.name", str, True, None, "Run name"),
+    ("run.description", str, False, "", "Run description"),
+    ("run.tags", list, False, [], "Run tags"),
+    ("run.seed", int, False, 42, "Random seed"),
     # -- model --
-    ("model.model_name",            str,    True,   None,           "Backbone model name/path"),
-    ("model.name",                  str,    False,  "gliner",       "Model display name"),
-    ("model.labels_encoder",        (str, type(None)),  False,  None,   "Bi-encoder labels model"),
-    ("model.labels_decoder",        (str, type(None)),  False,  None,   "Decoder model for generative labels"),
-    ("model.decoder_mode",          (str, type(None)),  False,  None,   "Decoder mode (span/prompt)"),
-    ("model.full_decoder_context",  bool,   False,  True,           "Full context in decoder"),
-    ("model.blank_entity_prob",     float,  False,  0.1,            "Blank entity probability"),
-    ("model.decoder_loss_coef",     float,  False,  0.5,            "Decoder loss coefficient"),
-    ("model.relations_layer",       (str, type(None)),  False,  None,   "Relation extraction layer"),
-    ("model.triples_layer",         (str, type(None)),  False,  None,   "Triples layer"),
-    ("model.embed_rel_token",       bool,   False,  True,           "Embed relation token"),
-    ("model.rel_token_index",       int,    False,  -1,             "Relation token index"),
-    ("model.rel_token",             str,    False,  "<<REL>>",      "Relation marker token"),
-    ("model.adjacency_loss_coef",   float,  False,  1.0,            "Adjacency loss coefficient"),
-    ("model.relation_loss_coef",    float,  False,  1.0,            "Relation loss coefficient"),
-    ("model.span_mode",             str,    True,   None,           "Span mode (markerV0 / token_level)"),
-    ("model.max_width",             int,    False,  12,             "Max entity span width"),
-    ("model.represent_spans",       bool,   False,  False,          "Explicit span representations"),
-    ("model.neg_spans_ratio",       float,  False,  1.0,            "Negative spans ratio"),
-    ("model.hidden_size",           int,    False,  512,            "Projection hidden size"),
-    ("model.dropout",               float,  False,  0.4,            "Dropout probability"),
-    ("model.fine_tune",             bool,   False,  True,           "Fine-tune encoder"),
-    ("model.subtoken_pooling",      str,    False,  "first",        "Sub-token pooling strategy"),
-    ("model.fuse_layers",           bool,   False,  False,          "Fuse layers"),
-    ("model.post_fusion_schema",    (str, type(None)),  False,  "",  "Post-fusion schema"),
-    ("model.num_post_fusion_layers", int,   False,  1,              "Post-fusion layer count"),
-    ("model.num_rnn_layers",        int,    False,  1,              "Bi-LSTM layers"),
-    ("model.max_len",               int,    True,   None,           "Max sequence length"),
-    ("model.max_types",             int,    False,  25,             "Max entity types per example"),
-    ("model.max_neg_type_ratio",    int,    False,  1,              "Max neg/pos type ratio"),
-    ("model.words_splitter_type",   str,    False,  "whitespace",   "Word splitter"),
-    ("model.embed_ent_token",       bool,   False,  True,           "Embed entity token"),
-    ("model.class_token_index",     int,    False,  -1,             "Class token index"),
-    ("model.ent_token",             str,    False,  "<<ENT>>",      "Entity marker token"),
-    ("model.sep_token",             str,    False,  "<<SEP>>",      "Separator token"),
-    ("model.token_loss_coef",       float,  False,  1.0,            "Token loss coefficient"),
-    ("model.span_loss_coef",        float,  False,  1.0,            "Span loss coefficient"),
-    ("model.encoder_config",        (dict, type(None)),   False,  None,   "Encoder config override"),
-    ("model._attn_implementation",  (str, type(None)),    False,  None,   "Attention implementation"),
-    ("model.vocab_size",            int,    False,  -1,             "Vocabulary size override"),
-
+    ("model.model_name", str, True, None, "Backbone model name/path"),
+    ("model.name", str, False, "gliner", "Model display name"),
+    ("model.labels_encoder", (str, type(None)), False, None, "Bi-encoder labels model"),
+    ("model.labels_decoder", (str, type(None)), False, None, "Decoder model for generative labels"),
+    ("model.decoder_mode", (str, type(None)), False, None, "Decoder mode (span/prompt)"),
+    ("model.full_decoder_context", bool, False, True, "Full context in decoder"),
+    ("model.blank_entity_prob", float, False, 0.1, "Blank entity probability"),
+    ("model.decoder_loss_coef", float, False, 0.5, "Decoder loss coefficient"),
+    ("model.relations_layer", (str, type(None)), False, None, "Relation extraction layer"),
+    ("model.triples_layer", (str, type(None)), False, None, "Triples layer"),
+    ("model.embed_rel_token", bool, False, True, "Embed relation token"),
+    ("model.rel_token_index", int, False, -1, "Relation token index"),
+    ("model.rel_token", str, False, "<<REL>>", "Relation marker token"),
+    ("model.adjacency_loss_coef", float, False, 1.0, "Adjacency loss coefficient"),
+    ("model.relation_loss_coef", float, False, 1.0, "Relation loss coefficient"),
+    ("model.span_mode", str, True, None, "Span mode (markerV0 / token_level)"),
+    ("model.max_width", int, False, 12, "Max entity span width"),
+    ("model.represent_spans", bool, False, False, "Explicit span representations"),
+    ("model.neg_spans_ratio", float, False, 1.0, "Negative spans ratio"),
+    ("model.hidden_size", int, False, 512, "Projection hidden size"),
+    ("model.dropout", float, False, 0.4, "Dropout probability"),
+    ("model.fine_tune", bool, False, True, "Fine-tune encoder"),
+    ("model.subtoken_pooling", str, False, "first", "Sub-token pooling strategy"),
+    ("model.fuse_layers", bool, False, False, "Fuse layers"),
+    ("model.post_fusion_schema", (str, type(None)), False, "", "Post-fusion schema"),
+    ("model.num_post_fusion_layers", int, False, 1, "Post-fusion layer count"),
+    ("model.num_rnn_layers", int, False, 1, "Bi-LSTM layers"),
+    ("model.max_len", int, True, None, "Max sequence length"),
+    ("model.max_types", int, False, 25, "Max entity types per example"),
+    ("model.max_neg_type_ratio", int, False, 1, "Max neg/pos type ratio"),
+    ("model.words_splitter_type", str, False, "whitespace", "Word splitter"),
+    ("model.embed_ent_token", bool, False, True, "Embed entity token"),
+    ("model.class_token_index", int, False, -1, "Class token index"),
+    ("model.ent_token", str, False, "<<ENT>>", "Entity marker token"),
+    ("model.sep_token", str, False, "<<SEP>>", "Separator token"),
+    ("model.token_loss_coef", float, False, 1.0, "Token loss coefficient"),
+    ("model.span_loss_coef", float, False, 1.0, "Span loss coefficient"),
+    ("model.encoder_config", (dict, type(None)), False, None, "Encoder config override"),
+    ("model.labels_encoder_config", (dict, type(None)), False, None, "Labels encoder config snapshot"),
+    ("model.labels_decoder_config", (dict, type(None)), False, None, "Labels decoder config snapshot"),
+    ("model._attn_implementation", (str, type(None)), False, None, "Attention implementation"),
+    ("model.vocab_size", int, False, -1, "Vocabulary size override"),
     # -- data --
-    ("data.root_dir",       str,    True,   None,       "Root log directory"),
-    ("data.train_data",     str,    True,   None,       "Training data path"),
-    ("data.val_data_dir",   str,    False,  "none",     "Validation data path"),
-
+    ("data.root_dir", str, True, None, "Root log directory"),
+    ("data.train_data", str, True, None, "Training data path"),
+    ("data.val_data_dir", str, False, "none", "Validation data path"),
     # -- training --
-    ("training.prev_path",                  (str, type(None)),  False,  None,   "Pretrained checkpoint"),
-    ("training.num_steps",                  int,    True,   None,       "Total training steps"),
-    ("training.scheduler_type",             str,    False,  "cosine",   "LR scheduler type"),
-    ("training.warmup_ratio",               float,  False,  0.1,        "Warmup ratio"),
-    ("training.train_batch_size",           int,    True,   None,       "Per-device train batch size"),
-    ("training.eval_batch_size",            (int, type(None)),  False,  None,   "Per-device eval batch size"),
-    ("training.gradient_accumulation_steps", int,   False,  1,          "Gradient accumulation steps"),
-    ("training.max_grad_norm",              float,  False,  1.0,        "Max gradient norm"),
-    ("training.optimizer",                  str,    False,  "adamw_torch", "Optimizer"),
-    ("training.lr_encoder",                 float,  True,   None,       "Encoder learning rate"),
-    ("training.lr_others",                  float,  True,   None,       "Others learning rate"),
-    ("training.weight_decay_encoder",       float,  False,  0.01,       "Encoder weight decay"),
-    ("training.weight_decay_other",         float,  False,  0.01,       "Others weight decay"),
-    ("training.loss_alpha",                 (float, int),  False,  -1,  "Focal loss alpha"),
-    ("training.loss_gamma",                 (float, int),  False,  0,   "Focal loss gamma"),
-    ("training.loss_prob_margin",           (float, int),  False,  0,   "Focal loss prob margin"),
-    ("training.label_smoothing",            (float, int),  False,  0,   "Label smoothing"),
-    ("training.loss_reduction",             str,    False,  "sum",      "Loss reduction"),
-    ("training.negatives",                  float,  False,  1.0,        "Negative sampling ratio"),
-    ("training.masking",                    str,    False,  "global",   "Masking strategy"),
-    ("training.eval_every",                 int,    True,   None,       "Eval/save interval (steps)"),
-    ("training.save_total_limit",           int,    False,  3,          "Max checkpoints kept"),
-    ("training.logging_steps",              (int, type(None)),  False,  None,   "Logging interval"),
-    ("training.bf16",                       bool,   False,  False,      "bfloat16 precision"),
-    ("training.fp16",                       bool,   False,  False,      "float16 precision"),
-    ("training.use_cpu",                    bool,   False,  False,      "Force CPU"),
-    ("training.dataloader_num_workers",     int,    False,  2,          "Dataloader workers"),
-    ("training.dataloader_pin_memory",      bool,   False,  True,       "Pin memory"),
-    ("training.dataloader_persistent_workers", bool, False, False,      "Persistent workers"),
-    ("training.dataloader_prefetch_factor",  int,   False,  2,          "Prefetch factor"),
-    ("training.freeze_components",          (list, type(None)),  False,  None,  "Components to freeze"),
-    ("training.gradient_checkpointing",     bool,   False,  False,      "Gradient checkpointing"),
-    ("training.eval_steps",                 (int, type(None)),  False,  None,   "Eval steps override (defaults to eval_every)"),
-    ("training.compile_model",              bool,   False,  False,      "torch.compile"),
-
+    ("training.prev_path", (str, type(None)), False, None, "Pretrained checkpoint"),
+    ("training.num_steps", int, True, None, "Total training steps"),
+    ("training.scheduler_type", str, False, "cosine", "LR scheduler type"),
+    ("training.warmup_ratio", float, False, 0.1, "Warmup ratio"),
+    ("training.train_batch_size", int, True, None, "Per-device train batch size"),
+    ("training.eval_batch_size", (int, type(None)), False, None, "Per-device eval batch size"),
+    ("training.gradient_accumulation_steps", int, False, 1, "Gradient accumulation steps"),
+    ("training.max_grad_norm", float, False, 1.0, "Max gradient norm"),
+    ("training.optimizer", str, False, "adamw_torch", "Optimizer"),
+    ("training.lr_encoder", float, True, None, "Encoder learning rate"),
+    ("training.lr_others", float, True, None, "Others learning rate"),
+    ("training.weight_decay_encoder", float, False, 0.01, "Encoder weight decay"),
+    ("training.weight_decay_other", float, False, 0.01, "Others weight decay"),
+    ("training.loss_alpha", (float, int), False, -1, "Focal loss alpha"),
+    ("training.loss_gamma", (float, int), False, 0, "Focal loss gamma"),
+    ("training.loss_prob_margin", (float, int), False, 0, "Focal loss prob margin"),
+    ("training.label_smoothing", (float, int), False, 0, "Label smoothing"),
+    ("training.loss_reduction", str, False, "sum", "Loss reduction"),
+    ("training.negatives", float, False, 1.0, "Negative sampling ratio"),
+    ("training.masking", str, False, "global", "Masking strategy"),
+    ("training.eval_every", int, True, None, "Eval/save interval (steps)"),
+    ("training.save_total_limit", int, False, 3, "Max checkpoints kept"),
+    ("training.logging_steps", (int, type(None)), False, None, "Logging interval"),
+    ("training.bf16", bool, False, False, "bfloat16 precision"),
+    ("training.fp16", bool, False, False, "float16 precision"),
+    ("training.use_cpu", bool, False, False, "Force CPU"),
+    ("training.dataloader_num_workers", int, False, 2, "Dataloader workers"),
+    ("training.dataloader_pin_memory", bool, False, True, "Pin memory"),
+    ("training.dataloader_persistent_workers", bool, False, False, "Persistent workers"),
+    ("training.dataloader_prefetch_factor", int, False, 2, "Prefetch factor"),
+    ("training.freeze_components", (list, type(None)), False, None, "Components to freeze"),
+    ("training.gradient_checkpointing", bool, False, False, "Gradient checkpointing"),
+    ("training.eval_steps", (int, type(None)), False, None, "Eval steps override (defaults to eval_every)"),
+    ("training.compile_model", bool, False, False, "torch.compile"),
     # -- lora --
-    ("lora.enabled",        bool,   False,  False,              "Enable LoRA"),
-    ("lora.r",              int,    False,  8,                  "LoRA rank"),
-    ("lora.lora_alpha",     int,    False,  16,                 "LoRA alpha"),
-    ("lora.lora_dropout",   float,  False,  0.05,               "LoRA dropout"),
-    ("lora.bias",           str,    False,  "none",             "LoRA bias mode"),
-    ("lora.target_modules",  list,  False,  ["q_proj", "v_proj"], "LoRA target modules"),
-    ("lora.task_type",      str,    False,  "TOKEN_CLS",        "PEFT task type"),
-    ("lora.modules_to_save", (list, type(None)), False, None,   "Modules to save"),
-
+    ("lora.enabled", bool, False, False, "Enable LoRA"),
+    ("lora.r", int, False, 8, "LoRA rank"),
+    ("lora.lora_alpha", int, False, 16, "LoRA alpha"),
+    ("lora.lora_dropout", float, False, 0.05, "LoRA dropout"),
+    ("lora.bias", str, False, "none", "LoRA bias mode"),
+    ("lora.target_modules", list, False, ["q_proj", "v_proj"], "LoRA target modules"),
+    ("lora.task_type", str, False, "TOKEN_CLS", "PEFT task type"),
+    ("lora.modules_to_save", (list, type(None)), False, None, "Modules to save"),
+    ("lora.init_lora_weights", bool, False, True, "Initialize LoRA weights"),
+    ("lora.use_rslora", bool, False, False, "Use rank-stabilized LoRA"),
+    ("lora.fan_in_fan_out", bool, False, False, "Fan in/out for Conv1D layers"),
     # -- environment --
-    ("environment.push_to_hub",         bool,   False,  False,  "Push to HF Hub"),
-    ("environment.hub_model_id",        (str, type(None)),  False,  None,   "HF Hub model id"),
-    ("environment.hf_token",            (str, type(None)),  False,  None,   "HF token override"),
-    ("environment.report_to",           str,    False,  "none", "Reporting backend"),
-    ("environment.wandb_project",       (str, type(None)),  False,  None,   "WandB project"),
-    ("environment.wandb_entity",        (str, type(None)),  False,  None,   "WandB entity"),
-    ("environment.wandb_api_key",       (str, type(None)),  False,  None,   "WandB API key override"),
-    ("environment.cuda_visible_devices", (str, type(None)), False, None,    "CUDA visible devices"),
+    ("environment.push_to_hub", bool, False, False, "Push to HF Hub"),
+    ("environment.hub_model_id", (str, type(None)), False, None, "HF Hub model id"),
+    ("environment.hf_token", (str, type(None)), False, None, "HF token override"),
+    ("environment.report_to", str, False, "none", "Reporting backend"),
+    ("environment.wandb_project", (str, type(None)), False, None, "WandB project"),
+    ("environment.wandb_entity", (str, type(None)), False, None, "WandB entity"),
+    ("environment.wandb_api_key", (str, type(None)), False, None, "WandB API key override"),
+    ("environment.cuda_visible_devices", (str, type(None)), False, None, "CUDA visible devices"),
 ]
 
 
 # ======================================================================== #
 #  HELPERS                                                                  #
 # ======================================================================== #
+
 
 def _deep_get(d: dict, dotted_key: str) -> tuple[bool, Any]:
     """
@@ -233,12 +232,12 @@ def _deep_get(d: dict, dotted_key: str) -> tuple[bool, Any]:
 def _deep_set(d: dict, dotted_key: str, value: Any) -> None:
     """
     Set a value in a nested dictionary using a dotted path, creating intermediate mappings as needed.
-    
+
     Parameters:
         d (dict): Dictionary to modify in place.
         dotted_key (str): Dotted path to the target key (e.g., "section.sub.key"); intermediate mappings will be created when missing.
         value (Any): Value to assign to the final key.
-    
+
     Raises:
         ValueError: If a parent segment along the path exists but is not a mapping.
     """
@@ -246,15 +245,11 @@ def _deep_set(d: dict, dotted_key: str, value: Any) -> None:
     current = d
     for k in keys[:-1]:
         if not isinstance(current, dict):
-            raise ValueError(
-                f"Cannot set '{dotted_key}': parent object for '{k}' is not a mapping"
-            )
+            raise ValueError(f"Cannot set '{dotted_key}': parent object for '{k}' is not a mapping")
         if k not in current:
             current[k] = {}
         elif not isinstance(current[k], dict):
-            raise ValueError(
-                f"Cannot set '{dotted_key}': '{k}' exists but is not a mapping"
-            )
+            raise ValueError(f"Cannot set '{dotted_key}': '{k}' exists but is not a mapping")
         current = current[k]
     if not isinstance(current, dict):
         raise ValueError(f"Cannot set '{dotted_key}': parent is not a mapping")
@@ -264,10 +259,10 @@ def _deep_set(d: dict, dotted_key: str, value: Any) -> None:
 def _type_name(t: type | tuple) -> str:
     """
     Get a human-readable name for a type or a union of types.
-    
+
     Parameters:
         t (type | tuple): A type object or a tuple of type objects.
-    
+
     Returns:
         type_name (str): The type's name, or the names joined with " | " for a tuple.
     """
@@ -279,14 +274,14 @@ def _type_name(t: type | tuple) -> str:
 def _check_type(value: Any, expected: type | tuple[type, ...]) -> bool:
     """
     Determine whether a value matches the expected type constraints, treating integers as valid where floating-point values are allowed.
-    
+
     Parameters:
         value (Any): The value to validate.
         expected (type | tuple[type, ...]): A type or tuple of types that `value` should match.
-    
+
     Returns:
         bool: `True` if `value` matches any of the `expected` types (an `int` is accepted when `float` is expected), `False` otherwise.
-    
+
     Notes:
         A `bool` is treated as a distinct type and will not match unless `bool` is explicitly included in `expected`.
     """
@@ -311,10 +306,7 @@ def _is_sensitive_config_key(dotted_key: str) -> bool:
     if not lower.startswith("environment."):
         return False
     leaf = lower.split(".")[-1]
-    return any(
-        marker in leaf
-        for marker in ("token", "api_key", "apikey", "secret", "password")
-    )
+    return any(marker in leaf for marker in ("token", "api_key", "apikey", "secret", "password"))
 
 
 def _sanitize_for_display(dotted_key: str, value: Any) -> Any:
@@ -330,13 +322,14 @@ def _sanitize_for_display(dotted_key: str, value: Any) -> Any:
 #  VALIDATION ENGINE                                                        #
 # ======================================================================== #
 
+
 class ValidationResult:
     """Accumulates validation outcomes for every config field."""
 
     def __init__(self) -> None:
         """
         Create an empty ValidationResult used to collect configuration validation outcomes.
-        
+
         Attributes:
             errors (list[str]): Collected error messages encountered during validation.
             warnings (list[str]): Collected warning messages about non-fatal issues or defaults applied.
@@ -346,7 +339,7 @@ class ValidationResult:
         """
         self.errors: list[str] = []
         self.warnings: list[str] = []
-        self.info: list[tuple[str, str, Any]] = []   # (key, status, value)
+        self.info: list[tuple[str, str, Any]] = []  # (key, status, value)
 
     @property
     def ok(self) -> bool:
@@ -387,10 +380,7 @@ def validate_config(cfg: dict) -> ValidationResult:
                 try:
                     _deep_set(cfg, dotted_key, default_value)
                 except ValueError as exc:
-                    msg = (
-                        f"[TYPE]     '{dotted_key}' cannot be defaulted because "
-                        f"a parent key is not a mapping ({exc})"
-                    )
+                    msg = f"[TYPE]     '{dotted_key}' cannot be defaulted because a parent key is not a mapping ({exc})"
                     result.errors.append(msg)
                     result.info.append((dotted_key, "ERROR", "PARENT_NOT_MAPPING"))
                     logger.error(msg)
@@ -433,9 +423,9 @@ def _check_extra_keys(
 ) -> None:
     """
     Warn about configuration keys that are not defined in the schema.
-    
+
     Scans a configuration subtree and appends a warning to the provided ValidationResult for every dotted key not present in the known schema set. Warnings describe the full dotted key path that will be ignored.
-    
+
     Parameters:
         cfg (dict): Configuration mapping or nested subtree to inspect.
         known (set[str]): Set of valid dotted keys defined by the schema.
@@ -456,31 +446,50 @@ def _check_extra_keys(
 #  CROSS-FIELD SEMANTIC CHECKS                                              #
 # ======================================================================== #
 
-_VALID_SPAN_MODES = {"markerV0", "token_level"}
+_VALID_SPAN_MODES = {
+    "markerV0",
+    "markerV1",
+    "marker",
+    "query",
+    "mlp",
+    "cat",
+    "conv_conv",
+    "conv_max",
+    "conv_mean",
+    "conv_sum",
+    "conv_share",
+    "token_level",
+}
 _VALID_SCHEDULERS = {
-    "linear", "cosine", "constant", "constant_with_warmup",
-    "polynomial", "inverse_sqrt",
+    "linear",
+    "cosine",
+    "constant",
+    "constant_with_warmup",
+    "polynomial",
+    "inverse_sqrt",
 }
 _VALID_OPTIMIZERS = {"adamw_torch", "adamw_hf", "adafactor", "sgd"}
 _VALID_LOSS_REDUCTIONS = {"sum", "mean", "none"}
 _VALID_MASKING = {"none", "global"}
 _VALID_REPORT_TO = {"none", "wandb", "tensorboard", "all"}
-_VALID_SUBTOKEN_POOLING = {"first", "mean"}
+_VALID_SUBTOKEN_POOLING = {"first", "mean", "max"}
 _VALID_LORA_BIAS = {"none", "all", "lora_only"}
 _VALID_ATTN_IMPL = {"eager", "sdpa", "flash_attention_2"}
+_VALID_WORDS_SPLITTER = {"whitespace", "spacy", "stanza", "mecab", "jieba", "janome", "camel"}
+_VALID_DECODER_MODES = {"span", "prompt"}
 
 
 def semantic_checks(cfg: dict, result: ValidationResult) -> None:
     """
     Run cross-field semantic validations and enum checks on a resolved configuration and record findings in the provided ValidationResult.
-    
+
     Performs:
     - Enum validation for several configuration keys and optional enums when present.
     - Presence checks for fields that are required by other fields (e.g., decoder_mode when labels_decoder is set).
     - Validation that reporting to WandB includes a wandb_project and that pushing to the Hub includes a hub_model_id.
     - Numeric sanity checks: ensures selected numeric fields are greater than zero and that bounded numeric fields fall inside their allowed ranges.
     - Mutual-exclusion check preventing both `training.bf16` and `training.fp16` from being enabled simultaneously.
-    
+
     Parameters:
         cfg (dict): Resolved configuration dictionary to validate.
         result (ValidationResult): Collector to which errors, warnings, and informational entries are appended.
@@ -494,10 +503,16 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
     _check_enum(cfg, result, "model.subtoken_pooling", _VALID_SUBTOKEN_POOLING)
     _check_enum(cfg, result, "lora.bias", _VALID_LORA_BIAS)
 
+    _check_enum(cfg, result, "model.words_splitter_type", _VALID_WORDS_SPLITTER)
+
     # Optional enums (only check if non-null)
     _, attn = _deep_get(cfg, "model._attn_implementation")
     if attn is not None:
         _check_enum(cfg, result, "model._attn_implementation", _VALID_ATTN_IMPL)
+
+    _, decoder_mode = _deep_get(cfg, "model.decoder_mode")
+    if decoder_mode is not None:
+        _check_enum(cfg, result, "model.decoder_mode", _VALID_DECODER_MODES)
 
     # Decoder fields require labels_decoder
     _, dec = _deep_get(cfg, "model.labels_decoder")
@@ -528,8 +543,11 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
 
     # Positive numeric checks
     for key in (
-        "training.num_steps", "training.train_batch_size", "training.eval_every",
-        "training.lr_encoder", "training.lr_others",
+        "training.num_steps",
+        "training.train_batch_size",
+        "training.eval_every",
+        "training.lr_encoder",
+        "training.lr_others",
     ):
         _, val = _deep_get(cfg, key)
         if val is not None and val <= 0:
@@ -562,18 +580,16 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
         logger.error(msg)
 
 
-def _check_enum(
-    cfg: dict, result: ValidationResult, key: str, valid: set[str]
-) -> None:
+def _check_enum(cfg: dict, result: ValidationResult, key: str, valid: set[str]) -> None:
     """
     Validate that the configuration field at `key` (dotted path) is either `None` or one of the allowed string values, and record an error if it is not.
-    
+
     Parameters:
         cfg (dict): Configuration mapping to read the dotted `key` from.
         result (ValidationResult): Collector for validation errors and warnings; an error is appended here when the value is invalid.
         key (str): Dotted path into `cfg` (e.g., "model.span_mode") to validate.
         valid (set[str]): Allowed string values for the configuration key.
-    
+
     Behavior:
         If the key exists in `cfg` with a non-None value that is not a member of `valid`, an error message is appended to `result.errors` and logged.
     """
@@ -609,12 +625,13 @@ def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> 
 #  API CONNECTIVITY CHECKS                                                  #
 # ======================================================================== #
 
+
 def check_huggingface(cfg: dict, result: ValidationResult) -> None:
     """
     Validate HuggingFace authentication when repository upload is requested and record any failures in `result`.
-    
+
     If `environment.push_to_hub` is true, the function looks for a token in `environment.hf_token` or the `HF_TOKEN` environment variable; if no token is found it appends an error to `result`. When a token is present the function calls the HuggingFace whoami API and on success logs the authenticated username; on non-200 responses or exceptions it appends an error describing the failure to `result`.
-    
+
     Parameters:
         cfg (dict): Resolved configuration dictionary.
         result (ValidationResult): Collector for validation errors, warnings, and info where authentication failures will be recorded.
@@ -634,6 +651,7 @@ def check_huggingface(cfg: dict, result: ValidationResult) -> None:
 
     try:
         import requests
+
         resp = requests.get(
             "https://huggingface.co/api/whoami-v2",
             headers={"Authorization": f"Bearer {token}"},
@@ -656,12 +674,12 @@ def check_huggingface(cfg: dict, result: ValidationResult) -> None:
 def check_wandb(cfg: dict, result: ValidationResult) -> None:
     """
     Validate Weights & Biases credentials when WandB reporting is enabled.
-    
+
     If `environment.report_to` in `cfg` includes "wandb" or "all", this function ensures an API key is provided
     (either `cfg["environment"]["wandb_api_key"]` or the `WANDB_API_KEY` environment variable) and verifies it
     by calling the WandB API. On verification failure or if no key is found, a descriptive error is appended to
     `result.errors`; on success the authenticated username is logged.
-    
+
     Parameters:
         cfg (dict): Resolved configuration dictionary.
         result (ValidationResult): ValidationResult instance used to record validation errors and warnings.
@@ -681,6 +699,7 @@ def check_wandb(cfg: dict, result: ValidationResult) -> None:
 
     try:
         import requests
+
         resp = requests.post(
             "https://api.wandb.ai/graphql",
             headers={"Authorization": f"Bearer {key}"},
@@ -689,9 +708,7 @@ def check_wandb(cfg: dict, result: ValidationResult) -> None:
         )
         if resp.status_code == 200:
             data = resp.json()
-            username = (
-                data.get("data", {}).get("viewer", {}).get("username", "unknown")
-            )
+            username = data.get("data", {}).get("viewer", {}).get("username", "unknown")
             logger.info(f"[WANDB]    Authenticated as '{username}'")
         else:
             msg = f"WandB API returned status {resp.status_code}: {resp.text[:200]}"
@@ -707,16 +724,17 @@ def check_wandb(cfg: dict, result: ValidationResult) -> None:
 #  RESUME CHECK                                                             #
 # ======================================================================== #
 
+
 def check_resume(cfg: dict, output_folder: Path, result: ValidationResult) -> None:
     """
     Validate that the given output folder contains a compatible checkpoint and saved configuration for resuming the run.
-    
+
     Performs these checks and records errors on `result` when they fail:
     - `cfg` must contain `run.name`.
     - `output_folder` must contain at least one `checkpoint-*` directory.
     - `output_folder/config.yaml` must exist.
     - The saved config's `run.name` must match `cfg["run"]["name"]`.
-    
+
     Parameters:
         cfg (dict): Resolved configuration dictionary (expects `run.name` to identify the run).
         output_folder (Path): Path to the run's output directory to inspect for checkpoints and saved config.
@@ -750,10 +768,7 @@ def check_resume(cfg: dict, output_folder: Path, result: ValidationResult) -> No
 
     saved_name = saved_cfg.get("run", {}).get("name", "")
     if saved_name != run_name:
-        msg = (
-            f"Cannot resume: run.name mismatch -- "
-            f"config says '{run_name}' but checkpoint has '{saved_name}'"
-        )
+        msg = f"Cannot resume: run.name mismatch -- config says '{run_name}' but checkpoint has '{saved_name}'"
         result.errors.append(msg)
         logger.error(msg)
         return
@@ -766,15 +781,16 @@ def check_resume(cfg: dict, output_folder: Path, result: ValidationResult) -> No
 #  RICH SUMMARY TABLE                                                       #
 # ======================================================================== #
 
+
 def print_summary(result: ValidationResult) -> str:
     """
     Render and print a Rich-formatted configuration validation summary to the console and return a plain-text version.
-    
+
     Prints a colored table of per-field statuses and panels for warnings and errors to the module Rich console (stderr). Also builds and returns a plain-text, multi-line summary suitable for saving to a file.
-    
+
     Parameters:
         result (ValidationResult): Aggregated validation outcome containing per-field info tuples (key, status, value), plus lists of warnings and errors.
-    
+
     Returns:
         str: Plain-text multi-line summary describing each checked field, followed by warnings and errors counts and details.
     """
@@ -844,23 +860,20 @@ def print_summary(result: ValidationResult) -> str:
     else:
         console.print(
             Panel(
-                f"[bold red]Validation FAILED[/] -- "
-                f"{len(result.errors)} error(s)",
+                f"[bold red]Validation FAILED[/] -- {len(result.errors)} error(s)",
                 border_style="red",
             )
         )
 
     lines.append("")
-    lines.append(
-        f"Total: {len(result.info)} fields | "
-        f"{len(result.warnings)} warnings | {len(result.errors)} errors"
-    )
+    lines.append(f"Total: {len(result.info)} fields | {len(result.warnings)} warnings | {len(result.errors)} errors")
     return "\n".join(lines)
 
 
 # ======================================================================== #
 #  MAIN COMMAND                                                             #
 # ======================================================================== #
+
 
 @app.command()
 def main(
@@ -876,13 +889,10 @@ def main(
         "--validate",
         help="Validate the config and exit without training.",
     ),
-    output_folder: Optional[Path] = typer.Option(
+    output_folder: Path | None = typer.Option(
         None,
         "--output-folder",
-        help=(
-            "Root output folder for checkpoints and logs. "
-            "Must be empty unless --resume is passed."
-        ),
+        help=("Root output folder for checkpoints and logs. Must be empty unless --resume is passed."),
     ),
     resume: bool = typer.Option(
         False,
@@ -894,7 +904,7 @@ def main(
     ),
 ) -> None:
     """Validate configuration and optionally launch a GLiNER training run."""
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
     # ---- Load YAML ----
     logger.info(f"Loading config from {config}")
@@ -934,13 +944,7 @@ def main(
             # Must be empty
             existing = list(output_folder.iterdir())
             # Allow the log file we just created
-            non_log = [
-                p for p in existing
-                if not (
-                    p.name.startswith("validation_")
-                    or p.name.startswith("summary_")
-                )
-            ]
+            non_log = [p for p in existing if not (p.name.startswith("validation_") or p.name.startswith("summary_"))]
             if non_log:
                 msg = (
                     f"--output-folder '{output_folder}' is not empty "
@@ -990,6 +994,7 @@ def main(
 #  TRAINING LAUNCHER                                                        #
 # ======================================================================== #
 
+
 def _resolve_data_path(path_value: str, config_dir: Path) -> Path:
     """Resolve dataset paths relative to the YAML config directory."""
     path = Path(path_value).expanduser()
@@ -1006,7 +1011,7 @@ def _launch_training(
 ) -> None:
     """
     Prepare model, datasets, and environment then start GLiNER training according to the resolved configuration.
-    
+
     Parameters:
         cfg (dict): Resolved configuration dictionary containing sections "run", "model",
             "data", "training", "lora", and "environment".
@@ -1026,6 +1031,7 @@ def _launch_training(
     # -- Seed --
     seed = cfg["run"]["seed"]
     torch.manual_seed(seed)
+    run_name = cfg["run"].get("name", "")
 
     # -- CUDA --
     cuda_devs = cfg["environment"].get("cuda_visible_devices")
@@ -1144,8 +1150,14 @@ def _launch_training(
         save_total_limit=train_cfg["save_total_limit"],
         # Evaluation — run eval at the same cadence as checkpointing when
         # an eval dataset is available.
-        **({"eval_strategy": "steps", "eval_steps": val if (val := train_cfg.get("eval_steps")) is not None else train_cfg["eval_every"]}
-           if eval_dataset is not None else {}),
+        **(
+            {
+                "eval_strategy": "steps",
+                "eval_steps": val if (val := train_cfg.get("eval_steps")) is not None else train_cfg["eval_every"],
+            }
+            if eval_dataset is not None
+            else {}
+        ),
         # Precision
         bf16=train_cfg.get("bf16", False),
         fp16=train_cfg.get("fp16", False),
@@ -1177,7 +1189,7 @@ def _launch_training(
 def _apply_lora(model: Any, lora_cfg: dict) -> None:
     """
     Apply a LoRA adapter to the model's HuggingFace backbone in-place.
-    
+
     Parameters:
         model (Any): Model expected to contain a HuggingFace PreTrainedModel backbone at
             `model.model.token_rep_layer.bert_layer.model`. When found, that attribute is
@@ -1185,7 +1197,7 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
         lora_cfg (dict): LoRA configuration with required keys `r`, `lora_alpha`,
             `lora_dropout`, `bias`, and `target_modules`. Optional keys include
             `task_type` and `modules_to_save`.
-    
+
     Raises:
         typer.Exit: If the `peft` package is not installed.
     """
@@ -1200,6 +1212,7 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
         "SEQ_CLS": TaskType.SEQ_CLS,
         "CAUSAL_LM": TaskType.CAUSAL_LM,
         "SEQ_2_SEQ_LM": TaskType.SEQ_2_SEQ_LM,
+        "FEATURE_EXTRACTION": TaskType.FEATURE_EXTRACTION,
     }
     task_type = task_map.get(lora_cfg.get("task_type", "TOKEN_CLS"), TaskType.TOKEN_CLS)
 
@@ -1225,19 +1238,14 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
         backbone = None
 
     if backbone is not None:
-        model.model.token_rep_layer.bert_layer.model = get_peft_model(
-            backbone, peft_config
-        )
+        model.model.token_rep_layer.bert_layer.model = get_peft_model(backbone, peft_config)
         logger.info(
             f"[LORA]     Applied LoRA (r={lora_cfg['r']}, "
             f"alpha={lora_cfg['lora_alpha']}) to "
             f"token_rep_layer.bert_layer.model (PreTrainedModel backbone)"
         )
     else:
-        logger.warning(
-            "[LORA]     Could not locate "
-            "model.model.token_rep_layer.bert_layer.model; LoRA not applied"
-        )
+        logger.warning("[LORA]     Could not locate model.model.token_rep_layer.bert_layer.model; LoRA not applied")
 
 
 # ======================================================================== #

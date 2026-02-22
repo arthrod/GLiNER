@@ -282,9 +282,9 @@ class TestSemanticChecks:
     def test_positive_num_steps(self, valid_cfg: dict) -> None:
         """
         Verify semantic validation reports an error when training.num_steps is not greater than zero.
-        
+
         This test sets `training.num_steps` to 0 and asserts that `ValidationResult` contains an error mentioning "num_steps".
-        
+
         Parameters:
             valid_cfg (dict): Baseline valid configuration used by the test.
         """
@@ -957,4 +957,3 @@ class TestLaunchTrainingPropagation:
         assert kwargs["eval_dataset"] is None
         assert "eval_strategy" not in kwargs
         assert "eval_steps" not in kwargs
-            
