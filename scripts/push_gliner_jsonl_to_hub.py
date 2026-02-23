@@ -82,16 +82,26 @@ def _normalize_ner(ner: Any) -> list[dict[str, Any]]:
             try:
                 start = int(item[0])
                 end = int(item[1])
-                label = str(item[2])
+                label_val = item[2]
             except (TypeError, ValueError):
+                continue
+            if label_val is None:
+                continue
+            label = str(label_val).strip()
+            if not label:
                 continue
             out.append({"start": start, "end": end, "label": label})
         elif isinstance(item, dict):
             try:
                 start = int(item.get("start"))
                 end = int(item.get("end"))
-                label = str(item.get("label"))
+                label_val = item.get("label")
             except (TypeError, ValueError):
+                continue
+            if label_val is None:
+                continue
+            label = str(label_val).strip()
+            if not label:
                 continue
             out.append({"start": start, "end": end, "label": label})
     return out

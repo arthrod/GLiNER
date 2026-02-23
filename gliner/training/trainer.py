@@ -347,7 +347,8 @@ class Trainer(transformers.Trainer):
 
         if self.args.dataloader_num_workers > 0:
             dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
+            if self.args.dataloader_prefetch_factor is not None:
+                dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(train_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_train_sampler()
@@ -385,7 +386,8 @@ class Trainer(transformers.Trainer):
 
         if self.args.dataloader_num_workers > 0:
             dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
+            if self.args.dataloader_prefetch_factor is not None:
+                dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(eval_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(eval_dataset)

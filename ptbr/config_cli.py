@@ -383,7 +383,7 @@ def _validate_cross_constraints(
             f"Method is 'token' but span_mode is {span_mode!r}; forcing to 'token_level'.",
         )
         gliner_data["span_mode"] = "token_level"
-    elif method in ("span", "biencoder", "decoder", "relex") and span_mode == "token_level":
+    elif method == "span" and span_mode == "token_level":
         report.add_error(
             "gliner_config.span_mode",
             f"Method is {method!r} but span_mode is 'token_level'. These select different "

@@ -630,7 +630,7 @@ def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> 
         val_data = val_data.strip()
         if val_data and val_data.lower() not in ("none", "null"):
             val_source, val_split, val_is_hf = _resolve_data_source(
-                val_data, config_dir, default_split="eval"
+                val_data, config_dir, default_split="validation"
             )
             if val_is_hf:
                 logger.info(
@@ -1207,7 +1207,7 @@ def _launch_training(
     val_path = cfg["data"].get("val_data_dir", "none")
     if val_path and val_path.lower() not in ("none", "null", ""):
         val_source, val_split, val_is_hf = _resolve_data_source(
-            val_path, config_dir, default_split="eval"
+            val_path, config_dir, default_split="validation"
         )
         if val_is_hf:
             logger.info(f"Loading validation data from HF dataset '{val_source}' (split='{val_split}')")
@@ -1230,9 +1230,16 @@ def _launch_training(
     # -- Resume checkpoint detection --
     resume_checkpoint = None
     if resume:
-        checkpoint_dirs = sorted(output_folder.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[-1]))
+        checkpoint_dirs = []
+        for p in output_folder.glob("checkpoint-*"):
+            try:
+                idx = int(p.name.split("-")[-1])
+            except ValueError:
+                continue
+            checkpoint_dirs.append((idx, p))
+        checkpoint_dirs.sort(key=lambda x: x[0])
         if checkpoint_dirs:
-            resume_checkpoint = str(checkpoint_dirs[-1])
+            resume_checkpoint = str(checkpoint_dirs[-1][1])
             logger.info(f"Resuming from checkpoint: {resume_checkpoint}")
 
     # -- Hub fields --
