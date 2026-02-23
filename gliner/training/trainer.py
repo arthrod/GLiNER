@@ -8,6 +8,7 @@ for different parameter groups, and robust error handling during training.
 import os
 import inspect
 import logging
+import warnings
 from typing import Any, Dict, List, Tuple, Union, Optional
 from dataclasses import field, dataclass
 
@@ -92,6 +93,36 @@ class Trainer(transformers.Trainer):
     - no hard dependency on self.use_apex
     - skips only OOM by default (other exceptions are raised so you don't silently get 0 loss)
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Warn about potential double-scaling of the loss during gradient accumulation.
+        # This custom Trainer manually divides the loss by gradient_accumulation_steps
+        # in training_step() because HF Trainer v4.47+ no longer passes that value to
+        # the Accelerator (it stays at 1).  If someone separately configures the
+        # Accelerator with gradient_accumulation_steps > 1 (e.g. via the
+        # ACCELERATE_GRADIENT_ACCUMULATION_STEPS env var or
+        # AcceleratorConfig.gradient_accumulation_kwargs.num_steps), the Accelerator
+        # will ALSO divide the loss, leading to double-scaling.
+        if (
+            getattr(self.accelerator, "gradient_accumulation_steps", 1) > 1
+            and self.args.gradient_accumulation_steps > 1
+        ):
+            warnings.warn(
+                "Both the Accelerator and TrainingArguments have "
+                "gradient_accumulation_steps > 1 "
+                f"(accelerator={self.accelerator.gradient_accumulation_steps}, "
+                f"args={self.args.gradient_accumulation_steps}). "
+                "This GLiNER Trainer manually divides the loss by "
+                "args.gradient_accumulation_steps in training_step(), so the "
+                "Accelerator will apply a SECOND division, causing double-scaling. "
+                "To fix this, either (a) remove the external Accelerator config "
+                "(e.g. unset ACCELERATE_GRADIENT_ACCUMULATION_STEPS) or "
+                "(b) set gradient_accumulation_steps=1 in TrainingArguments and "
+                "let the Accelerator handle it alone.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def _save(self, output_dir: str = None, state_dict=None):
         # called by HF during checkpoint saves

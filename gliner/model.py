@@ -575,6 +575,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         load_onnx_model: Optional[bool] = False,
         onnx_model_file: Optional[str] = "model.onnx",
         session_options=None,
+        trust_remote_code: bool = False,
         # Config overrides
         max_length: Optional[int] = None,
         max_width: Optional[int] = None,
@@ -602,6 +603,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             load_onnx_model: Whether to load ONNX model instead of PyTorch.
             onnx_model_file: Path to ONNX model file.
             session_options: ONNX runtime session options.
+            trust_remote_code: Whether to allow execution of custom code from
+                model repositories when loading backbone/decoder models.
             max_length: Override max_length in config.
             max_width: Override max_width in config.
             post_fusion_schema: Override post_fusion_schema in config.
@@ -629,6 +632,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             post_fusion_schema=post_fusion_schema,
             _attn_implementation=_attn_implementation,
         )
+        # Propagate remote-code trust policy to downstream encoder/decoder loaders.
+        config.trust_remote_code = trust_remote_code
 
         # Load tokenizer
         if load_tokenizer is None:
@@ -1110,6 +1115,19 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             if output_dir is None:
                 raise ValueError("Either training_args or output_dir must be provided")
             training_args = self.create_training_args(output_dir=output_dir, **training_kwargs)
+
+        # Auto-enable evaluation when an eval_dataset is provided but
+        # eval_strategy was never set (defaults to "no").  Using "steps"
+        # because this codebase commonly trains with max_steps, not epochs.
+        if eval_dataset is not None:
+            current_strategy = getattr(training_args, "eval_strategy",
+                                       getattr(training_args, "evaluation_strategy", "no"))
+            if current_strategy == "no":
+                training_args.eval_strategy = "steps"
+                # If no explicit eval_steps, fall back to save_steps so that
+                # evaluation runs at the same cadence as checkpointing.
+                if getattr(training_args, "eval_steps", None) is None:
+                    training_args.eval_steps = training_args.save_steps
 
         # Compile model if requested
         if compile_model:
@@ -3110,6 +3128,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
         compile_torch_model: Optional[bool] = False,
         load_onnx_model: Optional[bool] = False,
         onnx_model_file: Optional[str] = "model.onnx",
+        trust_remote_code: bool = False,
         # Config overrides
         max_length: Optional[int] = None,
         max_width: Optional[int] = None,
@@ -3138,6 +3157,8 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             compile_torch_model: Whether to compile with torch.compile.
             load_onnx_model: Whether to load ONNX model instead of PyTorch.
             onnx_model_file: Path to ONNX model file.
+            trust_remote_code: Whether to allow execution of custom code from
+                model repositories when loading backbone/decoder models.
             max_length: Override max_length in config.
             max_width: Override max_width in config.
             post_fusion_schema: Override post_fusion_schema in config.
@@ -3199,6 +3220,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             load_tokenizer=load_tokenizer,
             resize_token_embeddings=resize_token_embeddings,
             compile_torch_model=compile_torch_model,
+            trust_remote_code=trust_remote_code,
             max_length=max_length,
             max_width=max_width,
             post_fusion_schema=post_fusion_schema,

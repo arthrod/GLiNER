@@ -1,0 +1,61 @@
+[
+  {
+    "id": "row-0-ok",
+    "tokenized_text": ["The", "Eiffel", "Tower", "is", "in", "Paris", "."],
+    "ner": [[1, 2, "Landmark"], [5, 5, "City"]]
+  },
+  {
+    "id": "row-1-ok",
+    "tokenized_text": ["Google", "was", "founded", "in", "1998", "."],
+    "ner": [[0, 0, "Company"], [4, 4, "Date"]]
+  },
+  {
+    "id": "row-2-GOTCHA-float-index",
+    "tokenized_text": ["Marie", "Curie", "won", "the", "Nobel", "Prize", "."],
+    "ner": [[0, 1.0, "Person"], [4, 5, "Award"]]
+  },
+  {
+    "id": "row-3-ok",
+    "tokenized_text": ["Tokyo", "is", "the", "capital", "of", "Japan", "."],
+    "ner": [[0, 0, "City"], [5, 5, "Country"]]
+  },
+  {
+    "id": "row-4-GOTCHA-label-is-int",
+    "tokenized_text": ["The", "Amazon", "River", "flows", "through", "Brazil", "."],
+    "ner": [[1, 2, "River"], [5, 5, 3]]
+  },
+  {
+    "id": "row-5-ok",
+    "tokenized_text": ["Shakespeare", "wrote", "Hamlet", "."],
+    "ner": [[0, 0, "Person"], [2, 2, "Work"]]
+  },
+  {
+    "id": "row-6-GOTCHA-end-equals-len",
+    "tokenized_text": ["Mount", "Everest"],
+    "ner": [[0, 2, "Mountain"]]
+  },
+  {
+    "id": "row-7-ok",
+    "tokenized_text": ["Python", "is", "a", "programming", "language", "."],
+    "ner": [[0, 0, "Language"], [3, 4, "Concept"]]
+  },
+  {
+    "id": "row-8-GOTCHA-span-has-4-elements",
+    "tokenized_text": ["The", "Mona", "Lisa", "hangs", "in", "the", "Louvre", "."],
+    "ner": [[1, 2, "Artwork", 0.99], [6, 6, "Museum"]]
+  },
+  {
+    "id": "row-9-ok",
+    "tokenized_text": ["Water", "boils", "at", "100", "degrees", "Celsius", "."],
+    "ner": [[3, 5, "Measurement"]]
+  },
+  {
+    "id": "row-10-GOTCHA-missing-ner",
+    "tokenized_text": ["This", "sentence", "forgot", "its", "annotations", "."]
+  },
+  {
+    "id": "row-11-ok",
+    "tokenized_text": ["Einstein", "published", "relativity", "in", "1905", "."],
+    "ner": [[0, 0, "Person"], [2, 2, "Theory"], [4, 4, "Date"]]
+  }
+]

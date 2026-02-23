@@ -1,0 +1,26 @@
+[
+  {
+    "id": "rel-oob",
+    "tokenized_text": ["Obama", "visited", "Paris", "."],
+    "ner": [[0, 0, "Person"], [2, 2, "City"]],
+    "relations": [[0, 5, "visited"]]
+  },
+  {
+    "id": "rel-type-is-int",
+    "tokenized_text": ["Obama", "visited", "Paris", "."],
+    "ner": [[0, 0, "Person"], [2, 2, "City"]],
+    "relations": [[0, 1, 42]]
+  },
+  {
+    "id": "rel-wrong-shape",
+    "tokenized_text": ["Obama", "visited", "Paris", "."],
+    "ner": [[0, 0, "Person"], [2, 2, "City"]],
+    "relations": [[0, 1]]
+  },
+  {
+    "id": "rel-is-string",
+    "tokenized_text": ["Obama", "visited", "Paris", "."],
+    "ner": [[0, 0, "Person"], [2, 2, "City"]],
+    "relations": "Person-visited-City"
+  }
+]

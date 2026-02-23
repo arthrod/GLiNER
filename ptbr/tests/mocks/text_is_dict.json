@@ -1,0 +1,7 @@
+[
+  {
+    "id": "spacy-export",
+    "tokenized_text": {"tokens": ["Hello", "world"], "spaces": [true, false]},
+    "ner": [[0, 1, "Greeting"]]
+  }
+]

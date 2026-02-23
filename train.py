@@ -49,25 +49,35 @@ def main(cfg_path: str):
     # Build model
     model = build_model(model_cfg, train_cfg).to(dtype=torch.float32)
     print(f"Model type: {model.__class__.__name__}")
-    
+
     # Get freeze components
     freeze_components = train_cfg.get("freeze_components", None)
     if freeze_components:
         print(f"Freezing components: {freeze_components}")
+
+    eval_batch_size = (
+        train_cfg.get("eval_batch_size")
+        or getattr(cfg.training, "eval_batch_size", None)
+        or cfg.training.train_batch_size
+    )
+    logging_steps = (
+        train_cfg.get("logging_steps") or getattr(cfg.training, "logging_steps", None) or cfg.training.eval_every
+    )
+    label_smoothing = float(getattr(cfg.training, "label_smoothing", 0))
 
     # Train
     print("\nStarting training...")
     model.train_model(
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        output_dir="models",
+        output_dir=str(output_dir),
         # Schedule
         max_steps=cfg.training.num_steps,
         lr_scheduler_type=cfg.training.scheduler_type,
         warmup_ratio=cfg.training.warmup_ratio,
         # Batch & optimization
         per_device_train_batch_size=cfg.training.train_batch_size,
-        per_device_eval_batch_size=cfg.training.train_batch_size,
+        per_device_eval_batch_size=eval_batch_size,
         learning_rate=float(cfg.training.lr_encoder),
         others_lr=float(cfg.training.lr_others),
         weight_decay=float(cfg.training.weight_decay_encoder),
@@ -80,15 +90,18 @@ def main(cfg_path: str):
         loss_reduction=cfg.training.loss_reduction,
         negatives=float(cfg.training.negatives),
         masking=cfg.training.masking,
+        label_smoothing=label_smoothing,
         # Logging & saving
         save_steps=cfg.training.eval_every,
-        logging_steps=cfg.training.eval_every,
+        logging_steps=logging_steps,
         save_total_limit=cfg.training.save_total_limit,
+        # Evaluation — run eval at the same cadence as checkpointing when
+        # an eval dataset is available.
+        **({"eval_strategy": "steps", "eval_steps": cfg.training.eval_every} if eval_dataset is not None else {}),
         # Freezing
         freeze_components=freeze_components,
-
         # Dtype
-        bf16=True
+        bf16=getattr(cfg.training, "bf16", False),
     )
 
     print(f"\n✓ Training complete! Model saved to {output_dir}")
