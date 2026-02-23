@@ -1105,7 +1105,6 @@ def _launch_training(
     # -- Seed --
     seed = cfg["run"]["seed"]
     torch.manual_seed(seed)
-    run_name = cfg["run"].get("name", "")
 
     # -- CUDA --
     cuda_devs = cfg["environment"].get("cuda_visible_devices")

@@ -34,16 +34,26 @@ def _normalize_ner_spans(ner: Any) -> List[List[Any]]:
             try:
                 start = int(span.get("start"))
                 end = int(span.get("end"))
-                label = str(span.get("label"))
             except (TypeError, ValueError):
+                continue
+            label_value = span.get("label")
+            if label_value is None:
+                continue
+            label = str(label_value).strip()
+            if not label:
                 continue
             out.append([start, end, label])
         elif isinstance(span, (list, tuple)) and len(span) >= 3:
             try:
                 start = int(span[0])
                 end = int(span[1])
-                label = str(span[2])
             except (TypeError, ValueError):
+                continue
+            label_value = span[2]
+            if label_value is None:
+                continue
+            label = str(label_value).strip()
+            if not label:
                 continue
             out.append([start, end, label])
     return out
@@ -81,22 +91,26 @@ def load_data(
         if not isinstance(raw, list):
             raw = [raw]
         if text_column == "tokenized_text" and ner_column == "ner":
-            # Spot-check that at least the first record has the expected keys
-            if raw and isinstance(raw[0], dict):
-                if "tokenized_text" not in raw[0] or "ner" not in raw[0]:
-                    available_columns = sorted(raw[0].keys())
-                    available = ", ".join(repr(col) for col in available_columns)
-                    raise ValueError(
-                        f"Data file uses default column mapping but first record "
-                        f"is missing 'tokenized_text' and/or 'ner'. "
-                        f"Available keys: {available}. "
-                        f"Pass text_column= / ner_column= to remap."
-                    )
+            malformed_records: List[str] = []
+            for idx, item in enumerate(raw):
+                if not isinstance(item, dict):
+                    malformed_records.append(f"{idx} (type={type(item).__name__})")
+                    continue
+                missing = [k for k in ("tokenized_text", "ner") if k not in item]
+                if missing:
+                    malformed_records.append(f"{idx} (missing={missing!r})")
+            if malformed_records:
+                offenders = ", ".join(malformed_records[:5])
+                suffix = " ..." if len(malformed_records) > 5 else ""
+                raise ValueError(
+                    "Data file uses default column mapping but one or more records "
+                    "are missing required keys ('tokenized_text', 'ner') or are not mappings. "
+                    f"Offending record indices: {offenders}{suffix}. "
+                    "Pass text_column= / ner_column= to remap."
+                )
             # Normalize potential HF-style dict spans to GLiNER native list spans.
             data: List[Dict[str, Any]] = []
             for item in raw:
-                if not isinstance(item, dict):
-                    continue
                 mapped = dict(item)
                 mapped["ner"] = _normalize_ner_spans(mapped.get("ner", []))
                 data.append(mapped)

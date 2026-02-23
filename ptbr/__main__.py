@@ -103,13 +103,18 @@ def data_cmd(
             )
             raise typer.Exit(code=1)
 
-        torch.save(embeddings, output_embeddings_path)
-        with open(output_labels_path, "w", encoding="utf-8") as f:
+        embeddings_path = Path(output_embeddings_path)
+        labels_path = Path(output_labels_path)
+        embeddings_path.parent.mkdir(parents=True, exist_ok=True)
+        labels_path.parent.mkdir(parents=True, exist_ok=True)
+
+        torch.save(embeddings, embeddings_path)
+        with labels_path.open("w", encoding="utf-8") as f:
             json.dump(labels, f, ensure_ascii=False, indent=2)
 
         typer.echo(
-            f"Saved {output_embeddings_path} ({tuple(embeddings.shape)}) "
-            f"and {output_labels_path}"
+            f"Saved {embeddings_path} ({tuple(embeddings.shape)}) "
+            f"and {labels_path}"
         )
 
 

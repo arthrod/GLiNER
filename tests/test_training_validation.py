@@ -620,9 +620,19 @@ class TestConfigYamlDeadFields:
 
         training_config = config.get("training", {})
         if not isinstance(training_config, dict):
-            return []
+            pytest.fail(
+                f"{config_yaml_path}: 'training' must be a mapping, "
+                f"got {type(training_config).__name__}"
+            )
 
-        return [field_name for field_name in training_config if isinstance(field_name, str)]
+        non_str_keys = [k for k in training_config if not isinstance(k, str)]
+        if non_str_keys:
+            pytest.fail(
+                f"{config_yaml_path}: training keys must be strings, "
+                f"got {non_str_keys!r}"
+            )
+
+        return list(training_config.keys())
 
     @pytest.mark.xfail(
         strict=True,

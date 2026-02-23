@@ -97,6 +97,20 @@ def _normalize_ner(ner: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y"}:
+            return True
+        if lowered in {"0", "false", "no", "n"}:
+            return False
+    return False
+
+
 def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     tokenized_text = row.get("tokenized_text")
     if not isinstance(tokenized_text, list):
@@ -111,7 +125,7 @@ def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
         "ner": _normalize_ner(row.get("ner", [])),
         "source": str(row.get("source", "")),
         "sample_id": str(row.get("sample_id", "")),
-        "is_negative": bool(row.get("is_negative", False)),
+        "is_negative": _coerce_bool(row.get("is_negative", False)),
         "ner_negatives": [str(lbl) for lbl in ner_negatives],
     }
 

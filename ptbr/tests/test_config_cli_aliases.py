@@ -51,7 +51,7 @@ def test_model_section_alias_is_accepted(tmp_path, monkeypatch):
 
     assert result.report.is_valid
     assert result.validated_gliner["model_name"] == "microsoft/deberta-v3-small"
-    assert any(
+    assert not any(
         "alias for 'gliner_config'" in warning.message for warning in result.report.warnings
     )
 

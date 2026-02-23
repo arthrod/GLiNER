@@ -286,12 +286,12 @@ class TestCrossConstraints:
         assert data["span_mode"] == "token_level"
         assert len(report.warnings) > 0
 
-    def test_span_method_with_token_level_warns(self):
+    def test_span_method_with_token_level_errors(self):
         report = ValidationReport()
         data = {"span_mode": "token_level"}
         _validate_cross_constraints(data, method="span", full_or_lora="full", report=report)
-        warnings = [i for i in report.warnings if "span_mode" in i.field]
-        assert len(warnings) == 1
+        errors = [i for i in report.errors if "span_mode" in i.field]
+        assert len(errors) == 1
 
     def test_relex_fields_warn_when_not_relex(self):
         report = ValidationReport()

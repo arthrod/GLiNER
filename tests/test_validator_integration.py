@@ -896,8 +896,8 @@ class TestTemplateValidation:
             f"template.yaml should be valid for training_cli. Errors: {vr.errors}"
         )
 
-    def test_template_fails_config_cli(self):
-        """Full template must FAIL config_cli validation (the core bug)."""
+    def test_template_passes_config_cli_via_model_alias(self):
+        """Full template should pass config_cli validation via the model alias."""
         pytest.importorskip("transformers", reason="config_cli requires transformers")
         from ptbr.config_cli import load_and_validate_config
 
@@ -919,11 +919,8 @@ class TestEndToEndWorkflow:
     """The workflow ``ptbr config --validate && ptbr train`` now works
     with a single YAML file thanks to config_cli's alias support."""
 
-    def test_validate_then_train_is_impossible_with_single_yaml(self):
-        """Demonstrate that no single YAML file can:
-        1. Pass config_cli validation (requires gliner_config:)
-        2. Pass training_cli validation (requires model:)
-        """
+    def test_validate_then_train_works_with_single_yaml(self):
+        """A single template YAML should pass both validation flows."""
         pytest.importorskip("transformers", reason="config_cli requires transformers")
         from ptbr.config_cli import load_and_validate_config
         from ptbr.training_cli import validate_config
