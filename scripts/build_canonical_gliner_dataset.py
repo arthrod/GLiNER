@@ -491,14 +491,17 @@ def load_canonical_labels(input_root: Path) -> list[str]:
         input_root / "gliner2_pii_ptbr_reward_split" / "train.jsonl",
         input_root / "gliner2_pii_ptbr_reward_split" / "validation.jsonl",
     )
+    labels: set[str] = set()
     for path in paths:
         for _, row in stream_jsonl(path):
             if row is None:
                 continue
             output = row.get("output") if isinstance(row, dict) else None
             entities = output.get("entities") if isinstance(output, dict) else None
-            if isinstance(entities, dict) and entities:
-                return list(entities.keys())
+            if isinstance(entities, dict):
+                labels.update(entities.keys())
+    if labels:
+        return sorted(labels)
     raise RuntimeError("Could not infer canonical labels from gliner2_pii_ptbr_reward_split.")
 
 
@@ -812,16 +815,24 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    canonical_default, ready_default = default_repo_ids()
-    canonical_repo_id = args.canonical_repo_id or canonical_default
-    ready_repo_id = args.ready_repo_id or ready_default
+    push = not args.no_push
+    canonical_repo_id = args.canonical_repo_id
+    ready_repo_id = args.ready_repo_id
+
+    if push and (canonical_repo_id is None or ready_repo_id is None):
+        canonical_default, ready_default = default_repo_ids()
+        canonical_repo_id = canonical_repo_id or canonical_default
+        ready_repo_id = ready_repo_id or ready_default
+
+    canonical_repo_id = canonical_repo_id or "<local>"
+    ready_repo_id = ready_repo_id or "<local>"
 
     report = build(
         input_root=args.input_root,
         output_root=args.output_root,
         canonical_repo_id=canonical_repo_id,
         ready_repo_id=ready_repo_id,
-        push=not args.no_push,
+        push=push,
         private=not args.public,
     )
 

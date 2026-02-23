@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections import Counter
 from dataclasses import dataclass
@@ -38,8 +39,13 @@ class Config:
     end: int = 120_000
     rows_per_file: int = 20_000
     text_key: str = "text"
-    run_root: Path = Path("/Users/arthrod/temp/T/_train/duplodocus_runs/gliner_ready_v4_sensitivity_nb")
-    duplodocus_bin: Path = Path("/Users/arthrod/temp/T/_train/duplodocus/target/release/duplodocus")
+    run_root: Path = Path(
+        os.environ.get(
+            "DUPLODOCUS_RUN_ROOT",
+            str(Path.home() / "duplodocus_runs" / "gliner_ready_v4_sensitivity_nb"),
+        )
+    )
+    duplodocus_bin: Path = Path(os.environ.get("DUPLODOCUS_BIN", "duplodocus"))
     runs: tuple[SweepRun, ...] = (
         SweepRun(name="base_20x5", num_buckets=20, bucket_size=5),
         SweepRun(name="moderate_25x4", num_buckets=25, bucket_size=4),
@@ -280,7 +286,7 @@ for run in CFG.runs:
             "tokenizer": run.tokenizer,
         },
         "removed": len(removed),
-        "removed_rate_pct": round((len(removed) * 100.0 / len(all_ids)), 6),
+        "removed_rate_pct": round((len(removed) * 100.0 / len(all_ids)), 6) if all_ids else 0.0,
         "source_removed": dict(source_removed),
         "annot": analyze_annot(annot_out),
     }
@@ -334,4 +340,3 @@ print(json.dumps(report, indent=2, ensure_ascii=False))
 report_path = CFG.run_root / "sensitivity_compare_report.json"
 report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 print("saved report:", report_path)
-

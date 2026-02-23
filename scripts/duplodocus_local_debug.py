@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -30,8 +31,13 @@ class Config:
     end: int = 120_000
     rows_per_file: int = 20_000
     text_key: str = "text"
-    run_root: Path = Path("/Users/arthrod/temp/T/_train/duplodocus_runs/gliner_ready_v4_r0_120k_nb")
-    duplodocus_bin: Path = Path("/Users/arthrod/temp/T/_train/duplodocus/target/release/duplodocus")
+    run_root: Path = Path(
+        os.environ.get(
+            "DUPLODOCUS_RUN_ROOT",
+            str(Path.home() / "duplodocus_runs" / "gliner_ready_v4_r0_120k_nb"),
+        )
+    )
+    duplodocus_bin: Path = Path(os.environ.get("DUPLODOCUS_BIN", "duplodocus"))
     num_buckets: int = 20
     bucket_size: int = 5
     ngram_size: int = 5
@@ -264,4 +270,3 @@ print(json.dumps(summary, indent=2, ensure_ascii=False))
 summary_path = CFG.run_root / "analysis_summary.json"
 summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 print("saved:", summary_path)
-

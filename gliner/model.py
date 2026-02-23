@@ -1164,10 +1164,16 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         # eval_strategy was never set (defaults to "no").  Using "steps"
         # because this codebase commonly trains with max_steps, not epochs.
         if eval_dataset is not None:
-            current_strategy = getattr(training_args, "eval_strategy",
-                                       getattr(training_args, "evaluation_strategy", "no"))
-            if current_strategy == "no":
-                training_args.eval_strategy = "steps"
+            strategy_attr = (
+                "eval_strategy"
+                if hasattr(training_args, "eval_strategy")
+                else "evaluation_strategy"
+            )
+            current_strategy = getattr(training_args, strategy_attr, "no")
+            current_strategy_value = getattr(current_strategy, "value", current_strategy)
+            normalized_strategy = str(current_strategy_value).strip().lower()
+            if normalized_strategy in {"no", "intervalstrategy.no"}:
+                setattr(training_args, strategy_attr, "steps")
                 # If no explicit eval_steps, fall back to save_steps so that
                 # evaluation runs at the same cadence as checkpointing.
                 if getattr(training_args, "eval_steps", None) is None:
