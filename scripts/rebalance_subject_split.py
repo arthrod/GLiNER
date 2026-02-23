@@ -103,7 +103,10 @@ def parse_targets(raw_targets: list[str]) -> dict[str, float]:
             raise ValueError(f"Invalid --target value: {raw!r}. Expected 'label=fraction'.")
         label, frac_text = raw.split("=", 1)
         label = label.strip()
-        frac = float(frac_text.strip())
+        try:
+            frac = float(frac_text.strip())
+        except ValueError:
+            raise ValueError(f"Invalid fraction '{frac_text.strip()}' in --target: {raw!r}") from None
         if not label:
             raise ValueError(f"Invalid empty label in --target value: {raw!r}")
         if not (0.0 <= frac <= 1.0):

@@ -13,7 +13,7 @@ import types
 # Only apply the shim when torch is NOT available; when torch is present,
 # let the real gliner package load normally so GLiNER/GLiNERConfig are accessible.
 try:
-    import torch  # noqa: F401
+    import torch
 except ImportError:
     if "gliner" not in sys.modules:
         _pkg = types.ModuleType("gliner")

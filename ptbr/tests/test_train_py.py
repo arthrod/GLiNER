@@ -17,7 +17,7 @@ class _DummyModel:
     def __init__(self) -> None:
         self.train_kwargs: dict | None = None
 
-    def to(self, dtype=None):
+    def to(self, dtype=None):  # noqa: ARG002
         return self
 
     def train_model(self, **kwargs):

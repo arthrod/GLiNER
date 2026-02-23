@@ -466,12 +466,12 @@ def normalize_negative_row(
 
 
 def choose_hash_split(source: str, text: str) -> str:
-    digest = hashlib.sha1(f"{source}\n{text}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{source}\n{text}".encode("utf-8")).hexdigest()
     return "eval" if (int(digest[:8], 16) % 10 == 0) else "train"
 
 
 def stable_sample_id(source: str, split: str, row_idx: int, text: str) -> str:
-    digest = hashlib.sha1(f"{source}|{split}|{row_idx}|{text}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{source}|{split}|{row_idx}|{text}".encode("utf-8")).hexdigest()
     return digest[:20]
 
 

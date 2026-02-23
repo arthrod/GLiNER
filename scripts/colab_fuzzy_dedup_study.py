@@ -90,16 +90,22 @@ def ensure_nemo_deps() -> None:
     missing = []
     try:
         import torch  # noqa: F401
-    except Exception:
+    except ModuleNotFoundError:
         missing.append("torch")
+    except Exception as exc:
+        raise RuntimeError("Failed to import torch; check CUDA/driver compatibility.") from exc
     try:
         import ray  # noqa: F401
-    except Exception:
+    except ModuleNotFoundError:
         missing.append("ray")
+    except Exception as exc:
+        raise RuntimeError("Failed to import ray; check installation.") from exc
     try:
         import nemo_curator  # noqa: F401
-    except Exception:
+    except ModuleNotFoundError:
         missing.append("nemo-curator")
+    except Exception as exc:
+        raise RuntimeError("Failed to import nemo_curator; check installation.") from exc
     if missing:
         raise RuntimeError(
             "Missing required dependencies for fuzzy dedup: "
@@ -286,6 +292,11 @@ def run_single_sweep(
 
     removal_sec = None
     if run_removal:
+        if not duplicate_ids_path.exists():
+            raise RuntimeError(
+                f"Expected duplicate IDs at {duplicate_ids_path} but none were produced. "
+                "Disable --run-removal or inspect the identify stage output."
+            )
         st2 = time.time()
         removal = TextDuplicatesRemovalWorkflow(
             input_path=str(input_dir),

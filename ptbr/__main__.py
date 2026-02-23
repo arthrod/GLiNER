@@ -101,7 +101,7 @@ def data_cmd(
                 f"(not a bi-encoder model). Use a bi-encoder model for label embeddings.",
                 err=True,
             )
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
         embeddings_path = Path(output_embeddings_path)
         labels_path = Path(output_labels_path)
