@@ -26,6 +26,7 @@ from ptbr.training_cli import (
     semantic_checks,
     validate_config,
     _launch_training,
+    _looks_like_hf_dataset_repo,
     check_huggingface,
 )
 
@@ -563,6 +564,47 @@ class TestCLI:
 # ------------------------------------------------------------------ #
 # Edge cases                                                           #
 # ------------------------------------------------------------------ #
+
+
+# ------------------------------------------------------------------ #
+# HF dataset repo detection                                            #
+# ------------------------------------------------------------------ #
+
+
+class TestLooksLikeHfDatasetRepo:
+    """Verify _looks_like_hf_dataset_repo distinguishes local paths from HF ids."""
+
+    @pytest.mark.parametrize("value", [
+        "data/train.json",
+        "data/Train.JSON",
+        "path/to/data.jsonl",
+        "corpus.csv",
+        "my_data.tsv",
+        "output.parquet",
+        "config.yaml",
+        "settings.yml",
+        "archive.tar.gz",
+        "data.gz",
+        "bundle.zip",
+    ])
+    def test_local_file_paths_rejected(self, value: str) -> None:
+        assert _looks_like_hf_dataset_repo(value) is False
+
+    @pytest.mark.parametrize("value", [
+        "owner/dataset",
+        "huggingface/glue",
+        "user123/my-ner-data",
+        "org/dataset_v2",
+    ])
+    def test_hf_repo_ids_accepted(self, value: str) -> None:
+        assert _looks_like_hf_dataset_repo(value) is True
+
+    def test_plain_filename_rejected(self) -> None:
+        assert _looks_like_hf_dataset_repo("train.json") is False
+
+    def test_whitespace_stripped(self) -> None:
+        assert _looks_like_hf_dataset_repo("  owner/dataset  ") is True
+        assert _looks_like_hf_dataset_repo("  data.json  ") is False
 
 
 class TestEdgeCases:

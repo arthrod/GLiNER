@@ -1037,11 +1037,18 @@ def _resolve_data_path(path_value: str, config_dir: Path) -> Path:
 _HF_DATASET_REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
+_LOCAL_FILE_EXTENSIONS = (
+    ".json", ".jsonl", ".csv", ".tsv", ".parquet",
+    ".yaml", ".yml", ".tar.gz", ".gz", ".zip",
+)
+
+
 def _looks_like_hf_dataset_repo(value: str) -> bool:
     """Return True when `value` looks like a HF dataset repo id `owner/name`."""
     v = value.strip()
-    # Local file extensions should never be treated as HF repos
-    if any(v.endswith(ext) for ext in (".json", ".jsonl", ".csv", ".tsv", ".parquet", ".yaml", ".yml")):
+    # Local file extensions should never be treated as HF repos.
+    # Case-insensitive check handles paths like data/Train.JSON.
+    if v.lower().endswith(_LOCAL_FILE_EXTENSIONS):
         return False
     return bool(_HF_DATASET_REPO_RE.match(v))
 

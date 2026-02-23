@@ -277,11 +277,13 @@ class TestParameterForwarding:
                 target = node.target
                 value = node.value
             if isinstance(target, ast.Name) and isinstance(value, ast.Dict):
-                keys: set[str] = set()
-                for k in value.keys:
-                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        keys.add(k.value)
-                dict_var_keys[target.id] = keys
+                # Only capture the first assignment; ignore reassignments.
+                if target.id not in dict_var_keys:
+                    keys: set[str] = set()
+                    for k in value.keys:
+                        if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                            keys.add(k.value)
+                    dict_var_keys[target.id] = keys
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
