@@ -352,7 +352,12 @@ def normalize_gliner2_row(
             used_for_label.add(span)
             spans.append((span[0], span[1], normalized_label))
 
-    return {"tokenized_text": tokens, "ner": dedupe_and_sort_spans(spans)}
+    ner = dedupe_and_sort_spans(spans)
+    if not ner:
+        stats.dropped_no_mapped_entities[source] += 1
+        return None
+
+    return {"tokenized_text": tokens, "ner": ner}
 
 
 def normalize_char_span_row(

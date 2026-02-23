@@ -624,10 +624,17 @@ class TestApplyLora:
             def __init__(self, **kwargs):
                 self.kwargs = kwargs
 
+        class FakePeftModel:
+            def __init__(self, target):
+                self._target = target
+
+            def parameters(self):
+                return iter([])
+
         def fake_get_peft_model(target, peft_config):
             calls["target"] = target
             calls["peft_config"] = peft_config
-            return ("wrapped", target)
+            return FakePeftModel(target)
 
         fake_peft = types.SimpleNamespace(
             LoraConfig=FakeLoraConfig,
@@ -649,7 +656,8 @@ class TestApplyLora:
 
         assert calls["target"] is backbone
         assert model.model.token_rep_layer is token_rep_layer
-        assert model.model.token_rep_layer.bert_layer.model == ("wrapped", backbone)
+        peft_model = model.model.token_rep_layer.bert_layer.model
+        assert peft_model._target is backbone
 
         peft_config = calls["peft_config"]
         assert peft_config.kwargs["r"] == 8
@@ -755,6 +763,9 @@ class TestLaunchTrainingPropagation:
             def to(self, dtype=None):
                 captured["to_dtype"] = dtype
                 return self
+
+            def parameters(self):
+                return iter([])
 
             def train_model(self, **kwargs):
                 captured["train_kwargs"] = kwargs
