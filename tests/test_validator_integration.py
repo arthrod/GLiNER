@@ -256,15 +256,46 @@ class TestParameterForwarding:
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> set[str]:
-        """Extract keyword argument names from the model.train_model() call."""
-        kwargs = set()
+        """Extract keyword argument names forwarded to model.train_model().
+
+        Handles both direct keyword args (``model.train_model(foo=bar)``) and
+        dict-splat patterns (``model.train_model(**train_kwargs)``) by
+        collecting keys from the dict literal assigned to the splatted variable.
+        """
+        kwargs: set[str] = set()
+        # Collect keys from dict literals assigned to any variable that is
+        # later splatted into train_model(**var).
+        dict_var_keys: dict[str, set[str]] = {}
+        for node in ast.walk(tree):
+            # Detect: var = { "key": ..., ... }  or  var: type = { "key": ..., ... }
+            target = None
+            value = None
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target = node.targets[0]
+                value = node.value
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                target = node.target
+                value = node.value
+            if isinstance(target, ast.Name) and isinstance(value, ast.Dict):
+                keys: set[str] = set()
+                for k in value.keys:
+                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                        keys.add(k.value)
+                dict_var_keys[target.id] = keys
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
                 if isinstance(func, ast.Attribute) and func.attr == "train_model":
+                    # Direct keyword args
                     for kw in node.keywords:
                         if kw.arg is not None:
                             kwargs.add(kw.arg)
+                        # **var splat
+                        elif kw.arg is None and isinstance(kw.value, ast.Name):
+                            var_name = kw.value.id
+                            if var_name in dict_var_keys:
+                                kwargs.update(dict_var_keys[var_name])
         return kwargs
 
     def test_dataloader_pin_memory_forwarded(self):
@@ -577,14 +608,7 @@ class TestRemoveUnusedColumns:
         """_launch_training now passes remove_unused_columns to train_model."""
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         tree = ast.parse(source)
-        forwarded = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                func = node.func
-                if isinstance(func, ast.Attribute) and func.attr == "train_model":
-                    for kw in node.keywords:
-                        if kw.arg:
-                            forwarded.add(kw.arg)
+        forwarded = TestParameterForwarding._extract_train_model_kwargs(tree)
         assert "remove_unused_columns" in forwarded, (
             "_launch_training should set remove_unused_columns=False"
         )
@@ -735,14 +759,7 @@ class TestSchemaVsForwarding:
 
         source = (ROOT / "ptbr" / "training_cli.py").read_text()
         tree = ast.parse(source)
-        forwarded = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                func = node.func
-                if isinstance(func, ast.Attribute) and func.attr == "train_model":
-                    for kw in node.keywords:
-                        if kw.arg:
-                            forwarded.add(kw.arg)
+        forwarded = TestParameterForwarding._extract_train_model_kwargs(tree)
 
         schema_to_kwarg = {
             "num_steps": "max_steps",
@@ -762,6 +779,8 @@ class TestSchemaVsForwarding:
 
         handled_elsewhere = {
             "prev_path", "freeze_components", "compile_model",
+            # Conditionally forwarded (only when eval dataset present)
+            "eval_steps", "eval_on_start",
         }
 
         not_forwarded = []

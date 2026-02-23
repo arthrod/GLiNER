@@ -1039,7 +1039,11 @@ _HF_DATASET_REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-
 
 def _looks_like_hf_dataset_repo(value: str) -> bool:
     """Return True when `value` looks like a HF dataset repo id `owner/name`."""
-    return bool(_HF_DATASET_REPO_RE.match(value.strip()))
+    v = value.strip()
+    # Local file extensions should never be treated as HF repos
+    if any(v.endswith(ext) for ext in (".json", ".jsonl", ".csv", ".tsv", ".parquet", ".yaml", ".yml")):
+        return False
+    return bool(_HF_DATASET_REPO_RE.match(v))
 
 
 def _resolve_data_source(path_value: str, config_dir: Path, default_split: str) -> tuple[str, str, bool]:
@@ -1308,7 +1312,8 @@ def _launch_training(
     logger.info("[DIAG]  Model architecture summary")
     logger.info(f"[DIAG]    Class:            {type(model).__name__}")
     logger.info(f"[DIAG]    Total params:     {total_params:,}")
-    logger.info(f"[DIAG]    Trainable params: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)")
+    pct = (100 * trainable_params / total_params) if total_params else 0.0
+    logger.info(f"[DIAG]    Trainable params: {trainable_params:,} ({pct:.2f}%)")
     logger.info("[DIAG]  Dataset sizes")
     logger.info(f"[DIAG]    Train: {len(train_dataset)}")
     logger.info(f"[DIAG]    Eval:  {len(eval_dataset) if eval_dataset else 'None'}")
@@ -1392,7 +1397,8 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
         )
         trainable = sum(p.numel() for p in model.model.token_rep_layer.bert_layer.model.parameters() if p.requires_grad)
         total = sum(p.numel() for p in model.model.token_rep_layer.bert_layer.model.parameters())
-        logger.info(f"[LORA]     Trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)")
+        lora_pct = (100 * trainable / total) if total else 0.0
+        logger.info(f"[LORA]     Trainable params: {trainable:,} / {total:,} ({lora_pct:.2f}%)")
     else:
         logger.warning("[LORA]     Could not locate model.model.token_rep_layer.bert_layer.model; LoRA not applied")
 
