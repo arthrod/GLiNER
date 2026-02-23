@@ -181,4 +181,5 @@ pyrightconfig.json
 
 .vscode
 .worktrees/
+wandb/
 .ralph/**
