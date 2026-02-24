@@ -74,6 +74,18 @@ def make_features() -> Features:
 
 
 def _normalize_ner(ner: Any) -> list[dict[str, Any]]:
+    """
+    Normalize a list of NER annotations into a standardized list of dictionaries with keys `start`, `end`, and `label`.
+    
+    Parameters:
+        ner (Any): Input annotations, expected to be a list where each item is either:
+            - a list-like with at least three elements [start, end, label], or
+            - a dict with keys "start", "end", and "label".
+            Any other input type results in an empty list.
+    
+    Returns:
+        list[dict[str, Any]]: A list of normalized annotation dicts where `start` and `end` are integers and `label` is a trimmed non-empty string. Entries with missing/invalid start/end values or empty/null labels are omitted.
+    """
     out: list[dict[str, Any]] = []
     if not isinstance(ner, list):
         return out
@@ -82,16 +94,26 @@ def _normalize_ner(ner: Any) -> list[dict[str, Any]]:
             try:
                 start = int(item[0])
                 end = int(item[1])
-                label = str(item[2])
+                label_val = item[2]
             except (TypeError, ValueError):
+                continue
+            if label_val is None:
+                continue
+            label = str(label_val).strip()
+            if not label:
                 continue
             out.append({"start": start, "end": end, "label": label})
         elif isinstance(item, dict):
             try:
                 start = int(item.get("start"))
                 end = int(item.get("end"))
-                label = str(item.get("label"))
+                label_val = item.get("label")
             except (TypeError, ValueError):
+                continue
+            if label_val is None:
+                continue
+            label = str(label_val).strip()
+            if not label:
                 continue
             out.append({"start": start, "end": end, "label": label})
     return out

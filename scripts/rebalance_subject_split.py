@@ -97,13 +97,28 @@ def deterministic_key(sample_id: str) -> str:
 
 
 def parse_targets(raw_targets: list[str]) -> dict[str, float]:
+    """
+    Builds the target fraction mapping by applying label=fraction overrides to the default targets.
+    
+    Parameters:
+        raw_targets (list[str]): Iterable of override strings in the form "label=fraction". Each override updates or adds an entry in the returned mapping.
+    
+    Returns:
+        dict[str, float]: Mapping from label to target fraction (each value between 0.0 and 1.0 inclusive).
+    
+    Raises:
+        ValueError: If an override is malformed (missing '='), has an empty label, contains a non-numeric fraction, or if the fraction is outside the range 0.0–1.0.
+    """
     targets = dict(DEFAULT_TARGETS)
     for raw in raw_targets:
         if "=" not in raw:
             raise ValueError(f"Invalid --target value: {raw!r}. Expected 'label=fraction'.")
         label, frac_text = raw.split("=", 1)
         label = label.strip()
-        frac = float(frac_text.strip())
+        try:
+            frac = float(frac_text.strip())
+        except ValueError:
+            raise ValueError(f"Invalid fraction '{frac_text.strip()}' in --target: {raw!r}") from None
         if not label:
             raise ValueError(f"Invalid empty label in --target value: {raw!r}")
         if not (0.0 <= frac <= 1.0):

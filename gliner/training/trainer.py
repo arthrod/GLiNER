@@ -332,6 +332,17 @@ class Trainer(transformers.Trainer):
         return (loss, logits, labels)
 
     def get_train_dataloader(self) -> DataLoader:
+        """
+        Create and return the training DataLoader prepared by the accelerator.
+        
+        Constructs DataLoader parameters from trainer settings (batch size, collate function, number of workers, pin memory). If dataloader workers > 0, enables persistent workers and sets prefetch factor when provided. For map-style datasets, attaches the training sampler, drop-last behavior, and a worker init function that seeds workers for reproducibility.
+        
+        Returns:
+            DataLoader: An accelerator-prepared DataLoader for the training dataset.
+        
+        Raises:
+            ValueError: If no training dataset is set on the trainer.
+        """
         if self.train_dataset is None:
             raise ValueError("Trainer: training requires a train_dataset.")
 
@@ -347,7 +358,8 @@ class Trainer(transformers.Trainer):
 
         if self.args.dataloader_num_workers > 0:
             dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
+            if self.args.dataloader_prefetch_factor is not None:
+                dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(train_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_train_sampler()
@@ -357,6 +369,21 @@ class Trainer(transformers.Trainer):
         return self.accelerator.prepare(DataLoader(train_dataset, **dataloader_params))
 
     def get_eval_dataloader(self, eval_dataset: Optional[Union[str, Dataset]] = None) -> DataLoader:
+        """
+        Create and return a DataLoader prepared by the accelerator for evaluation.
+        
+        Parameters:
+            eval_dataset (Optional[Union[str, Dataset]]): Dataset to evaluate on or a string key selecting
+                an entry from the Trainer's `eval_dataset` mapping. If omitted, uses the Trainer's
+                `eval_dataset` attribute. Must be provided either here or on the Trainer.
+        
+        Returns:
+            DataLoader: The accelerator-prepared evaluation DataLoader configured with evaluation batch size,
+            collate function, worker settings, sampler (for map-style datasets), and optional persistent worker caching.
+        
+        Raises:
+            ValueError: If neither `eval_dataset` nor `self.eval_dataset` is available.
+        """
         if eval_dataset is None and self.eval_dataset is None:
             raise ValueError("Trainer: evaluation requires an eval_dataset.")
 
@@ -385,7 +412,8 @@ class Trainer(transformers.Trainer):
 
         if self.args.dataloader_num_workers > 0:
             dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
+            if self.args.dataloader_prefetch_factor is not None:
+                dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(eval_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(eval_dataset)

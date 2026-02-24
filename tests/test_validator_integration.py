@@ -256,11 +256,13 @@ class TestParameterForwarding:
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> set[str]:
-        """Extract keyword argument names forwarded to model.train_model().
-
-        Handles both direct keyword args (``model.train_model(foo=bar)``) and
-        dict-splat patterns (``model.train_model(**train_kwargs)``) by
-        collecting keys from the dict literal assigned to the splatted variable.
+        """
+        Extracts keyword argument names forwarded to `model.train_model` calls in the AST.
+        
+        Recognizes direct keyword arguments and keys from dict literals assigned to variables that are later splatted with `**var` into the call.
+        
+        Returns:
+            set[str]: The set of keyword names passed to `train_model`.
         """
         kwargs: set[str] = set()
         # Collect keys from dict literals assigned to any variable that is
@@ -277,11 +279,13 @@ class TestParameterForwarding:
                 target = node.target
                 value = node.value
             if isinstance(target, ast.Name) and isinstance(value, ast.Dict):
-                keys: set[str] = set()
-                for k in value.keys:
-                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        keys.add(k.value)
-                dict_var_keys[target.id] = keys
+                # Only capture the first assignment; ignore reassignments.
+                if target.id not in dict_var_keys:
+                    keys: set[str] = set()
+                    for k in value.keys:
+                        if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                            keys.add(k.value)
+                    dict_var_keys[target.id] = keys
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):

@@ -145,11 +145,11 @@ model:
 
   # Intermediate projection dimension after the encoder.
   # Default: 512
-  hidden_size: 768
+  hidden_size: 512
 
   # Dropout probability applied in projection / fusion layers.
   # Default: 0.4
-  dropout: 0.3
+  dropout: 0.4
 
   # ---- Encoder tuning ----
 
@@ -308,7 +308,7 @@ training:
 
   # Maximum gradient norm for clipping.
   # Default: 1.0
-  max_grad_norm: 10.0
+  max_grad_norm: 1.0
 
   # ---- Optimiser ----
 

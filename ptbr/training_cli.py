@@ -607,7 +607,18 @@ def _check_enum(cfg: dict, result: ValidationResult, key: str, valid: set[str]) 
 
 
 def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> None:
-    """Validate dataset paths after schema/type checks and before training."""
+    """
+    Validate the configured training and validation data sources, recording any missing or invalid local paths and logging HF dataset sources.
+    
+    Checks:
+    - If `data.train_data` is a non-empty string, verifies whether it refers to a Hugging Face dataset (logs repo and split) or a local file (records an error if the file does not exist or is not a file).
+    - If `data.val_data_dir` is a non-empty string other than "none" or "null", performs the same HF-vs-local resolution and error recording for the validation source.
+    
+    Parameters:
+        cfg (dict): Resolved configuration mapping containing `data.train_data` and `data.val_data_dir`.
+        config_dir (Path): Directory used to resolve relative local data paths.
+        result (ValidationResult): Accumulator for validation errors and warnings; missing or invalid local paths are appended to `result.errors`.
+    """
     _, train_data = _deep_get(cfg, "data.train_data")
     if isinstance(train_data, str) and train_data.strip():
         train_source, train_split, train_is_hf = _resolve_data_source(
@@ -630,7 +641,7 @@ def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> 
         val_data = val_data.strip()
         if val_data and val_data.lower() not in ("none", "null"):
             val_source, val_split, val_is_hf = _resolve_data_source(
-                val_data, config_dir, default_split="eval"
+                val_data, config_dir, default_split="validation"
             )
             if val_is_hf:
                 logger.info(
@@ -1037,11 +1048,28 @@ def _resolve_data_path(path_value: str, config_dir: Path) -> Path:
 _HF_DATASET_REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
+_LOCAL_FILE_EXTENSIONS = (
+    ".json", ".jsonl", ".csv", ".tsv", ".parquet",
+    ".yaml", ".yml", ".tar.gz", ".gz", ".zip",
+)
+
+
 def _looks_like_hf_dataset_repo(value: str) -> bool:
-    """Return True when `value` looks like a HF dataset repo id `owner/name`."""
+    """
+    Determine whether a string appears to be a Hugging Face dataset repository identifier in the form `owner/name`.
+    
+    This treats strings that end with common local file extensions (case-insensitive) as not being HF dataset identifiers.
+    
+    Parameters:
+        value (str): Candidate dataset source string.
+    
+    Returns:
+        bool: `True` if `value` looks like an HF dataset repo id in `owner/name` form and is not a local file path, `False` otherwise.
+    """
     v = value.strip()
-    # Local file extensions should never be treated as HF repos
-    if any(v.endswith(ext) for ext in (".json", ".jsonl", ".csv", ".tsv", ".parquet", ".yaml", ".yml")):
+    # Local file extensions should never be treated as HF repos.
+    # Case-insensitive check handles paths like data/Train.JSON.
+    if v.lower().endswith(_LOCAL_FILE_EXTENSIONS):
         return False
     return bool(_HF_DATASET_REPO_RE.match(v))
 
@@ -1181,9 +1209,8 @@ def _launch_training(
         else:
             logger.info("[CONFIG]   No training-relevant config overrides needed")
 
-    # -- LoRA --
-    if cfg.get("lora", {}).get("enabled", False):
-        _apply_lora(model, cfg["lora"])
+    # -- LoRA (forwarded to train_model) --
+    lora_cfg_for_train = cfg.get("lora") if cfg.get("lora", {}).get("enabled", False) else None
 
     # -- Load data --
     train_source, train_split, train_is_hf = _resolve_data_source(
@@ -1200,7 +1227,7 @@ def _launch_training(
     val_path = cfg["data"].get("val_data_dir", "none")
     if val_path and val_path.lower() not in ("none", "null", ""):
         val_source, val_split, val_is_hf = _resolve_data_source(
-            val_path, config_dir, default_split="eval"
+            val_path, config_dir, default_split="validation"
         )
         if val_is_hf:
             logger.info(f"Loading validation data from HF dataset '{val_source}' (split='{val_split}')")
@@ -1223,9 +1250,16 @@ def _launch_training(
     # -- Resume checkpoint detection --
     resume_checkpoint = None
     if resume:
-        checkpoint_dirs = sorted(output_folder.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[-1]))
+        checkpoint_dirs = []
+        for p in output_folder.glob("checkpoint-*"):
+            try:
+                idx = int(p.name.split("-")[-1])
+            except ValueError:
+                continue
+            checkpoint_dirs.append((idx, p))
+        checkpoint_dirs.sort(key=lambda x: x[0])
         if checkpoint_dirs:
-            resume_checkpoint = str(checkpoint_dirs[-1])
+            resume_checkpoint = str(checkpoint_dirs[-1][1])
             logger.info(f"Resuming from checkpoint: {resume_checkpoint}")
 
     # -- Hub fields --
@@ -1303,6 +1337,8 @@ def _launch_training(
         # Hub integration
         "push_to_hub": env_cfg.get("push_to_hub", False),
         "hub_model_id": env_cfg.get("hub_model_id"),
+        # LoRA
+        "lora_config": lora_cfg_for_train,
     }
 
     # -- Diagnostic logging --

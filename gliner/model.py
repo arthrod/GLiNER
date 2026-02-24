@@ -986,10 +986,14 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
     def unfreeze_component(self, component_name: str):
         """
-        Unfreeze a specific component of the model.
-
-        Args:
-            component_name: Name of component to unfreeze
+        Unfreeze a named model component by enabling gradient updates on its parameters.
+        
+        Parameters:
+            component_name (str): Key of the component to unfreeze as returned by `_get_freezable_components()`.
+        
+        Behavior:
+            Sets `requires_grad=True` on all parameters of the named component. If the component is not found,
+            emits a warning listing available component keys.
         """
         components = self._get_freezable_components()
         if component_name in components:
@@ -998,6 +1002,87 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         else:
             available = ", ".join(components.keys())
             warnings.warn(f"Component '{component_name}' not found. Available components: {available}", stacklevel=2)
+
+    def _apply_lora(self, lora_config: dict) -> None:
+        """
+        Attach a PEFT LoRA adapter to the model's encoder backbone in-place.
+        
+        Parameters:
+            lora_config (dict): Configuration for the LoRA adapter. Expected keys:
+                - "r" (int): LoRA rank.
+                - "lora_alpha" (float|int): LoRA scaling coefficient.
+                - "target_modules" (list[str]): Names of modules to apply LoRA to.
+                - Optional "lora_dropout" (float): Dropout for LoRA (default 0.05).
+                - Optional "bias" (str): Bias mode for LoRA (default "none").
+                - Optional "task_type" (str): One of "TOKEN_CLS", "SEQ_CLS", "CAUSAL_LM",
+                  "SEQ_2_SEQ_LM", "FEATURE_EXTRACTION" (default "TOKEN_CLS").
+                - Optional "modules_to_save" (list[str]): Modules to keep trainable/saved.
+        
+        Raises:
+            ImportError: If the `peft` library is not installed.
+            RuntimeError: If the encoder backbone cannot be located at
+                `self.model.token_rep_layer.bert_layer.model` and LoRA cannot be applied.
+        """
+        try:
+            from peft import TaskType, LoraConfig, get_peft_model
+        except ImportError:
+            raise ImportError(
+                "peft is required for LoRA training. Install with: pip install peft"
+            )
+
+        task_map = {
+            "TOKEN_CLS": TaskType.TOKEN_CLS,
+            "SEQ_CLS": TaskType.SEQ_CLS,
+            "CAUSAL_LM": TaskType.CAUSAL_LM,
+            "SEQ_2_SEQ_LM": TaskType.SEQ_2_SEQ_LM,
+            "FEATURE_EXTRACTION": TaskType.FEATURE_EXTRACTION,
+        }
+        task_type = task_map.get(
+            lora_config.get("task_type", "TOKEN_CLS"), TaskType.TOKEN_CLS
+        )
+
+        peft_cfg = LoraConfig(
+            r=lora_config["r"],
+            lora_alpha=lora_config["lora_alpha"],
+            lora_dropout=lora_config.get("lora_dropout", 0.05),
+            bias=lora_config.get("bias", "none"),
+            target_modules=lora_config["target_modules"],
+            task_type=task_type,
+            modules_to_save=lora_config.get("modules_to_save"),
+        )
+
+        try:
+            backbone = self.model.token_rep_layer.bert_layer.model
+        except AttributeError:
+            backbone = None
+
+        if backbone is None:
+            raise RuntimeError(
+                "Could not locate the encoder backbone at "
+                "model.token_rep_layer.bert_layer.model; LoRA cannot be applied."
+            )
+
+        self.model.token_rep_layer.bert_layer.model = get_peft_model(
+            backbone, peft_cfg
+        )
+        trainable = sum(
+            p.numel()
+            for p in self.model.token_rep_layer.bert_layer.model.parameters()
+            if p.requires_grad
+        )
+        total = sum(
+            p.numel()
+            for p in self.model.token_rep_layer.bert_layer.model.parameters()
+        )
+        pct = (100 * trainable / total) if total else 0.0
+        logger.info(
+            "LoRA applied (r=%d, alpha=%s). Trainable: %s / %s (%.2f%%)",
+            lora_config["r"],
+            lora_config["lora_alpha"],
+            f"{trainable:,}",
+            f"{total:,}",
+            pct,
+        )
 
     @classmethod
     def create_training_args(
@@ -1134,26 +1219,34 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         compile_model: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
         resume_from_checkpoint: Optional[Union[str, Path, bool]] = None,
+        lora_config: Optional[dict] = None,
         **training_kwargs,
     ) -> Trainer:
         """
-        Execute training with Hugging Face's Trainer using the provided datasets and training configuration.
+        Train the model using Hugging Face's Trainer with the provided training and evaluation datasets.
         
-        If `training_args` is None, a TrainingArguments object is created from `output_dir` and `training_kwargs`. When `eval_dataset` is provided and no evaluation strategy is set, evaluation is enabled with `eval_strategy='steps'` and `eval_steps` defaulting to `save_steps`.
+        The method will create TrainingArguments from output_dir and additional kwargs if none are provided, optionally apply a PEFT LoRA adapter to the encoder backbone when lora_config is given, enable evaluation automatically when an eval_dataset is supplied but no evaluation strategy is set, optionally compile the model and freeze specified components, and then run training (optionally resuming from a checkpoint).
         
         Parameters:
-            train_dataset: The dataset used for training.
-            eval_dataset: The dataset used for evaluation (may be None).
-            training_args: Optional TrainingArguments; created from `output_dir` and `training_kwargs` if not provided.
-            freeze_components: Optional list of component names to freeze before training (e.g., ['text_encoder', 'decoder']).
-            compile_model: If True, compiles the model (via self.compile()) before training.
-            output_dir: Directory to save training outputs; required if `training_args` is None.
-            resume_from_checkpoint: Path to a checkpoint to resume from, or True to auto-detect the latest checkpoint; if None training starts from scratch.
-            **training_kwargs: Additional keyword arguments forwarded to `create_training_args` when `training_args` is not provided.
+            train_dataset: Dataset used for training.
+            eval_dataset: Dataset used for evaluation, or None.
+            training_args (Optional[TrainingArguments]): Pre-built training arguments. If None, TrainingArguments are created from output_dir and training_kwargs.
+            freeze_components (Optional[list[str]]): Names of model components to freeze before training (e.g., ["text_encoder", "decoder"]).
+            compile_model (bool): If True, compile the model prior to training.
+            output_dir (Optional[Union[str, Path]]): Directory to save training outputs; required when training_args is None.
+            resume_from_checkpoint (Optional[Union[str, Path, bool]]): Path to a checkpoint to resume from, or True to auto-detect the latest checkpoint; None starts training from scratch.
+            lora_config (Optional[dict]): PEFT LoRA configuration. When provided, a LoRA adapter is applied to the encoder backbone before training. Expected keys include `r`, `lora_alpha`, `lora_dropout`, `bias`, and `target_modules`. Optional keys: `task_type`, `modules_to_save`. Requires the `peft` package to be installed.
+            **training_kwargs: Additional keyword arguments forwarded to create_training_args when training_args is not provided.
         
         Returns:
-            The Trainer instance used to run training (with trained model weights).
+            Trainer: The Trainer instance used to run training; the model's weights will be updated by the training run.
+        
+        Raises:
+            ValueError: If both `training_args` and `output_dir` are None.
         """
+        # Apply LoRA adapter if requested
+        if lora_config is not None:
+            self._apply_lora(lora_config)
         # Create training arguments if not provided
         if training_args is None:
             if output_dir is None:

@@ -26,6 +26,7 @@ from ptbr.training_cli import (
     semantic_checks,
     validate_config,
     _launch_training,
+    _looks_like_hf_dataset_repo,
     check_huggingface,
 )
 
@@ -565,6 +566,52 @@ class TestCLI:
 # ------------------------------------------------------------------ #
 
 
+# ------------------------------------------------------------------ #
+# HF dataset repo detection                                            #
+# ------------------------------------------------------------------ #
+
+
+class TestLooksLikeHfDatasetRepo:
+    """Verify _looks_like_hf_dataset_repo distinguishes local paths from HF ids."""
+
+    @pytest.mark.parametrize("value", [
+        "data/train.json",
+        "data/Train.JSON",
+        "path/to/data.jsonl",
+        "corpus.csv",
+        "my_data.tsv",
+        "output.parquet",
+        "config.yaml",
+        "settings.yml",
+        "archive.tar.gz",
+        "data.gz",
+        "bundle.zip",
+    ])
+    def test_local_file_paths_rejected(self, value: str) -> None:
+        assert _looks_like_hf_dataset_repo(value) is False
+
+    @pytest.mark.parametrize("value", [
+        "owner/dataset",
+        "huggingface/glue",
+        "user123/my-ner-data",
+        "org/dataset_v2",
+    ])
+    def test_hf_repo_ids_accepted(self, value: str) -> None:
+        assert _looks_like_hf_dataset_repo(value) is True
+
+    def test_plain_filename_rejected(self) -> None:
+        assert _looks_like_hf_dataset_repo("train.json") is False
+
+    def test_whitespace_stripped(self) -> None:
+        """
+        Verifies that surrounding whitespace is trimmed before determining if a string looks like a Hugging Face dataset repo.
+        
+        Asserts that a trimmed HF-style repo identifier like "owner/dataset" is accepted and that a trimmed plain filename like "data.json" is rejected.
+        """
+        assert _looks_like_hf_dataset_repo("  owner/dataset  ") is True
+        assert _looks_like_hf_dataset_repo("  data.json  ") is False
+
+
 class TestEdgeCases:
     def test_empty_yaml(self, tmp_path: Path) -> None:
         p = tmp_path / "empty.yaml"
@@ -880,7 +927,7 @@ class TestLaunchTrainingPropagation:
         assert captured["from_pretrained_path"] == "some/pretrained/path"
         assert captured["from_config_dict"] is None
 
-    def test_launch_training_applies_lora_if_enabled(
+    def test_launch_training_forwards_lora_config_when_enabled(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -888,13 +935,26 @@ class TestLaunchTrainingPropagation:
         cfg = self._make_cfg(tmp_path)
         cfg["lora"]["enabled"] = True
         cfg["lora"]["r"] = 16
-        self._patch_fake_runtime(monkeypatch)
+        captured = self._patch_fake_runtime(monkeypatch)
 
-        with mock.patch("ptbr.training_cli._apply_lora") as mock_apply:
-            _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
-            mock_apply.assert_called_once()
-            args, _ = mock_apply.call_args
-            assert args[1] == cfg["lora"]
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        assert kwargs["lora_config"] is cfg["lora"]
+
+    def test_launch_training_lora_config_none_when_disabled(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        cfg["lora"]["enabled"] = False
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        assert kwargs["lora_config"] is None
 
     def test_launch_training_sets_env_vars(
         self,

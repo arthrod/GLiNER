@@ -466,12 +466,28 @@ def normalize_negative_row(
 
 
 def choose_hash_split(source: str, text: str) -> str:
-    digest = hashlib.sha1(f"{source}\n{text}".encode("utf-8")).hexdigest()
+    """
+    Deterministically assigns a row to the "train" or "eval" split using a SHA-256 hash of the source and text.
+    
+    Parameters:
+        source (str): Identifier of the data source.
+        text (str): The text content used to derive the hash.
+    
+    Returns:
+        split (str): `"eval"` for approximately 10% of inputs (when the hash-based selector equals 0), `"train"` otherwise.
+    """
+    digest = hashlib.sha256(f"{source}\n{text}".encode("utf-8")).hexdigest()
     return "eval" if (int(digest[:8], 16) % 10 == 0) else "train"
 
 
 def stable_sample_id(source: str, split: str, row_idx: int, text: str) -> str:
-    digest = hashlib.sha1(f"{source}|{split}|{row_idx}|{text}".encode("utf-8")).hexdigest()
+    """
+    Produce a deterministic short sample identifier from the source, split, row index, and text.
+    
+    Returns:
+        str: A 20-character hexadecimal identifier derived from the SHA-256 digest of the concatenated inputs.
+    """
+    digest = hashlib.sha256(f"{source}|{split}|{row_idx}|{text}".encode("utf-8")).hexdigest()
     return digest[:20]
 
 

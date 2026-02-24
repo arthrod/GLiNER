@@ -87,19 +87,33 @@ def parse_str_values(spec: str) -> list[str]:
 
 
 def ensure_nemo_deps() -> None:
+    """
+    Verify that the Python packages required for the fuzzy dedup workflow are importable.
+    
+    Checks for `torch`, `ray`, and `nemo_curator`. If any package is not installed, raises a RuntimeError listing the missing packages and advising installation. If an import fails for reasons other than missing distribution (for example CUDA/driver issues for `torch`), raises a RuntimeError with a short diagnostic message.
+    
+    Raises:
+        RuntimeError: If one or more required packages are missing or if an import fails due to other errors (includes guidance for troubleshooting).
+    """
     missing = []
     try:
         import torch  # noqa: F401
-    except Exception:
+    except ModuleNotFoundError:
         missing.append("torch")
+    except Exception as exc:
+        raise RuntimeError("Failed to import torch; check CUDA/driver compatibility.") from exc
     try:
         import ray  # noqa: F401
-    except Exception:
+    except ModuleNotFoundError:
         missing.append("ray")
+    except Exception as exc:
+        raise RuntimeError("Failed to import ray; check installation.") from exc
     try:
         import nemo_curator  # noqa: F401
-    except Exception:
+    except ModuleNotFoundError:
         missing.append("nemo-curator")
+    except Exception as exc:
+        raise RuntimeError("Failed to import nemo_curator; check installation.") from exc
     if missing:
         raise RuntimeError(
             "Missing required dependencies for fuzzy dedup: "
@@ -228,6 +242,27 @@ def run_single_sweep(
     examples_per_cluster: int,
     run_removal: bool,
 ) -> dict[str, Any]:
+    """
+    Run a single fuzzy-deduplication sweep with the given configuration and persist results.
+    
+    Parameters:
+        cfg (SweepConfig): Sweep configuration for this run (range, n-gram and hashing params, blocksize).
+        output_root (Path): Root directory where run outputs and analysis will be written.
+        input_df (pd.DataFrame): Dataframe containing the input rows for the configured range; must include a `text` column.
+        io_kwargs (dict[str, Any] | None): Optional read/write kwargs passed to workflow stages (e.g., storage options); may be None.
+        seed (int): RNG seed used by the deduplication workflow.
+        num_top_clusters (int): Number of largest duplicate clusters to extract examples for.
+        examples_per_cluster (int): Number of example rows to include for each selected cluster.
+        run_removal (bool): If true, run the duplicate-removal stage using produced duplicate IDs and write a deduplicated dataset.
+    
+    Returns:
+        dict[str, Any]: Metrics summary for the run including `run_id`, `docs_total`, `duplicate_ids_to_remove`,
+        `duplicate_rate_pct`, timing fields (`identify_seconds`, `removal_seconds`), the sweep configuration fields,
+        and connected-components summary metrics.
+    
+    Raises:
+        RuntimeError: If `run_removal` is true but the duplicate IDs file expected from the identify stage does not exist.
+    """
     from nemo_curator.backends.experimental.ray_data import RayDataExecutor
     from nemo_curator.stages.deduplication.fuzzy import FuzzyDeduplicationWorkflow
     from nemo_curator.stages.deduplication.id_generator import CURATOR_DEDUP_ID_STR
@@ -286,6 +321,11 @@ def run_single_sweep(
 
     removal_sec = None
     if run_removal:
+        if not duplicate_ids_path.exists():
+            raise RuntimeError(
+                f"Expected duplicate IDs at {duplicate_ids_path} but none were produced. "
+                "Disable --run-removal or inspect the identify stage output."
+            )
         st2 = time.time()
         removal = TextDuplicatesRemovalWorkflow(
             input_path=str(input_dir),

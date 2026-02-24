@@ -18,7 +18,7 @@ model:
   decoder_mode: "span"
 
 data:
-  root_dir: /tmp/gliner_tiny_1k
+  root_dir: gliner_tiny_1k
   train_data: "../examples/sample_data.json"
   val_data_dir: "../data/tiny_eval.json"
 
