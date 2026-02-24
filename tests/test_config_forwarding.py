@@ -500,10 +500,6 @@ class TestTrainScriptForwardingGaps:
 
     # -- fp16 -------------------------------------------------------------- #
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="train.py (legacy) does not forward fp16; training_cli.py does",
-    )
     def test_fp16_forwarded_when_in_config(self, tmp_path):
         """If fp16 is set in the config, it should reach train_model()."""
         _, kwargs = _run_train_main(tmp_path, {"fp16": True})
