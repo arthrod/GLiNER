@@ -607,7 +607,18 @@ def _check_enum(cfg: dict, result: ValidationResult, key: str, valid: set[str]) 
 
 
 def _check_data_paths(cfg: dict, config_dir: Path, result: ValidationResult) -> None:
-    """Validate dataset paths after schema/type checks and before training."""
+    """
+    Validate the configured training and validation data sources, recording any missing or invalid local paths and logging HF dataset sources.
+    
+    Checks:
+    - If `data.train_data` is a non-empty string, verifies whether it refers to a Hugging Face dataset (logs repo and split) or a local file (records an error if the file does not exist or is not a file).
+    - If `data.val_data_dir` is a non-empty string other than "none" or "null", performs the same HF-vs-local resolution and error recording for the validation source.
+    
+    Parameters:
+        cfg (dict): Resolved configuration mapping containing `data.train_data` and `data.val_data_dir`.
+        config_dir (Path): Directory used to resolve relative local data paths.
+        result (ValidationResult): Accumulator for validation errors and warnings; missing or invalid local paths are appended to `result.errors`.
+    """
     _, train_data = _deep_get(cfg, "data.train_data")
     if isinstance(train_data, str) and train_data.strip():
         train_source, train_split, train_is_hf = _resolve_data_source(
@@ -1044,7 +1055,17 @@ _LOCAL_FILE_EXTENSIONS = (
 
 
 def _looks_like_hf_dataset_repo(value: str) -> bool:
-    """Return True when `value` looks like a HF dataset repo id `owner/name`."""
+    """
+    Determine whether a string appears to be a Hugging Face dataset repository identifier in the form `owner/name`.
+    
+    This treats strings that end with common local file extensions (case-insensitive) as not being HF dataset identifiers.
+    
+    Parameters:
+        value (str): Candidate dataset source string.
+    
+    Returns:
+        bool: `True` if `value` looks like an HF dataset repo id in `owner/name` form and is not a local file path, `False` otherwise.
+    """
     v = value.strip()
     # Local file extensions should never be treated as HF repos.
     # Case-insensitive check handles paths like data/Train.JSON.

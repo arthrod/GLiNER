@@ -256,11 +256,13 @@ class TestParameterForwarding:
 
     @staticmethod
     def _extract_train_model_kwargs(tree: ast.AST) -> set[str]:
-        """Extract keyword argument names forwarded to model.train_model().
-
-        Handles both direct keyword args (``model.train_model(foo=bar)``) and
-        dict-splat patterns (``model.train_model(**train_kwargs)``) by
-        collecting keys from the dict literal assigned to the splatted variable.
+        """
+        Extracts keyword argument names forwarded to `model.train_model` calls in the AST.
+        
+        Recognizes direct keyword arguments and keys from dict literals assigned to variables that are later splatted with `**var` into the call.
+        
+        Returns:
+            set[str]: The set of keyword names passed to `train_model`.
         """
         kwargs: set[str] = set()
         # Collect keys from dict literals assigned to any variable that is

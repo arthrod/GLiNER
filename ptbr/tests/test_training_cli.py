@@ -603,6 +603,11 @@ class TestLooksLikeHfDatasetRepo:
         assert _looks_like_hf_dataset_repo("train.json") is False
 
     def test_whitespace_stripped(self) -> None:
+        """
+        Verifies that surrounding whitespace is trimmed before determining if a string looks like a Hugging Face dataset repo.
+        
+        Asserts that a trimmed HF-style repo identifier like "owner/dataset" is accepted and that a trimmed plain filename like "data.json" is rejected.
+        """
         assert _looks_like_hf_dataset_repo("  owner/dataset  ") is True
         assert _looks_like_hf_dataset_repo("  data.json  ") is False
 

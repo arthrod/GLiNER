@@ -349,7 +349,27 @@ def _validate_cross_constraints(
     report: ValidationReport,
     raw_gliner_section: Dict[str, Any] | None = None,
 ) -> None:
-    """Check cross-field constraints that depend on method and mode."""
+    """
+    Validate cross-field constraints that depend on selected method and mode.
+    
+    Performs method-specific presence checks, enforces consistency between `method`
+    and `span_mode` (may mutate `gliner_data` to normalize `span_mode`), and adds
+    errors or warnings to `report` for incompatible or ignored fields. The function
+    does not raise exceptions; it records findings in `report`.
+    
+    Parameters:
+        gliner_data (Dict[str, Any]): Resolved GLiNER configuration values; may be
+            modified (currently `span_mode` can be changed).
+        method (str): Selected training/evaluation method (e.g., "biencoder",
+            "decoder", "relex", "span", "token").
+        full_or_lora (str): Mode selector ("full" or "lora") — included for context
+            but not directly validated by this function.
+        report (ValidationReport): Collector used to record errors and warnings.
+        raw_gliner_section (Dict[str, Any] | None): Raw YAML mapping for the
+            `gliner_config` section when available; used to determine which keys
+            were explicitly set by the user. If omitted, explicitness is inferred
+            from non-None values in `gliner_data`.
+    """
     if isinstance(raw_gliner_section, dict):
         explicit_keys = set(raw_gliner_section.keys())
     else:

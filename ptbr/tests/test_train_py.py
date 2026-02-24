@@ -15,12 +15,32 @@ _UNSET = object()
 
 class _DummyModel:
     def __init__(self) -> None:
+        """
+        Initialize a lightweight dummy model for capturing training keyword arguments.
+        
+        Sets the attribute `train_kwargs` to `None`; the attribute is later populated by `train_model` when training is invoked.
+        """
         self.train_kwargs: dict | None = None
 
     def to(self, dtype=None):  # noqa: ARG002
+        """
+        No-op placeholder that provides a dtype-aware conversion API compatible with tensor modules.
+        
+        Parameters:
+            dtype: Target data type to convert the model to; accepted but ignored.
+        
+        Returns:
+            The same model instance (`self`).
+        """
         return self
 
     def train_model(self, **kwargs):
+        """
+        Capture and store training keyword arguments for later inspection.
+        
+        Parameters:
+            **kwargs: Arbitrary keyword arguments representing training parameters to record on the instance.
+        """
         self.train_kwargs = kwargs
 
 
