@@ -999,6 +999,75 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             available = ", ".join(components.keys())
             warnings.warn(f"Component '{component_name}' not found. Available components: {available}", stacklevel=2)
 
+    def _apply_lora(self, lora_config: dict) -> None:
+        """Apply a LoRA adapter to the model's encoder backbone in-place.
+
+        Parameters:
+            lora_config: Dict with keys ``r``, ``lora_alpha``, ``lora_dropout``,
+                ``bias``, ``target_modules``, and optionally ``task_type``
+                (default ``"TOKEN_CLS"``) and ``modules_to_save``.
+        """
+        try:
+            from peft import TaskType, LoraConfig, get_peft_model
+        except ImportError:
+            raise ImportError(
+                "peft is required for LoRA training. Install with: pip install peft"
+            )
+
+        task_map = {
+            "TOKEN_CLS": TaskType.TOKEN_CLS,
+            "SEQ_CLS": TaskType.SEQ_CLS,
+            "CAUSAL_LM": TaskType.CAUSAL_LM,
+            "SEQ_2_SEQ_LM": TaskType.SEQ_2_SEQ_LM,
+            "FEATURE_EXTRACTION": TaskType.FEATURE_EXTRACTION,
+        }
+        task_type = task_map.get(
+            lora_config.get("task_type", "TOKEN_CLS"), TaskType.TOKEN_CLS
+        )
+
+        peft_cfg = LoraConfig(
+            r=lora_config["r"],
+            lora_alpha=lora_config["lora_alpha"],
+            lora_dropout=lora_config.get("lora_dropout", 0.05),
+            bias=lora_config.get("bias", "none"),
+            target_modules=lora_config["target_modules"],
+            task_type=task_type,
+            modules_to_save=lora_config.get("modules_to_save"),
+        )
+
+        try:
+            backbone = self.model.token_rep_layer.bert_layer.model
+        except AttributeError:
+            backbone = None
+
+        if backbone is None:
+            raise RuntimeError(
+                "Could not locate the encoder backbone at "
+                "model.token_rep_layer.bert_layer.model; LoRA cannot be applied."
+            )
+
+        self.model.token_rep_layer.bert_layer.model = get_peft_model(
+            backbone, peft_cfg
+        )
+        trainable = sum(
+            p.numel()
+            for p in self.model.token_rep_layer.bert_layer.model.parameters()
+            if p.requires_grad
+        )
+        total = sum(
+            p.numel()
+            for p in self.model.token_rep_layer.bert_layer.model.parameters()
+        )
+        pct = (100 * trainable / total) if total else 0.0
+        logger.info(
+            "LoRA applied (r=%d, alpha=%s). Trainable: %s / %s (%.2f%%)",
+            lora_config["r"],
+            lora_config["lora_alpha"],
+            f"{trainable:,}",
+            f"{total:,}",
+            pct,
+        )
+
     @classmethod
     def create_training_args(
         cls,
@@ -1134,13 +1203,14 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         compile_model: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
         resume_from_checkpoint: Optional[Union[str, Path, bool]] = None,
+        lora_config: Optional[dict] = None,
         **training_kwargs,
     ) -> Trainer:
         """
         Execute training with Hugging Face's Trainer using the provided datasets and training configuration.
-        
+
         If `training_args` is None, a TrainingArguments object is created from `output_dir` and `training_kwargs`. When `eval_dataset` is provided and no evaluation strategy is set, evaluation is enabled with `eval_strategy='steps'` and `eval_steps` defaulting to `save_steps`.
-        
+
         Parameters:
             train_dataset: The dataset used for training.
             eval_dataset: The dataset used for evaluation (may be None).
@@ -1149,11 +1219,19 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             compile_model: If True, compiles the model (via self.compile()) before training.
             output_dir: Directory to save training outputs; required if `training_args` is None.
             resume_from_checkpoint: Path to a checkpoint to resume from, or True to auto-detect the latest checkpoint; if None training starts from scratch.
+            lora_config: Optional LoRA configuration dict. When provided, a PEFT LoRA adapter
+                is applied to the model's encoder backbone before training. Expected keys:
+                ``r``, ``lora_alpha``, ``lora_dropout``, ``bias``, ``target_modules``.
+                Optional keys: ``task_type`` (default ``"TOKEN_CLS"``), ``modules_to_save``.
+                Requires the ``peft`` package (``pip install peft``).
             **training_kwargs: Additional keyword arguments forwarded to `create_training_args` when `training_args` is not provided.
-        
+
         Returns:
             The Trainer instance used to run training (with trained model weights).
         """
+        # Apply LoRA adapter if requested
+        if lora_config is not None:
+            self._apply_lora(lora_config)
         # Create training arguments if not provided
         if training_args is None:
             if output_dir is None:

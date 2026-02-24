@@ -922,7 +922,7 @@ class TestLaunchTrainingPropagation:
         assert captured["from_pretrained_path"] == "some/pretrained/path"
         assert captured["from_config_dict"] is None
 
-    def test_launch_training_applies_lora_if_enabled(
+    def test_launch_training_forwards_lora_config_when_enabled(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -930,13 +930,26 @@ class TestLaunchTrainingPropagation:
         cfg = self._make_cfg(tmp_path)
         cfg["lora"]["enabled"] = True
         cfg["lora"]["r"] = 16
-        self._patch_fake_runtime(monkeypatch)
+        captured = self._patch_fake_runtime(monkeypatch)
 
-        with mock.patch("ptbr.training_cli._apply_lora") as mock_apply:
-            _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
-            mock_apply.assert_called_once()
-            args, _ = mock_apply.call_args
-            assert args[1] == cfg["lora"]
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        assert kwargs["lora_config"] is cfg["lora"]
+
+    def test_launch_training_lora_config_none_when_disabled(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cfg = self._make_cfg(tmp_path)
+        cfg["lora"]["enabled"] = False
+        captured = self._patch_fake_runtime(monkeypatch)
+
+        _launch_training(cfg, tmp_path / "artifacts", resume=False, config_dir=tmp_path)
+
+        kwargs = captured["train_kwargs"]
+        assert kwargs["lora_config"] is None
 
     def test_launch_training_sets_env_vars(
         self,

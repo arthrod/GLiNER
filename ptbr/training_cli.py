@@ -1188,9 +1188,8 @@ def _launch_training(
         else:
             logger.info("[CONFIG]   No training-relevant config overrides needed")
 
-    # -- LoRA --
-    if cfg.get("lora", {}).get("enabled", False):
-        _apply_lora(model, cfg["lora"])
+    # -- LoRA (forwarded to train_model) --
+    lora_cfg_for_train = cfg.get("lora") if cfg.get("lora", {}).get("enabled", False) else None
 
     # -- Load data --
     train_source, train_split, train_is_hf = _resolve_data_source(
@@ -1317,6 +1316,8 @@ def _launch_training(
         # Hub integration
         "push_to_hub": env_cfg.get("push_to_hub", False),
         "hub_model_id": env_cfg.get("hub_model_id"),
+        # LoRA
+        "lora_config": lora_cfg_for_train,
     }
 
     # -- Diagnostic logging --
