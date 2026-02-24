@@ -4,7 +4,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+training_feb_22/
+dataset_summary*.json
 # C extensions
 *.so
 
@@ -179,3 +180,6 @@ poetry.toml
 pyrightconfig.json
 
 .vscode
+.worktrees/
+wandb/
+.ralph/**

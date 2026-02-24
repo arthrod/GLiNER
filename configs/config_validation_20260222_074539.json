@@ -1,0 +1,183 @@
+{
+  "timestamp": "2026-02-22T07:45:39.099896",
+  "file": "configs/config_tiny_test.yaml",
+  "full_or_lora": "full",
+  "method": "span",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 22,
+  "issues": [
+    {
+      "level": "WARNING",
+      "field": "gliner_config.full_decoder_context",
+      "message": "Not set; using default: True"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.blank_entity_prob",
+      "message": "Not set; using default: 0.1"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.decoder_loss_coef",
+      "message": "Not set; using default: 0.5"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.embed_rel_token",
+      "message": "Not set; using default: True"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.rel_token_index",
+      "message": "Not set; using default: -1"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.rel_token",
+      "message": "Not set; using default: '<<REL>>'"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.adjacency_loss_coef",
+      "message": "Not set; using default: 1.0"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.relation_loss_coef",
+      "message": "Not set; using default: 1.0"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.words_splitter_type",
+      "message": "Not set; using default: 'whitespace'"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.post_fusion_schema",
+      "message": "Not set; using default: ''"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.num_post_fusion_layers",
+      "message": "Not set; using default: 1"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.num_rnn_layers",
+      "message": "Not set; using default: 1"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.embed_ent_token",
+      "message": "Not set; using default: True"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.class_token_index",
+      "message": "Not set; using default: -1"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.vocab_size",
+      "message": "Not set; using default: -1"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.ent_token",
+      "message": "Not set; using default: '<<ENT>>'"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.sep_token",
+      "message": "Not set; using default: '<<SEP>>'"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.token_loss_coef",
+      "message": "Not set; using default: 1.0"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.span_loss_coef",
+      "message": "Not set; using default: 1.0"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.represent_spans",
+      "message": "Not set; using default: False"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.neg_spans_ratio",
+      "message": "Not set; using default: 1.0"
+    },
+    {
+      "level": "WARNING",
+      "field": "gliner_config.decoder_mode",
+      "message": "Field 'decoder_mode' is set to 'span' but labels_decoder is not set; it will be ignored."
+    }
+  ],
+  "resolved_gliner_config": {
+    "return_dict": true,
+    "output_hidden_states": false,
+    "dtype": null,
+    "chunk_size_feed_forward": 0,
+    "is_encoder_decoder": false,
+    "architectures": null,
+    "id2label": {
+      "0": "LABEL_0",
+      "1": "LABEL_1"
+    },
+    "label2id": {
+      "LABEL_0": 0,
+      "LABEL_1": 1
+    },
+    "problem_type": null,
+    "_name_or_path": "",
+    "transformers_version": "5.1.0",
+    "labels_encoder_config": null,
+    "decoder_mode": "span",
+    "labels_decoder_config": null,
+    "full_decoder_context": true,
+    "blank_entity_prob": 0.1,
+    "decoder_loss_coef": 0.5,
+    "triples_layer": null,
+    "embed_rel_token": true,
+    "rel_token_index": -1,
+    "rel_token": "<<REL>>",
+    "adjacency_loss_coef": 1.0,
+    "relation_loss_coef": 1.0,
+    "encoder_config": null,
+    "model_name": "prajjwal1/bert-tiny",
+    "name": "span level gliner",
+    "max_width": 6,
+    "hidden_size": 128,
+    "dropout": 0.3,
+    "fine_tune": true,
+    "subtoken_pooling": "first",
+    "span_mode": "markerV0",
+    "post_fusion_schema": "",
+    "num_post_fusion_layers": 1,
+    "vocab_size": -1,
+    "max_neg_type_ratio": 1,
+    "max_types": 25,
+    "max_len": 64,
+    "words_splitter_type": "whitespace",
+    "num_rnn_layers": 1,
+    "fuse_layers": false,
+    "class_token_index": -1,
+    "embed_ent_token": true,
+    "ent_token": "<<ENT>>",
+    "sep_token": "<<SEP>>",
+    "token_loss_coef": 1.0,
+    "span_loss_coef": 1.0,
+    "represent_spans": false,
+    "neg_spans_ratio": 1.0,
+    "labels_encoder": null,
+    "labels_decoder": null,
+    "relations_layer": null,
+    "model_type": "gliner_uni_encoder_span",
+    "output_attentions": false
+  }
+}

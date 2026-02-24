@@ -363,10 +363,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         """
         tokenizer_config_path = model_dir / "tokenizer_config.json"
 
+        trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         if tokenizer_config_path.is_file():
-            tokenizer = AutoTokenizer.from_pretrained(model_dir, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(model_dir, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
         else:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
 
         return cls._set_tokenizer_spec_tokens(tokenizer)
 
@@ -526,7 +527,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         # Load tokenizer if requested
         tokenizer = None
         if load_tokenizer:
-            tokenizer = AutoTokenizer.from_pretrained(config_instance.model_name, cache_dir=cache_dir)
+            trust_remote_code = bool(getattr(config_instance, "trust_remote_code", False))
+            tokenizer = AutoTokenizer.from_pretrained(config_instance.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             cls._set_tokenizer_spec_tokens(tokenizer)
         # Create model instance from scratch
         instance = cls(
@@ -575,6 +577,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         load_onnx_model: Optional[bool] = False,
         onnx_model_file: Optional[str] = "model.onnx",
         session_options=None,
+        trust_remote_code: bool = False,
         # Config overrides
         max_length: Optional[int] = None,
         max_width: Optional[int] = None,
@@ -602,6 +605,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             load_onnx_model: Whether to load ONNX model instead of PyTorch.
             onnx_model_file: Path to ONNX model file.
             session_options: ONNX runtime session options.
+            trust_remote_code: Whether to allow execution of custom code from
+                model repositories when loading backbone/decoder models.
             max_length: Override max_length in config.
             max_width: Override max_width in config.
             post_fusion_schema: Override post_fusion_schema in config.
@@ -629,6 +634,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             post_fusion_schema=post_fusion_schema,
             _attn_implementation=_attn_implementation,
         )
+        # Propagate remote-code trust policy to downstream encoder/decoder loaders.
+        config.trust_remote_code = trust_remote_code
 
         # Load tokenizer
         if load_tokenizer is None:
@@ -979,10 +986,14 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
     def unfreeze_component(self, component_name: str):
         """
-        Unfreeze a specific component of the model.
-
-        Args:
-            component_name: Name of component to unfreeze
+        Unfreeze a named model component by enabling gradient updates on its parameters.
+        
+        Parameters:
+            component_name (str): Key of the component to unfreeze as returned by `_get_freezable_components()`.
+        
+        Behavior:
+            Sets `requires_grad=True` on all parameters of the named component. If the component is not found,
+            emits a warning listing available component keys.
         """
         components = self._get_freezable_components()
         if component_name in components:
@@ -991,6 +1002,93 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         else:
             available = ", ".join(components.keys())
             warnings.warn(f"Component '{component_name}' not found. Available components: {available}", stacklevel=2)
+
+    def _apply_lora(self, lora_config: dict) -> None:
+        """
+        Attach a PEFT LoRA adapter to the model's encoder backbone in-place.
+        
+        Parameters:
+            lora_config (dict): Configuration for the LoRA adapter. Expected keys:
+                - "r" (int): LoRA rank.
+                - "lora_alpha" (float|int): LoRA scaling coefficient.
+                - "target_modules" (list[str]): Names of modules to apply LoRA to.
+                - Optional "lora_dropout" (float): Dropout for LoRA (default 0.05).
+                - Optional "bias" (str): Bias mode for LoRA (default "none").
+                - Optional "task_type" (str): One of "TOKEN_CLS", "SEQ_CLS", "CAUSAL_LM",
+                  "SEQ_2_SEQ_LM", "FEATURE_EXTRACTION" (default "TOKEN_CLS").
+                - Optional "modules_to_save" (list[str]): Modules to keep trainable/saved.
+                - Optional "init_lora_weights" (bool): Initialize LoRA weights (default True).
+                - Optional "use_rslora" (bool): Use rank-stabilized LoRA (default False).
+                - Optional "fan_in_fan_out" (bool): Fan in/out for Conv1D layers (default False).
+        
+        Raises:
+            ImportError: If the `peft` library is not installed.
+            RuntimeError: If the encoder backbone cannot be located at
+                `self.model.token_rep_layer.bert_layer.model` and LoRA cannot be applied.
+        """
+        try:
+            from peft import TaskType, LoraConfig, get_peft_model
+        except ImportError:
+            raise ImportError(
+                "peft is required for LoRA training. Install with: pip install peft"
+            )
+
+        task_map = {
+            "TOKEN_CLS": TaskType.TOKEN_CLS,
+            "SEQ_CLS": TaskType.SEQ_CLS,
+            "CAUSAL_LM": TaskType.CAUSAL_LM,
+            "SEQ_2_SEQ_LM": TaskType.SEQ_2_SEQ_LM,
+            "FEATURE_EXTRACTION": TaskType.FEATURE_EXTRACTION,
+        }
+        task_type = task_map.get(
+            lora_config.get("task_type", "TOKEN_CLS"), TaskType.TOKEN_CLS
+        )
+
+        peft_cfg = LoraConfig(
+            r=lora_config["r"],
+            lora_alpha=lora_config["lora_alpha"],
+            lora_dropout=lora_config.get("lora_dropout", 0.05),
+            bias=lora_config.get("bias", "none"),
+            target_modules=lora_config["target_modules"],
+            task_type=task_type,
+            modules_to_save=lora_config.get("modules_to_save"),
+            init_lora_weights=lora_config.get("init_lora_weights", True),
+            use_rslora=lora_config.get("use_rslora", False),
+            fan_in_fan_out=lora_config.get("fan_in_fan_out", False),
+        )
+
+        try:
+            backbone = self.model.token_rep_layer.bert_layer.model
+        except AttributeError:
+            backbone = None
+
+        if backbone is None:
+            raise RuntimeError(
+                "Could not locate the encoder backbone at "
+                "model.token_rep_layer.bert_layer.model; LoRA cannot be applied."
+            )
+
+        self.model.token_rep_layer.bert_layer.model = get_peft_model(
+            backbone, peft_cfg
+        )
+        trainable = sum(
+            p.numel()
+            for p in self.model.token_rep_layer.bert_layer.model.parameters()
+            if p.requires_grad
+        )
+        total = sum(
+            p.numel()
+            for p in self.model.token_rep_layer.bert_layer.model.parameters()
+        )
+        pct = (100 * trainable / total) if total else 0.0
+        logger.info(
+            "LoRA applied (r=%d, alpha=%s). Trainable: %s / %s (%.2f%%)",
+            lora_config["r"],
+            lora_config["lora_alpha"],
+            f"{trainable:,}",
+            f"{total:,}",
+            pct,
+        )
 
     @classmethod
     def create_training_args(
@@ -1003,55 +1101,80 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         focal_loss_alpha: float = -1,
         focal_loss_gamma: float = 0.0,
         focal_loss_prob_margin: float = 0.0,
+        label_smoothing: float = 0.0,
         loss_reduction: str = "sum",
         negatives: float = 1.0,
-        masking: str = "none",
+        masking: str = "global",
         lr_scheduler_type: str = "linear",
         warmup_ratio: float = 0.1,
         per_device_train_batch_size: int = 8,
         per_device_eval_batch_size: int = 8,
         max_grad_norm: float = 1.0,
         max_steps: int = 10000,
+        eval_steps: Optional[int] = None,
         save_steps: int = 1000,
         save_total_limit: int = 10,
         logging_steps: int = 10,
         use_cpu: bool = False,
         bf16: bool = False,
+        fp16: bool = False,
+        seed: int = 42,
+        gradient_checkpointing: bool = False,
+        remove_unused_columns: bool = False,
         dataloader_num_workers: int = 1,
-        report_to: str = "none",
+        dataloader_pin_memory: bool = True,
+        dataloader_persistent_workers: bool = False,
+        dataloader_prefetch_factor: Optional[int] = 2,
+        report_to: Union[str, list] = "none",
+        run_name: Optional[str] = None,
+        push_to_hub: bool = False,
+        hub_model_id: Optional[str] = None,
         **kwargs,
     ) -> TrainingArguments:
-        """Create training arguments with sensible defaults.
-
-        Args:
-            output_dir: Directory to save model checkpoints.
-            learning_rate: Learning rate for main parameters.
+        """
+        Create a configured TrainingArguments object with sensible defaults for GLiNER training.
+        
+        Parameters:
+            output_dir: Directory where checkpoints and outputs will be saved.
+            learning_rate: Base learning rate for main parameters.
             weight_decay: Weight decay for main parameters.
-            others_lr: Learning rate for other parameters.
-            others_weight_decay: Weight decay for other parameters.
-            focal_loss_alpha: Alpha for focal loss.
-            focal_loss_gamma: Gamma for focal loss.
+            others_lr: Learning rate for parameter groups marked as "other"; defaults to `learning_rate` when None.
+            others_weight_decay: Weight decay for "other" parameter groups; defaults to `weight_decay` when None.
+            focal_loss_alpha: Alpha parameter for focal loss.
+            focal_loss_gamma: Gamma parameter for focal loss.
             focal_loss_prob_margin: Probability margin for focal loss.
-            loss_reduction: Loss reduction method.
+            label_smoothing: Label smoothing factor applied to the GLiNER loss.
+            loss_reduction: Reduction method for the loss (e.g., "sum", "mean").
             negatives: Negative sampling ratio.
-            masking: Masking strategy.
-            lr_scheduler_type: Learning rate scheduler type.
-            warmup_ratio: Warmup ratio.
-            per_device_train_batch_size: Training batch size.
-            per_device_eval_batch_size: Evaluation batch size.
-            max_grad_norm: Maximum gradient norm.
-            max_steps: Maximum training steps.
-            save_steps: Save checkpoint every N steps.
+            masking: Masking strategy; use "global" or "none".
+            lr_scheduler_type: Learning rate scheduler type (string identifier).
+            warmup_ratio: Fraction of total steps used for linear warmup.
+            per_device_train_batch_size: Training batch size per device.
+            per_device_eval_batch_size: Evaluation batch size per device.
+            max_grad_norm: Maximum gradient norm for clipping.
+            max_steps: Maximum number of training steps.
+            eval_steps: Run evaluation every N steps. If None, `save_steps` will be used as the evaluation cadence.
+            save_steps: Save a checkpoint every N steps.
             save_total_limit: Maximum number of checkpoints to keep.
-            logging_steps: Log every N steps.
-            use_cpu: Whether to use CPU.
-            bf16: Whether to use bfloat16.
-            dataloader_num_workers: Number of dataloader workers.
-            report_to: Where to report metrics.
-            **kwargs: Additional training arguments.
-
+            logging_steps: Log metrics every N steps.
+            use_cpu: Force training on CPU.
+            bf16: Enable bfloat16 where supported.
+            fp16: Enable float16 mixed precision.
+            seed: Random seed for reproducibility.
+            gradient_checkpointing: Enable gradient checkpointing to reduce memory.
+            remove_unused_columns: If True, remove unused dataset columns; must be False for GLiNER's custom batch dictionaries.
+            dataloader_num_workers: Number of worker processes for data loading.
+            dataloader_pin_memory: Pin memory in dataloaders.
+            dataloader_persistent_workers: Use persistent dataloader workers.
+            dataloader_prefetch_factor: Number of batches to prefetch per worker.
+            report_to: Destination(s) for reporting metrics (e.g., "none", "wandb"); may be a string or list.
+            run_name: Optional name for the training run (used by reporting integrations).
+            push_to_hub: Whether to push the trained model to the Hugging Face Hub.
+            hub_model_id: Hub repository identifier to push to.
+            **kwargs: Additional TrainingArguments fields to pass through.
+        
         Returns:
-            TrainingArguments instance.
+            A TrainingArguments instance pre-populated for GLiNER training.
         """
         return TrainingArguments(
             output_dir=output_dir,
@@ -1062,6 +1185,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             focal_loss_gamma=focal_loss_gamma,
             focal_loss_alpha=focal_loss_alpha,
             focal_loss_prob_margin=focal_loss_prob_margin,
+            label_smoothing=label_smoothing,
             loss_reduction=loss_reduction,
             negatives=negatives,
             masking=masking,
@@ -1071,13 +1195,24 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             per_device_eval_batch_size=per_device_eval_batch_size,
             max_grad_norm=max_grad_norm,
             max_steps=max_steps,
+            eval_steps=eval_steps,
             save_steps=save_steps,
             save_total_limit=save_total_limit,
             dataloader_num_workers=dataloader_num_workers,
+            dataloader_pin_memory=dataloader_pin_memory,
+            dataloader_persistent_workers=dataloader_persistent_workers,
+            dataloader_prefetch_factor=dataloader_prefetch_factor,
             logging_steps=logging_steps,
             use_cpu=use_cpu,
             report_to=report_to,
+            run_name=run_name,
             bf16=bf16,
+            fp16=fp16,
+            seed=seed,
+            gradient_checkpointing=gradient_checkpointing,
+            remove_unused_columns=remove_unused_columns,
+            push_to_hub=push_to_hub,
+            hub_model_id=hub_model_id,
             **kwargs,
         )
 
@@ -1089,27 +1224,59 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         freeze_components: Optional[list[str]] = None,
         compile_model: bool = False,
         output_dir: Optional[Union[str, Path]] = None,
+        resume_from_checkpoint: Optional[Union[str, Path, bool]] = None,
+        lora_config: Optional[dict] = None,
         **training_kwargs,
     ) -> Trainer:
-        """Train the model.
-
-        Args:
-            train_dataset: Training dataset.
-            eval_dataset: Evaluation dataset.
-            training_args: Training arguments (created with defaults if None).
-            freeze_components: List of component names to freeze (e.g., ['text_encoder', 'decoder']).
-            compile_model: Whether to compile model with torch.compile.
-            output_dir: Output directory (required if training_args is None).
-            **training_kwargs: Additional kwargs for creating training args.
-
-        Returns:
-            Trained Trainer instance.
         """
+        Train the model using Hugging Face's Trainer with the provided training and evaluation datasets.
+        
+        The method will create TrainingArguments from output_dir and additional kwargs if none are provided, optionally apply a PEFT LoRA adapter to the encoder backbone when lora_config is given, enable evaluation automatically when an eval_dataset is supplied but no evaluation strategy is set, optionally compile the model and freeze specified components, and then run training (optionally resuming from a checkpoint).
+        
+        Parameters:
+            train_dataset: Dataset used for training.
+            eval_dataset: Dataset used for evaluation, or None.
+            training_args (Optional[TrainingArguments]): Pre-built training arguments. If None, TrainingArguments are created from output_dir and training_kwargs.
+            freeze_components (Optional[list[str]]): Names of model components to freeze before training (e.g., ["text_encoder", "decoder"]).
+            compile_model (bool): If True, compile the model prior to training.
+            output_dir (Optional[Union[str, Path]]): Directory to save training outputs; required when training_args is None.
+            resume_from_checkpoint (Optional[Union[str, Path, bool]]): Path to a checkpoint to resume from, or True to auto-detect the latest checkpoint; None starts training from scratch.
+            lora_config (Optional[dict]): PEFT LoRA configuration. When provided, a LoRA adapter is applied to the encoder backbone before training. Expected keys include `r`, `lora_alpha`, `lora_dropout`, `bias`, and `target_modules`. Optional keys: `task_type`, `modules_to_save`. Requires the `peft` package to be installed.
+            **training_kwargs: Additional keyword arguments forwarded to create_training_args when training_args is not provided.
+        
+        Returns:
+            Trainer: The Trainer instance used to run training; the model's weights will be updated by the training run.
+        
+        Raises:
+            ValueError: If both `training_args` and `output_dir` are None.
+        """
+        # Apply LoRA adapter if requested
+        if lora_config is not None:
+            self._apply_lora(lora_config)
         # Create training arguments if not provided
         if training_args is None:
             if output_dir is None:
                 raise ValueError("Either training_args or output_dir must be provided")
             training_args = self.create_training_args(output_dir=output_dir, **training_kwargs)
+
+        # Auto-enable evaluation when an eval_dataset is provided but
+        # eval_strategy was never set (defaults to "no").  Using "steps"
+        # because this codebase commonly trains with max_steps, not epochs.
+        if eval_dataset is not None:
+            strategy_attr = (
+                "eval_strategy"
+                if hasattr(training_args, "eval_strategy")
+                else "evaluation_strategy"
+            )
+            current_strategy = getattr(training_args, strategy_attr, "no")
+            current_strategy_value = getattr(current_strategy, "value", current_strategy)
+            normalized_strategy = str(current_strategy_value).strip().lower()
+            if normalized_strategy in {"no", "intervalstrategy.no"}:
+                setattr(training_args, strategy_attr, "steps")
+                # If no explicit eval_steps, fall back to save_steps so that
+                # evaluation runs at the same cadence as checkpointing.
+                if getattr(training_args, "eval_steps", None) is None:
+                    training_args.eval_steps = training_args.save_steps
 
         # Compile model if requested
         if compile_model:
@@ -1140,8 +1307,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
         trainer = Trainer(**trainer_kwargs)
 
-        # Train
-        trainer.train()
+        # Train, optionally resuming from a checkpoint
+        if resume_from_checkpoint is not None:
+            trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            trainer.train()
 
         return trainer
 
@@ -1153,7 +1323,8 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            trust_remote_code = bool(getattr(config, "trust_remote_code", False))
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
         self.data_processor = self.data_processor_class(config, tokenizer, words_splitter)
         return self.data_processor
@@ -1610,9 +1781,10 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
 class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
-        labels_tokenizer = AutoTokenizer.from_pretrained(config.labels_encoder, cache_dir=cache_dir)
+        trust_remote_code = bool(getattr(config, "trust_remote_code", False))
+        labels_tokenizer = AutoTokenizer.from_pretrained(config.labels_encoder, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
 
         self.data_processor = self.data_processor_class(
@@ -2083,8 +2255,9 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
 
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         """Create data processor with decoder tokenizer."""
+        trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
 
         if words_splitter is None:
@@ -2094,7 +2267,7 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
         decoder_tokenizer = None
         if config.labels_decoder is not None:
             decoder_tokenizer = AutoTokenizer.from_pretrained(
-                config.labels_decoder, cache_dir=cache_dir, add_prefix_space=True
+                config.labels_decoder, cache_dir=cache_dir, add_prefix_space=True, trust_remote_code=trust_remote_code
             )
             if decoder_tokenizer.pad_token is None:
                 decoder_tokenizer.pad_token = decoder_tokenizer.eos_token
@@ -2375,7 +2548,8 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         """Create relation extraction data processor."""
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir)
+            trust_remote_code = bool(getattr(config, "trust_remote_code", False))
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
             self._set_tokenizer_spec_tokens(tokenizer)
 
         if words_splitter is None:
@@ -3110,6 +3284,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
         compile_torch_model: Optional[bool] = False,
         load_onnx_model: Optional[bool] = False,
         onnx_model_file: Optional[str] = "model.onnx",
+        trust_remote_code: bool = False,
         # Config overrides
         max_length: Optional[int] = None,
         max_width: Optional[int] = None,
@@ -3138,6 +3313,8 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             compile_torch_model: Whether to compile with torch.compile.
             load_onnx_model: Whether to load ONNX model instead of PyTorch.
             onnx_model_file: Path to ONNX model file.
+            trust_remote_code: Whether to allow execution of custom code from
+                model repositories when loading backbone/decoder models.
             max_length: Override max_length in config.
             max_width: Override max_width in config.
             post_fusion_schema: Override post_fusion_schema in config.
@@ -3199,6 +3376,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             load_tokenizer=load_tokenizer,
             resize_token_embeddings=resize_token_embeddings,
             compile_torch_model=compile_torch_model,
+            trust_remote_code=trust_remote_code,
             max_length=max_length,
             max_width=max_width,
             post_fusion_schema=post_fusion_schema,

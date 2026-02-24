@@ -1,0 +1,22 @@
+[
+  {
+    "id": "ner-is-dict",
+    "tokenized_text": ["Hello", "world"],
+    "ner": {"0": {"start": 0, "end": 1, "label": "Greeting"}}
+  },
+  {
+    "id": "ner-is-string",
+    "tokenized_text": ["Hello", "world"],
+    "ner": "[[0, 1, 'Greeting']]"
+  },
+  {
+    "id": "ner-is-int",
+    "tokenized_text": ["Hello", "world"],
+    "ner": 0
+  },
+  {
+    "id": "ner-is-null",
+    "tokenized_text": ["Hello", "world"],
+    "ner": null
+  }
+]

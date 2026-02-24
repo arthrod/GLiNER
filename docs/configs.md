@@ -300,9 +300,9 @@ max_len: 384
 ### Architecture-Specific Parameters
 
 #### `span_mode`
-`str`, *required*, fixed to `"token-level"`
+`str`, *required*, fixed to `"token_level"`
 
-This parameter is automatically set to `"token-level"` and cannot be changed for this architecture.
+This parameter is automatically set to `"token_level"` and cannot be changed for this architecture.
 
 ### Usage Example
 
@@ -313,7 +313,7 @@ from gliner import GLiNERConfig, GLiNER
 config = GLiNERConfig(
     model_name="microsoft/deberta-v3-small",
     hidden_size=512,
-    span_mode="token-level",  # Automatically set for this architecture
+    span_mode="token_level",  # Automatically set for this architecture
 )
 
 model = GLiNER.from_config(config)
@@ -480,9 +480,9 @@ max_len: 384
 Model identifier for the label encoder.
 
 #### `span_mode`
-`str`, *required*, fixed to `"token-level"`
+`str`, *required*, fixed to `"token_level"`
 
-Automatically set to `"token-level"` for this architecture.
+Automatically set to `"token_level"` for this architecture.
 
 ### Usage Example
 
@@ -494,7 +494,7 @@ config = GLiNERConfig(
     model_name="microsoft/deberta-v3-base",
     labels_encoder="sentence-transformers/all-MiniLM-L6-v2",
     hidden_size=768,
-    span_mode="token-level",
+    span_mode="token_level",
 )
 
 model = GLiNER.from_config(config)

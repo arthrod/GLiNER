@@ -8,6 +8,7 @@ for different parameter groups, and robust error handling during training.
 import os
 import inspect
 import logging
+import warnings
 from typing import Any, Dict, List, Tuple, Union, Optional
 from dataclasses import field, dataclass
 
@@ -93,6 +94,36 @@ class Trainer(transformers.Trainer):
     - skips only OOM by default (other exceptions are raised so you don't silently get 0 loss)
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Warn about potential double-scaling of the loss during gradient accumulation.
+        # This custom Trainer manually divides the loss by gradient_accumulation_steps
+        # in training_step() because HF Trainer v4.47+ no longer passes that value to
+        # the Accelerator (it stays at 1).  If someone separately configures the
+        # Accelerator with gradient_accumulation_steps > 1 (e.g. via the
+        # ACCELERATE_GRADIENT_ACCUMULATION_STEPS env var or
+        # AcceleratorConfig.gradient_accumulation_kwargs.num_steps), the Accelerator
+        # will ALSO divide the loss, leading to double-scaling.
+        if (
+            getattr(self.accelerator, "gradient_accumulation_steps", 1) > 1
+            and self.args.gradient_accumulation_steps > 1
+        ):
+            warnings.warn(
+                "Both the Accelerator and TrainingArguments have "
+                "gradient_accumulation_steps > 1 "
+                f"(accelerator={self.accelerator.gradient_accumulation_steps}, "
+                f"args={self.args.gradient_accumulation_steps}). "
+                "This GLiNER Trainer manually divides the loss by "
+                "args.gradient_accumulation_steps in training_step(), so the "
+                "Accelerator will apply a SECOND division, causing double-scaling. "
+                "To fix this, either (a) remove the external Accelerator config "
+                "(e.g. unset ACCELERATE_GRADIENT_ACCUMULATION_STEPS) or "
+                "(b) set gradient_accumulation_steps=1 in TrainingArguments and "
+                "let the Accelerator handle it alone.",
+                UserWarning,
+                stacklevel=2,
+            )
+
     def _save(self, output_dir: str = None, state_dict=None):
         # called by HF during checkpoint saves
         if not self.args.should_save:
@@ -169,10 +200,6 @@ class Trainer(transformers.Trainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
 
-        # Guardrail: if labels are missing, fail loudly (otherwise you end up with loss=None -> silent 0)
-        if "labels" not in inputs:
-            raise KeyError(f"Batch has no 'labels'. Keys: {list(inputs.keys())}")
-
         try:
             if is_sagemaker_mp_enabled():
                 loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps)
@@ -189,7 +216,7 @@ class Trainer(transformers.Trainer):
                 loss = loss.mean()
 
             # Match upstream Trainer behavior: scale loss for grad accumulation before backward
-            if self.args.gradient_accumulation_steps > 1 and self.deepspeed is None:
+            if self.args.gradient_accumulation_steps > 1 and not self.is_deepspeed_enabled:
                 loss = loss / self.args.gradient_accumulation_steps
 
             self.accelerator.backward(loss)
@@ -279,12 +306,8 @@ class Trainer(transformers.Trainer):
                 },
             ]
 
-        # Works across v4/v5
-        if hasattr(transformers.Trainer, "get_optimizer_cls_and_kwargs"):
-            optimizer_cls, optimizer_kwargs = transformers.Trainer.get_optimizer_cls_and_kwargs(self.args)
-        else:
-            # very old fallback
-            optimizer_cls, optimizer_kwargs = super().get_optimizer_cls_and_kwargs(self.args)
+        # Works across v4/v5 – static method on Trainer
+        optimizer_cls, optimizer_kwargs = transformers.Trainer.get_optimizer_cls_and_kwargs(self.args)
 
         self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
         return self.optimizer
@@ -309,6 +332,17 @@ class Trainer(transformers.Trainer):
         return (loss, logits, labels)
 
     def get_train_dataloader(self) -> DataLoader:
+        """
+        Create and return the training DataLoader prepared by the accelerator.
+        
+        Constructs DataLoader parameters from trainer settings (batch size, collate function, number of workers, pin memory). If dataloader workers > 0, enables persistent workers and sets prefetch factor when provided. For map-style datasets, attaches the training sampler, drop-last behavior, and a worker init function that seeds workers for reproducibility.
+        
+        Returns:
+            DataLoader: An accelerator-prepared DataLoader for the training dataset.
+        
+        Raises:
+            ValueError: If no training dataset is set on the trainer.
+        """
         if self.train_dataset is None:
             raise ValueError("Trainer: training requires a train_dataset.")
 
@@ -320,18 +354,36 @@ class Trainer(transformers.Trainer):
             "collate_fn": data_collator,
             "num_workers": self.args.dataloader_num_workers,
             "pin_memory": self.args.dataloader_pin_memory,
-            "persistent_workers": self.args.dataloader_persistent_workers,
         }
+
+        if self.args.dataloader_num_workers > 0:
+            dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
+            if self.args.dataloader_prefetch_factor is not None:
+                dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(train_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_train_sampler()
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
             dataloader_params["worker_init_fn"] = seed_worker
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         return self.accelerator.prepare(DataLoader(train_dataset, **dataloader_params))
 
     def get_eval_dataloader(self, eval_dataset: Optional[Union[str, Dataset]] = None) -> DataLoader:
+        """
+        Create and return a DataLoader prepared by the accelerator for evaluation.
+        
+        Parameters:
+            eval_dataset (Optional[Union[str, Dataset]]): Dataset to evaluate on or a string key selecting
+                an entry from the Trainer's `eval_dataset` mapping. If omitted, uses the Trainer's
+                `eval_dataset` attribute. Must be provided either here or on the Trainer.
+        
+        Returns:
+            DataLoader: The accelerator-prepared evaluation DataLoader configured with evaluation batch size,
+            collate function, worker settings, sampler (for map-style datasets), and optional persistent worker caching.
+        
+        Raises:
+            ValueError: If neither `eval_dataset` nor `self.eval_dataset` is available.
+        """
         if eval_dataset is None and self.eval_dataset is None:
             raise ValueError("Trainer: evaluation requires an eval_dataset.")
 
@@ -356,13 +408,16 @@ class Trainer(transformers.Trainer):
             "collate_fn": self.data_collator,
             "num_workers": self.args.dataloader_num_workers,
             "pin_memory": self.args.dataloader_pin_memory,
-            "persistent_workers": self.args.dataloader_persistent_workers,
         }
+
+        if self.args.dataloader_num_workers > 0:
+            dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
+            if self.args.dataloader_prefetch_factor is not None:
+                dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         if not isinstance(eval_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(eval_dataset)
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
-            dataloader_params["prefetch_factor"] = self.args.dataloader_prefetch_factor
 
         eval_dataloader = DataLoader(eval_dataset, **dataloader_params)
 

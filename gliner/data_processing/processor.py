@@ -296,6 +296,7 @@ class BaseProcessor(ABC):
             is_split_into_words=True,
             return_tensors="pt",
             truncation=True,
+            max_length=self.config.max_len,
             padding="longest",
         )
         words_masks = self.prepare_word_mask(texts, tokenized_inputs, prompt_lengths)
@@ -454,8 +455,9 @@ class UniEncoderSpanProcessor(BaseProcessor):
 
     def prepare_span_labels(self, ner, classes_to_id, num_tokens, spans_idx):
         dict_lab = self.get_dict(ner, classes_to_id) if ner else defaultdict(int)
-        span_label = torch.LongTensor([dict_lab[i] for i in spans_idx])
-        spans_idx = torch.LongTensor(spans_idx)
+        if not isinstance(spans_idx, torch.Tensor):
+            spans_idx = torch.LongTensor(spans_idx)
+        span_label = torch.LongTensor([dict_lab[(s, e)] for s, e in spans_idx.tolist()])
         valid_span_mask = spans_idx[:, 1] > num_tokens - 1
         span_label = span_label.masked_fill(valid_span_mask, -1)
         return span_label, spans_idx
@@ -559,8 +561,8 @@ class UniEncoderSpanProcessor(BaseProcessor):
             classes_to_id = batch["classes_to_id"][i]
             ner = batch["entities"][i]
             num_classes = len(classes_to_id)
-            spans_idx = torch.LongTensor(prepare_span_idx(len(tokens), self.config.max_width))
-            span_to_index = {(spans_idx[idx, 0].item(), spans_idx[idx, 1].item()): idx for idx in range(len(spans_idx))}
+            spans_idx = prepare_span_idx(len(tokens), self.config.max_width)
+            span_to_index = {(s, e): idx for idx, (s, e) in enumerate(spans_idx.tolist())}
             labels_one_hot = torch.zeros(len(spans_idx), num_classes + 1, dtype=torch.float)
             end_token_idx = len(tokens) - 1
             span_labels_dict = {}
@@ -933,7 +935,12 @@ class BaseBiEncoderProcessor(BaseProcessor):
                 - labels_attention_mask: Entity type attention mask (if entities provided)
         """
         tokenized_inputs = self.transformer_tokenizer(
-            texts, is_split_into_words=True, return_tensors="pt", truncation=True, padding="longest"
+            texts,
+            is_split_into_words=True,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self.config.max_len,
+            padding="longest",
         )
 
         if entities is not None:
@@ -1112,6 +1119,7 @@ class UniEncoderSpanDecoderProcessor(UniEncoderSpanProcessor):
             is_split_into_words=True,
             return_tensors="pt",
             truncation=True,
+            max_length=self.config.max_len,
             padding="longest",
         )
         words_masks = self.prepare_word_mask(texts, tokenized_inputs, skip_first_words=prompt_lengths)
@@ -1125,6 +1133,7 @@ class UniEncoderSpanDecoderProcessor(UniEncoderSpanProcessor):
                 is_split_into_words=True,
                 return_tensors="pt",
                 truncation=True,
+                max_length=self.config.max_len,
                 padding="longest",
             )
             tokenized_inputs["decoder_input_ids"] = decoder_tokenized_inputs["input_ids"]
@@ -1173,8 +1182,8 @@ class UniEncoderSpanDecoderProcessor(UniEncoderSpanProcessor):
             ner = batch["entities"][i]
             num_classes = len(classes_to_id)
 
-            spans_idx = torch.LongTensor(prepare_span_idx(len(tokens), self.config.max_width))
-            span_to_index = {(spans_idx[idx, 0].item(), spans_idx[idx, 1].item()): idx for idx in range(len(spans_idx))}
+            spans_idx = prepare_span_idx(len(tokens), self.config.max_width)
+            span_to_index = {(s, e): idx for idx, (s, e) in enumerate(spans_idx.tolist())}
 
             if blank is not None:
                 num_classes = 1
@@ -1612,7 +1621,7 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
         span_label, spans_idx = self.prepare_span_labels(ner, classes_to_id, num_tokens, spans_idx)
 
         # Create entity span to index mapping
-        span_to_idx = {(spans_idx[i, 0].item(), spans_idx[i, 1].item()): i for i in range(len(spans_idx))}
+        span_to_idx = {(s, e): i for i, (s, e) in enumerate(spans_idx.tolist())}
 
         # Create entity index mapping (from original entity list to span indices)
         entity_to_span_idx = {}
@@ -1716,7 +1725,7 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
         span_mask = batch["span_mask"]
 
         # Count entities per sample (differs from span-based which uses span_label)
-        batch_ents = span_mask.long().squeeze(-1).sum(-1)
+        batch_ents = span_mask.long().sum(-1)
         max_En = max(batch_ents.max().item(), 1)
 
         rel_class_to_ids = batch["rel_class_to_ids"]
@@ -1878,6 +1887,7 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
             is_split_into_words=True,
             return_tensors="pt",
             truncation=True,
+            max_length=self.config.max_len,
             padding="longest",
         )
         words_masks = self.prepare_word_mask(texts, tokenized_inputs, prompt_lengths)

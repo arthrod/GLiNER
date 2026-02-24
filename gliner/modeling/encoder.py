@@ -62,6 +62,7 @@ class Transformer(nn.Module):
         from_pretrained: bool = False,
         labels_encoder: bool = False,
         cache_dir: Optional[Union[str, Path]] = None,
+        trust_remote_code: Optional[bool] = None,
     ) -> None:
         """Initializes the transformer wrapper.
 
@@ -75,18 +76,27 @@ class Transformer(nn.Module):
             labels_encoder: If True, initializes as a labels encoder using
                 `config.labels_encoder_config`. Defaults to False.
             cache_dir: Optional directory for caching downloaded models. Defaults to None.
+            trust_remote_code: Whether to allow execution of custom code from
+                remote repositories when loading transformer backbones. If None,
+                falls back to ``config.trust_remote_code`` (default False).
 
         Raises:
             MissedPackageException: If required packages (llm2vec, peft) are not installed
                 when needed for specific model types.
         """
         super().__init__()
+        if trust_remote_code is None:
+            trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         if labels_encoder:
             encoder_config = config.labels_encoder_config
         else:
             encoder_config = config.encoder_config
         if encoder_config is None:
-            encoder_config = AutoConfig.from_pretrained(model_name, cache_dir=cache_dir)
+            encoder_config = AutoConfig.from_pretrained(
+                model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
             if config.vocab_size != -1:
                 encoder_config.vocab_size = config.vocab_size
 
@@ -126,9 +136,9 @@ class Transformer(nn.Module):
             ModelClass = AutoModel
 
         if from_pretrained:
-            self.model = ModelClass.from_pretrained(model_name, **kwargs, trust_remote_code=True)
+            self.model = ModelClass.from_pretrained(model_name, **kwargs, trust_remote_code=trust_remote_code)
         elif not custom:
-            self.model = ModelClass.from_config(encoder_config, trust_remote_code=True)
+            self.model = ModelClass.from_config(encoder_config, trust_remote_code=trust_remote_code)
         else:
             self.model = ModelClass(encoder_config, **kwargs)
 
@@ -683,7 +693,11 @@ class Encoder(nn.Module):
     """
 
     def __init__(
-        self, config: Any, from_pretrained: bool = False, cache_dir: Optional[Union[str, Path]] = None
+        self,
+        config: Any,
+        from_pretrained: bool = False,
+        cache_dir: Optional[Union[str, Path]] = None,
+        trust_remote_code: Optional[bool] = None,
     ) -> None:
         """Initializes the encoder.
 
@@ -693,10 +707,19 @@ class Encoder(nn.Module):
             from_pretrained: If True, loads pretrained weights for the transformer.
                 Defaults to False.
             cache_dir: Optional directory for caching downloaded models. Defaults to None.
+            trust_remote_code: Whether to allow execution of custom code from
+                remote repositories when loading transformer backbones. If None,
+                falls back to ``config.trust_remote_code`` (default False).
         """
         super().__init__()
 
-        self.bert_layer = Transformer(config.model_name, config, from_pretrained, cache_dir=cache_dir)
+        self.bert_layer = Transformer(
+            config.model_name,
+            config,
+            from_pretrained,
+            cache_dir=cache_dir,
+            trust_remote_code=trust_remote_code,
+        )
 
         bert_hidden_size = self.bert_layer.model.config.hidden_size
 
@@ -886,7 +909,11 @@ class BiEncoder(Encoder):
     """
 
     def __init__(
-        self, config: Any, from_pretrained: bool = False, cache_dir: Optional[Union[str, Path]] = None
+        self,
+        config: Any,
+        from_pretrained: bool = False,
+        cache_dir: Optional[Union[str, Path]] = None,
+        trust_remote_code: Optional[bool] = None,
     ) -> None:
         """Initializes the bi-encoder.
 
@@ -896,10 +923,25 @@ class BiEncoder(Encoder):
             from_pretrained: If True, loads pretrained weights for both encoders.
                 Defaults to False.
             cache_dir: Optional directory for caching downloaded models. Defaults to None.
+            trust_remote_code: Whether to allow execution of custom code from
+                remote repositories when loading transformer backbones. If None,
+                falls back to ``config.trust_remote_code`` (default False).
         """
-        super().__init__(config, from_pretrained)
+        super().__init__(
+            config,
+            from_pretrained,
+            cache_dir=cache_dir,
+            trust_remote_code=trust_remote_code,
+        )
         if config.labels_encoder is not None:
-            self.labels_encoder = Transformer(config.labels_encoder, config, from_pretrained, True, cache_dir=cache_dir)
+            self.labels_encoder = Transformer(
+                config.labels_encoder,
+                config,
+                from_pretrained,
+                True,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
             le_hidden_size = self.labels_encoder.model.config.hidden_size
 
             if config.hidden_size != le_hidden_size:
