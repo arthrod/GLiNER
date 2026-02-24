@@ -2,7 +2,7 @@
 
 This module provides ONNX Runtime implementations of various GLiNER model
 architectures, including uni-encoder and bi-encoder variants for both
-span-level and token-level named entity recognition, as well as relation
+span-level and token_level named entity recognition, as well as relation
 extraction models.
 """
 
@@ -221,10 +221,10 @@ class BiEncoderSpanORTModel(BaseORTModel):
 
 
 class UniEncoderTokenORTModel(BaseORTModel):
-    """ONNX Runtime model for uni-encoder token-level NER.
+    """ONNX Runtime model for uni-encoder token_level NER.
 
     Uses a single encoder to process both text and entity labels,
-    performing token-level entity recognition.
+    performing token_level entity recognition.
     """
 
     def forward(
@@ -262,10 +262,10 @@ class UniEncoderTokenORTModel(BaseORTModel):
 
 
 class BiEncoderTokenORTModel(BaseORTModel):
-    """ONNX Runtime model for bi-encoder token-level NER.
+    """ONNX Runtime model for bi-encoder token_level NER.
 
     Uses separate encoders for text and entity labels, performing
-    token-level entity recognition with bi-encoder architecture.
+    token_level entity recognition with bi-encoder architecture.
     """
 
     def forward(
@@ -372,7 +372,7 @@ class UniEncoderSpanRelexORTModel(BaseORTModel):
 
 
 class UniEncoderTokenRelexORTModel(BaseORTModel):
-    """ONNX Runtime model for uni-encoder token-level relation extraction.
+    """ONNX Runtime model for uni-encoder token_level relation extraction.
 
     Uses a single encoder to process text and perform both entity recognition
     and relation extraction at the token level.

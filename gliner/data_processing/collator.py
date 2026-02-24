@@ -167,8 +167,8 @@ class BaseTokenCollator(BaseDataCollator):
     """
     Base collator for token-based processors.
 
-    Provides common logic for handling token-level annotations and entity IDs.
-    Used by all token-level NER models.
+    Provides common logic for handling token_level annotations and entity IDs.
+    Used by all token_level NER models.
     """
 
     def _add_token_fields(self, model_input: Dict[str, Any], raw_batch: Dict[str, Any]) -> None:
@@ -265,7 +265,7 @@ class TokenDataCollator(BaseTokenCollator):
     """
     Unified data collator for all token-based processors.
 
-    Handles token-level NER with various architectures:
+    Handles token_level NER with various architectures:
     - UniEncoder: Single encoder with BIO/BIOES tagging
     - BiEncoder: Separate encoders for text and entity types
 
@@ -311,7 +311,7 @@ class TokenDataCollator(BaseTokenCollator):
             **kwargs: Additional arguments for collation.
 
         Returns:
-            Model-ready batch with token-level labels adapted to processor type.
+            Model-ready batch with token_level labels adapted to processor type.
         """
         raw_batch = self.collate_batch(input_x, entity_types=entity_types, **kwargs)
 

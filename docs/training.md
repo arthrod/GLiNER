@@ -63,7 +63,7 @@ GLiNER expects training data as a list of dictionaries with the following struct
 **Important Notes:**
 - `tokenized_text`: Pre-tokenized text as a list of tokens (words)
 - `ner`: List of entity annotations where each annotation is `[start_idx, end_idx, entity_type]`
-- Indices are **token-level** (not character-level)
+- Indices are **token_level** (not character-level)
 - `start_idx` and `end_idx` are **inclusive** (both point to tokens in the entity span)
 
 ### Basic Example

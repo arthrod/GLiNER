@@ -170,10 +170,10 @@ Best for extracting long entity spans (multi-sentence entities, summaries):
 ```python
 from gliner import GLiNER
 
-# Load a token-level model
+# Load a token_level model
 model = GLiNER.from_pretrained("knowledgator/gliner-multitask-large-v0.5")
 
-# Token-level models excel at long entities
+# Token_level models excel at long entities
 text = """
 The European Union is a political and economic union of 27 member states 
 that are located primarily in Europe. The EU has developed an internal 
@@ -959,7 +959,7 @@ print(f"- Timeline: {[e['text'] for e in entities if e['label'] == 'date']}")
 1. **Choose the right model architecture**:
    - UniEncoder: General purpose, < 30 entity types
    - BiEncoder: Many entity types (50-200+)
-   - Token-level: Long entity spans
+   - Token_level: Long entity spans
    - Relation extraction: Knowledge graph construction
 
 2. **Optimize threshold for your use case**:

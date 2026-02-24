@@ -118,7 +118,7 @@ def prepare_word_mask(
             each sequence (e.g., prompt words). Must have the same length as texts
             if provided. Skipped words are masked as 0.
         token_level: If True, assign a unique mask value to every token of a word
-            (enabling token-level granularity). If False, only the first subword
+            (enabling token_level granularity). If False, only the first subword
             token of each word gets a mask value; continuation tokens are masked
             as 0 (default: False).
 

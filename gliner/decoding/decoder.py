@@ -13,8 +13,8 @@ class Span:
     """Represents a detected entity span with its properties.
 
     Attributes:
-        start: Token-level start position (inclusive)
-        end: Token-level end position (exclusive)
+        start: Token_level start position (inclusive)
+        end: Token_level end position (exclusive)
         entity_type: The entity type/label
         score: Confidence score for this prediction
         class_probs: Optional dict of top-k class probabilities
@@ -1129,7 +1129,7 @@ class TokenDecoder(BaseDecoder):
         Decode predictions to extract spans.
 
         Supports two decoding modes:
-        1. Token-level BIO decoding (default): Uses model_output with start/end/inside predictions
+        1. Token_level BIO decoding (default): Uses model_output with start/end/inside predictions
         2. Span-level decoding: Uses span_logits, span_idx, and span_mask
 
         Args:
@@ -1138,7 +1138,7 @@ class TokenDecoder(BaseDecoder):
                 class IDs to class names.
             model_output (torch.Tensor, optional): Raw logits from the model with shape
                 (B, L, C, 3), where the last dimension represents [start, end, inside]
-                predictions. Used for token-level decoding.
+                predictions. Used for token_level decoding.
             flat_ner (bool): Whether to enforce non-overlapping spans.
             threshold (float): Confidence threshold for predictions.
             multi_label (bool): Whether to allow multiple labels per span.
@@ -1176,7 +1176,7 @@ class TokenDecoder(BaseDecoder):
                 input_spans=input_spans,
             )
 
-        # Check if token-level decoding is requested
+        # Check if token_level decoding is requested
         if model_output is not None:
             model_output = model_output.permute(3, 0, 1, 2)
             scores_start, scores_end, scores_inside = model_output
@@ -1206,7 +1206,7 @@ class TokenDecoder(BaseDecoder):
             )
 
         raise ValueError(
-            "Either model_output (for token-level decoding) or "
+            "Either model_output (for token_level decoding) or "
             "(span_logits, span_idx, span_mask) (for span-level decoding) must be provided"
         )
 
@@ -1557,7 +1557,7 @@ class TokenGenerativeDecoder(TokenDecoder, SpanGenerativeDecoder):
         Args:
             tokens: Tokenized input text.
             id_to_classes: Class ID to name mapping.
-            model_output: Token-level logits (B, W, C, 3).
+            model_output: Token_level logits (B, W, C, 3).
             flat_ner: Whether to enforce non-overlapping spans.
             threshold: Confidence threshold.
             multi_label: Allow multiple labels per span.

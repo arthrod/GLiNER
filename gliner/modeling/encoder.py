@@ -120,7 +120,7 @@ class Transformer(nn.Module):
                 ModelClass = FlashDebertaV2Model
             else:
                 ModelClass = DebertaV2Model
-            
+
         else:
             custom = False
             ModelClass = AutoModel
@@ -912,7 +912,7 @@ class BiEncoder(Encoder):
         ignoring padded positions.
 
         Args:
-            token_embeddings: Token-level embeddings of shape (batch_size, seq_len, hidden_size).
+            token_embeddings: Token_level embeddings of shape (batch_size, seq_len, hidden_size).
             attention_mask: Binary mask of shape (batch_size, seq_len) where 1 indicates
                 valid tokens and 0 indicates padding.
 
@@ -961,7 +961,7 @@ class BiEncoder(Encoder):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through the bi-encoder.
 
-        Encodes both text sequences (token-level) and label sequences (pooled) to
+        Encodes both text sequences (token_level) and label sequences (pooled) to
         produce aligned representations.
 
         Args:

@@ -185,7 +185,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     @abstractmethod
     def evaluate(self):
         pass
-    
+
     def forward(self, *args, **kwargs):
         """Forward pass through the model.
 
@@ -2346,7 +2346,7 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
 class UniEncoderTokenDecoderGLiNER(UniEncoderSpanDecoderGLiNER):
     """GLiNER model with token-based encoding and label decoding capabilities.
 
-    Combines token-level BIO tagging with a decoder that generates entity type
+    Combines token_level BIO tagging with a decoder that generates entity type
     labels autoregressively.
     """
 
@@ -2628,7 +2628,7 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
         Args:
             relation_outputs: List of relation tuples per example, where each tuple is
                             (head_idx, relation_label, tail_idx, score)
-            all_entity_outputs: List of entity outputs per example (token-level)
+            all_entity_outputs: List of entity outputs per example (token_level)
             all_start_token_idx_to_text_idx: Token to text index mappings (start)
             all_end_token_idx_to_text_idx: Token to text index mappings (end)
             valid_texts: Valid (non-empty) input texts
@@ -2653,7 +2653,7 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
                 continue
 
             relations = []
-            entities_list = all_entity_outputs[valid_i]  # Token-level entities: (start, end, type, score)
+            entities_list = all_entity_outputs[valid_i]  # Token_level entities: (start, end, type, score)
             start_token_idx_to_text_idx = all_start_token_idx_to_text_idx[valid_i]
             end_token_idx_to_text_idx = all_end_token_idx_to_text_idx[valid_i]
 
@@ -2990,7 +2990,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
     including uni-encoder, bi-encoder, decoder-based, and relation extraction models.
 
     The class automatically detects the model type based on:
-        - span_mode: Token-level vs span-level
+        - span_mode: Token_level vs span-level
         - labels_encoder: Uni-encoder vs bi-encoder
         - labels_decoder: Standard vs decoder-based
         - relations_layer: NER-only vs joint entity-relation extraction
@@ -3300,7 +3300,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_uni_encoder_token": {
                 "class": UniEncoderTokenGLiNER,
-                "description": "Token-level NER with single encoder",
+                "description": "Token_level NER with single encoder",
                 "config": {
                     "span_mode": "token_level",
                     "labels_encoder": None,
@@ -3320,7 +3320,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_bi_encoder_token": {
                 "class": BiEncoderTokenGLiNER,
-                "description": "Token-level NER with separate text and label encoders",
+                "description": "Token_level NER with separate text and label encoders",
                 "config": {
                     "span_mode": "token_level",
                     "labels_encoder": "required",
@@ -3335,7 +3335,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_uni_encoder_token_decoder": {
                 "class": UniEncoderTokenDecoderGLiNER,
-                "description": "Token-level NER with label generation decoder",
+                "description": "Token_level NER with label generation decoder",
                 "config": {"span_mode": "token_level", "labels_decoder": "required", "relations_layer": None},
             },
             "gliner_uni_encoder_span_relex": {
@@ -3345,7 +3345,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_uni_encoder_token_relex": {
                 "class": UniEncoderTokenRelexGLiNER,
-                "description": "Joint entity and relation extraction with single encoder using token-level architecture",
+                "description": "Joint entity and relation extraction with single encoder using token_level architecture",
                 "config": {"span_mode": "token_level", "labels_encoder": None, "relations_layer": "required"},
             },
         }

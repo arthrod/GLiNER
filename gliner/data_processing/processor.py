@@ -262,7 +262,7 @@ class BaseProcessor(ABC):
             tokenized_inputs: Tokenized inputs from transformer tokenizer.
             skip_first_words: Optional list of word counts to skip per example
                 (e.g., prompt words).
-            token_level: If True, create token-level masks instead of word-level.
+            token_level: If True, create token_level masks instead of word-level.
 
         Returns:
             Word mask array.
@@ -601,7 +601,7 @@ class UniEncoderSpanProcessor(BaseProcessor):
 class UniEncoderTokenProcessor(BaseProcessor):
     """Processor for token-based NER with uni-encoder architecture.
 
-    This processor handles token-level classification where each token is
+    This processor handles token_level classification where each token is
     labeled with BIO-style tags (Begin, Inside, Outside) for each entity type.
     """
 
@@ -787,7 +787,7 @@ class UniEncoderTokenProcessor(BaseProcessor):
         return batch_dict
 
     def create_labels(self, batch):
-        """Create token-level labels with begin/inside/end markers.
+        """Create token_level labels with begin/inside/end markers.
 
         Creates labels indicating which tokens are at the start, end, or inside
         of entity spans for each entity type.
@@ -867,7 +867,7 @@ class UniEncoderTokenProcessor(BaseProcessor):
         return labels_one_hot
 
     def tokenize_and_prepare_labels(self, batch, prepare_labels, *args, **kwargs):
-        """Tokenize inputs and prepare token-level labels for a batch.
+        """Tokenize inputs and prepare token_level labels for a batch.
 
         Args:
             batch: Batch dictionary with tokens and class mappings.
@@ -1025,12 +1025,12 @@ class BiEncoderSpanProcessor(UniEncoderSpanProcessor, BaseBiEncoderProcessor):
 class BiEncoderTokenProcessor(UniEncoderTokenProcessor, BaseBiEncoderProcessor):
     """Processor for token-based NER with bi-encoder architecture.
 
-    Combines token-level classification from UniEncoderTokenProcessor with the
+    Combines token_level classification from UniEncoderTokenProcessor with the
     dual-encoder approach from BaseBiEncoderProcessor.
     """
 
     def tokenize_and_prepare_labels(self, batch, prepare_labels, prepare_entities=True, **kwargs):
-        """Tokenize inputs and prepare token-level labels for bi-encoder.
+        """Tokenize inputs and prepare token_level labels for bi-encoder.
 
         Args:
             batch: Batch dictionary with tokens and class mappings.
@@ -1250,17 +1250,17 @@ class UniEncoderSpanDecoderProcessor(UniEncoderSpanProcessor):
 class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoderTokenProcessor):
     """Processor for token-based NER with encoder-decoder architecture.
 
-    This processor combines token-level BIO-style classification with a decoder
+    This processor combines token_level BIO-style classification with a decoder
     that generates entity type labels autoregressively, enabling more flexible
-    prediction strategies for token-level NER tasks.
+    prediction strategies for token_level NER tasks.
 
     Inherits from:
         - UniEncoderSpanDecoderProcessor: Encoder-decoder architecture and decoder utilities
-        - UniEncoderTokenProcessor: Token-level BIO tagging for entities
+        - UniEncoderTokenProcessor: Token_level BIO tagging for entities
     """
 
     def __init__(self, config, tokenizer, words_splitter, decoder_tokenizer):
-        """Initialize the token-level encoder-decoder processor.
+        """Initialize the token_level encoder-decoder processor.
 
         Args:
             config: Configuration object.
@@ -1272,9 +1272,9 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
         super().__init__(config, tokenizer, words_splitter, decoder_tokenizer)
 
     def preprocess_example(self, tokens, ner, classes_to_id):
-        """Preprocess a single example for token-level encoder-decoder prediction.
+        """Preprocess a single example for token_level encoder-decoder prediction.
 
-        Uses token-level preprocessing from UniEncoderTokenProcessor while
+        Uses token_level preprocessing from UniEncoderTokenProcessor while
         preparing for decoder-based label generation.
 
         Args:
@@ -1305,7 +1305,7 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
             id_to_classes: List of ID-to-class mappings.
 
         Returns:
-            Dictionary containing all batch data for token-level encoder-decoder
+            Dictionary containing all batch data for token_level encoder-decoder
             processing.
         """
         # Use token processor's batch dict creation
@@ -1314,7 +1314,7 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
     def create_labels(self, batch, blank=None):
         """Create labels for both token classification and decoder generation.
 
-        Creates both token-level BIO labels and decoder generation labels for
+        Creates both token_level BIO labels and decoder generation labels for
         entity types.
 
         Args:
@@ -1323,10 +1323,10 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
 
         Returns:
             Tuple containing:
-                - Token-level labels (BIO-style, shape: [batch_size, seq_len, num_classes, 3])
+                - Token_level labels (BIO-style, shape: [batch_size, seq_len, num_classes, 3])
                 - Decoder generation labels (tokenized entity types) or None
         """
-        # Create token-level labels
+        # Create token_level labels
         token_labels = UniEncoderTokenProcessor.create_labels(self, batch)
 
         # Create decoder labels
@@ -1353,10 +1353,10 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
         return token_labels, decoder_tokenized_input
 
     def tokenize_and_prepare_labels(self, batch, prepare_labels, *args, **kwargs):
-        """Tokenize inputs and prepare labels for token-level encoder-decoder training.
+        """Tokenize inputs and prepare labels for token_level encoder-decoder training.
 
-        Combines token-level input processing with decoder inputs and prepares
-        both token-level BIO labels and decoder generation labels.
+        Combines token_level input processing with decoder inputs and prepares
+        both token_level BIO labels and decoder generation labels.
 
         Args:
             batch: Batch dictionary with tokens and class mappings.
@@ -1365,7 +1365,7 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
             **kwargs: Arbitrary keyword arguments.
 
         Returns:
-            Dictionary containing encoder inputs, decoder inputs, token-level labels,
+            Dictionary containing encoder inputs, decoder inputs, token_level labels,
             and decoder labels.
         """
         blank = None
@@ -1378,7 +1378,7 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
         )
 
         if prepare_labels:
-            # Create both token-level and decoder labels
+            # Create both token_level and decoder labels
             token_labels, decoder_tokenized_input = self.create_labels(batch, blank=blank)
             tokenized_input["labels"] = token_labels
 
@@ -1698,7 +1698,7 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
     def create_relation_labels(self, batch, add_reversed_negatives=True, add_random_negatives=True, negative_ratio=2.0):
         """Create relation labels with negative pair sampling.
 
-        Overrides the span-based version to work with token-level entity representations.
+        Overrides the span-based version to work with token_level entity representations.
         Uses entities_id count instead of span_label for entity counting.
 
         Args:
@@ -1914,14 +1914,14 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
 
 
 class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtractionSpanProcessor):
-    """Processor for joint entity and relation extraction using token-level NER.
+    """Processor for joint entity and relation extraction using token_level NER.
 
     Extends token-based NER processing to additionally handle relation extraction
     between entity pairs, supporting end-to-end joint training with BIO-style
     entity tagging.
 
     Inherits from:
-        - UniEncoderTokenProcessor: Token-level BIO tagging for entities
+        - UniEncoderTokenProcessor: Token_level BIO tagging for entities
         - RelationExtractionSpanProcessor: Relation extraction utilities
     """
 
@@ -1939,7 +1939,7 @@ class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtract
     def preprocess_example(self, tokens, ner, classes_to_id, relations=None, rel_classes_to_id=None):
         """Preprocess a single example for joint entity and relation extraction.
 
-        Processes both entity annotations (for token-level BIO tagging) and
+        Processes both entity annotations (for token_level BIO tagging) and
         relation triplets, ensuring consistent indexing when entities are reordered.
 
         Args:
@@ -2038,7 +2038,7 @@ class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtract
 
         Returns:
             Dictionary containing all batch data for joint entity and relation
-            extraction with token-level entity labels.
+            extraction with token_level entity labels.
         """
         tokens = [el["tokens"] for el in batch]
         seq_length = torch.LongTensor([el["seq_length"] for el in batch]).unsqueeze(-1)
@@ -2089,7 +2089,7 @@ class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtract
             **kwargs: Arbitrary keyword arguments.
 
         Returns:
-            Dictionary containing tokenized inputs, token-level entity labels,
+            Dictionary containing tokenized inputs, token_level entity labels,
             relation adjacency matrix, and relation labels.
         """
         # Use relation-aware tokenize_inputs from RelationExtractionSpanProcessor
@@ -2098,7 +2098,7 @@ class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtract
         )
 
         if prepare_labels:
-            # Create token-level BIO labels (from UniEncoderTokenProcessor)
+            # Create token_level BIO labels (from UniEncoderTokenProcessor)
             labels = self.create_labels(batch)
             tokenized_input["labels"] = labels
 

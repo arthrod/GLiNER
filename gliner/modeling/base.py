@@ -215,7 +215,7 @@ class BaseUniEncoderModel(BaseModel):
     embedding them in the same semantic space.
 
     Attributes:
-        token_rep_layer (Encoder): Token-level representation encoder.
+        token_rep_layer (Encoder): Token_level representation encoder.
         rnn (Optional[LstmSeq2SeqEncoder]): Optional LSTM layer for sequence modeling.
         cross_fuser (Optional[CrossFuser]): Optional cross-attention fusion layer.
     """
@@ -257,7 +257,7 @@ class BaseUniEncoderModel(BaseModel):
         """Extract entity label prompts and word embeddings from token embeddings.
 
         Args:
-            token_embeds: Token-level embeddings of shape (B, L, D).
+            token_embeds: Token_level embeddings of shape (B, L, D).
             input_ids: Input token IDs of shape (B, L).
             attention_mask: Attention mask of shape (B, L).
             text_lengths: Length of each text sequence in batch.
@@ -572,7 +572,7 @@ class UniEncoderTokenModel(BaseUniEncoderModel):
             prompts_embedding_mask: Mask for prompts/entities of shape (B, C).
             words_mask: Word boundary mask mapping tokens to words.
             text_lengths: Length of each text sequence before padding, shape (B,).
-            labels: Ground truth token-level labels of shape (B, W, C).
+            labels: Ground truth token_level labels of shape (B, W, C).
             threshold: Confidence threshold used for span selection.
             **kwargs: Additional arguments passed to the encoder or loss functions
                 (e.g., ``packing_config``, ``pair_attention_mask``).
@@ -646,14 +646,14 @@ class UniEncoderTokenModel(BaseUniEncoderModel):
         """Compute token- or span-level classification loss.
 
         Args:
-            scores: Predicted scores. Shape is (B, W, C, 3) for token-level
+            scores: Predicted scores. Shape is (B, W, C, 3) for token_level
                 classification (start, end, inside) or (B, N, C) for span-level
                 classification, where B is batch size, W is number of words,
                 N is number of spans, and C is number of entity types.
             labels: Ground truth labels matching ``scores`` shape.
             prompts_embedding_mask: Mask for valid entity types of shape (B, C).
             word_mask: Mask for valid tokens or spans of shape (B, W) for
-                token-level loss or (B, N) for span-level loss.
+                token_level loss or (B, N) for span-level loss.
             alpha: Alpha parameter for focal loss. If negative, focal weighting
                 is disabled.
             gamma: Gamma parameter for focal loss.
@@ -672,7 +672,7 @@ class UniEncoderTokenModel(BaseUniEncoderModel):
         # Base mask: (B, W/N, C)
         mask = word_mask.unsqueeze(-1) * prompts_embedding_mask.unsqueeze(1)
 
-        # Only add extra dimension for 4D token-level scores (B, W, C, 3)
+        # Only add extra dimension for 4D token_level scores (B, W, C, 3)
         if all_losses.dim() == 4:
             mask = mask.unsqueeze(-1)
 
@@ -1608,12 +1608,12 @@ class UniEncoderSpanDecoderModel(UniEncoderSpanModel):
 class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderModel):
     """Token-based NER model with encoder-decoder architecture.
 
-    This model combines token-level BIO-style classification with a decoder
+    This model combines token_level BIO-style classification with a decoder
     that generates entity type labels autoregressively, enabling more flexible
-    prediction strategies for token-level NER tasks.
+    prediction strategies for token_level NER tasks.
 
     Inherits from:
-        - UniEncoderTokenModel: Token-level BIO tagging for entities
+        - UniEncoderTokenModel: Token_level BIO tagging for entities
         - UniEncoderSpanDecoderModel: Encoder-decoder architecture and decoder utilities
 
     Attributes:
@@ -1627,7 +1627,7 @@ class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderMod
     def __init__(
         self, config: Any, from_pretrained: bool = False, cache_dir: Optional[Union[str, Path]] = None
     ) -> None:
-        """Initialize the token-level encoder-decoder model.
+        """Initialize the token_level encoder-decoder model.
 
         Args:
             config: Model configuration object.
@@ -1653,7 +1653,7 @@ class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderMod
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """Select entity embeddings for decoder input based on token predictions or labels.
 
-        This method extracts entity spans from token-level predictions and prepares
+        This method extracts entity spans from token_level predictions and prepares
         their representations for the decoder. It can operate in two modes:
         1. "prompt" mode: Uses entity type embeddings as decoder input.
         2. "span" mode: Uses contextualized tokens within each detected span as decoder input.
@@ -1671,7 +1671,7 @@ class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderMod
             span_mask: Pre-computed span mask of shape (B, S).
             decoder_text_embeds: Text embeddings for span mode of shape (B, T, D).
             decoder_words_mask: Word position mask of shape (B, T).
-            labels: Ground truth token-level labels of shape (B, W, C, 3).
+            labels: Ground truth token_level labels of shape (B, W, C, 3).
             threshold: Confidence threshold for selecting spans.
             top_k: Optional limit on number of spans to select.
 
@@ -1787,7 +1787,7 @@ class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderMod
         threshold: Optional[float] = 0.5,
         **kwargs: Any,
     ) -> GLiNERDecoderOutput:
-        """Forward pass through the token-level encoder-decoder model.
+        """Forward pass through the token_level encoder-decoder model.
 
         Args:
             input_ids: Input token IDs of shape (B, L).
@@ -1806,7 +1806,7 @@ class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderMod
             prompts_embedding_mask: Mask for prompts.
             words_mask: Word boundary mask.
             text_lengths: Length of each text sequence.
-            labels: Ground truth token-level labels of shape (B, W, C, 3).
+            labels: Ground truth token_level labels of shape (B, W, C, 3).
             decoder_labels: Ground truth decoder labels of shape (M, L).
             threshold: Confidence threshold for span selection.
             **kwargs: Additional arguments.
@@ -1831,7 +1831,7 @@ class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderMod
                 prompts_embedding, prompts_embedding_mask, target_C
             )
 
-        # Token-level classification: (B, W, C, 3)
+        # Token_level classification: (B, W, C, 3)
         scores = self.scorer(words_embedding, prompts_embedding)
 
         # Get span representations and logits if represent_spans is enabled
@@ -1937,7 +1937,7 @@ class UniEncoderTokenDecoderModel(UniEncoderTokenModel, UniEncoderSpanDecoderMod
         Returns:
             Scalar combined loss tensor.
         """
-        # Token-level loss (use parent's loss function)
+        # Token_level loss (use parent's loss function)
         token_loss = UniEncoderTokenModel.loss(
             self,
             scores,
@@ -2415,7 +2415,7 @@ class UniEncoderSpanRelexModel(UniEncoderSpanModel):
 
 
 class UniEncoderTokenRelexModel(UniEncoderSpanRelexModel):
-    """Token-level NER model with relation extraction capabilities.
+    """Token_level NER model with relation extraction capabilities.
 
     This model extends token-based NER to also extract relations between
     identified entities, predicting both entity types and relation types

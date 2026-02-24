@@ -5,7 +5,7 @@ from torch import nn
 class Scorer(nn.Module):
     """Scorer for computing token-label compatibility scores.
 
-    This scorer is designed for token-level models and computes pairwise
+    This scorer is designed for token_level models and computes pairwise
     interactions between token representations and label embeddings. For each
     token-label pair, it produces three scores (typically for start, end, and
     overall compatibility).
