@@ -98,20 +98,35 @@ def ensure_nemo_deps() -> None:
     missing = []
     try:
         import torch  # noqa: F401
-    except ModuleNotFoundError:
-        missing.append("torch")
+    except ModuleNotFoundError as exc:
+        if exc.name == "torch":
+            missing.append("torch")
+        else:
+            raise RuntimeError(
+                f"torch is installed but a sub-dependency is missing: {exc.name}"
+            ) from exc
     except Exception as exc:
         raise RuntimeError("Failed to import torch; check CUDA/driver compatibility.") from exc
     try:
         import ray  # noqa: F401
-    except ModuleNotFoundError:
-        missing.append("ray")
+    except ModuleNotFoundError as exc:
+        if exc.name == "ray":
+            missing.append("ray")
+        else:
+            raise RuntimeError(
+                f"ray is installed but a sub-dependency is missing: {exc.name}"
+            ) from exc
     except Exception as exc:
         raise RuntimeError("Failed to import ray; check installation.") from exc
     try:
         import nemo_curator  # noqa: F401
-    except ModuleNotFoundError:
-        missing.append("nemo-curator")
+    except ModuleNotFoundError as exc:
+        if exc.name == "nemo_curator":
+            missing.append("nemo-curator")
+        else:
+            raise RuntimeError(
+                f"nemo_curator is installed but a sub-dependency is missing: {exc.name}"
+            ) from exc
     except Exception as exc:
         raise RuntimeError("Failed to import nemo_curator; check installation.") from exc
     if missing:

@@ -1017,6 +1017,9 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
                 - Optional "task_type" (str): One of "TOKEN_CLS", "SEQ_CLS", "CAUSAL_LM",
                   "SEQ_2_SEQ_LM", "FEATURE_EXTRACTION" (default "TOKEN_CLS").
                 - Optional "modules_to_save" (list[str]): Modules to keep trainable/saved.
+                - Optional "init_lora_weights" (bool): Initialize LoRA weights (default True).
+                - Optional "use_rslora" (bool): Use rank-stabilized LoRA (default False).
+                - Optional "fan_in_fan_out" (bool): Fan in/out for Conv1D layers (default False).
         
         Raises:
             ImportError: If the `peft` library is not installed.
@@ -1049,6 +1052,9 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             target_modules=lora_config["target_modules"],
             task_type=task_type,
             modules_to_save=lora_config.get("modules_to_save"),
+            init_lora_weights=lora_config.get("init_lora_weights", True),
+            use_rslora=lora_config.get("use_rslora", False),
+            fan_in_fan_out=lora_config.get("fan_in_fan_out", False),
         )
 
         try:
