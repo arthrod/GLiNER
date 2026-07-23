@@ -12,7 +12,7 @@ version = {attr = "gliner.__version__"}
 name = "gliner"
 description = "Generalist model for NER (Extract any entity types from texts)"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 keywords = [
     "named-entity-recognition",
@@ -36,7 +36,7 @@ maintainers = [
 
 dependencies = [
     "torch>=2.0.0",
-    "transformers>=4.51.3,<5.2.0",
+    "transformers>=4.51.3,<5.7.0",
     "huggingface_hub>=0.21.4",
     "tqdm",
     "onnxruntime",
@@ -62,6 +62,9 @@ stanza = [
     "stanza",
     "langdetect"
 ]
+serve = [
+    "ray[serve]>=2.9.0",
+]
 
 [dependency-groups]
 # version pins are in uv.lock
@@ -70,6 +73,13 @@ dev = [
     "pytest-asyncio",
     "ruff"
 ]
+
+[tool.pytest.ini_options]
+# Put the repo root on sys.path so `tests.utils_infer` (absolute import from
+# tests/test_infer_packing.py) resolves without requiring callers to set
+# PYTHONPATH manually.
+pythonpath = ["."]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120

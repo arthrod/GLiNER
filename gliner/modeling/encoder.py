@@ -1,10 +1,11 @@
+import os
 import warnings
 from typing import Any, Dict, List, Tuple, Union, Optional
 from pathlib import Path
-import os
+
 import torch
 from torch import nn
-from transformers import AutoModel, AutoConfig
+from transformers import AutoModel, AutoConfig, DebertaV2Model, T5EncoderModel
 from transformers.modeling_outputs import BaseModelOutput
 
 from ..utils import MissedPackageException, is_module_available
@@ -31,11 +32,9 @@ else:
 
 if IS_TURBOT5:
     from turbot5.model.modeling import T5EncoderModel as FlashT5EncoderModel
-from transformers import T5EncoderModel
 
 if IS_FLASHDEBERTA:
     from flashdeberta import FlashDebertaV2Model
-from transformers import DebertaV2Model
 
 if IS_PEFT:
     from peft import LoraConfig, get_peft_model
@@ -104,23 +103,22 @@ class Transformer(nn.Module):
             else:
                 ModelClass = DECODER_MODEL_MAPPING[config_name]
             custom = True
-        elif config_name in {'T5Config', 'MT5Config'}:
-            custom=True
+        elif config_name in {"T5Config", "MT5Config"}:
+            custom = True
             turbot5_type = os.environ.get("TURBOT5_ATTN_TYPE", "basic")
             if turbot5_type and IS_TURBOT5:
                 ModelClass = FlashT5EncoderModel
-                kwargs = {'attention_type': turbot5_type}
-                config.encoder_config.attention_type=turbot5_type
+                kwargs = {"attention_type": turbot5_type}
+                config.encoder_config.attention_type = turbot5_type
             else:
                 ModelClass = T5EncoderModel
-        elif config_name in {'DebertaV2Config'}:
+        elif config_name in {"DebertaV2Config"}:
             custom = True
             if os.environ.get("USE_FLASHDEBERTA", "") and IS_FLASHDEBERTA:
-                print('Using FlashDeberta backend.')
                 ModelClass = FlashDebertaV2Model
             else:
                 ModelClass = DebertaV2Model
-            
+
         else:
             custom = False
             ModelClass = AutoModel
@@ -746,6 +744,7 @@ class Encoder(nn.Module):
         """
         packing_config: Optional[InferencePackingConfig] = kwargs.pop("packing_config", None)
         pair_attention_mask = kwargs.pop("pair_attention_mask", None)
+        token_lengths = kwargs.pop("token_lengths", None)
 
         if (
             packing_config is not None
@@ -760,6 +759,7 @@ class Encoder(nn.Module):
                 packing_config,
                 pair_attention_mask,
                 *args,
+                token_lengths=token_lengths,
                 **kwargs,
             )
         else:
@@ -784,6 +784,7 @@ class Encoder(nn.Module):
         packing_config: InferencePackingConfig,
         pair_attention_mask: Optional[torch.Tensor],
         *args: Any,
+        token_lengths: Optional[List[int]] = None,
         **kwargs: Any,
     ) -> torch.Tensor:
         """Encodes sequences using inference-time packing for efficiency.
@@ -798,13 +799,19 @@ class Encoder(nn.Module):
             packing_config: Configuration for packing behavior.
             pair_attention_mask: Optional pairwise attention mask.
             *args: Additional positional arguments.
+            token_lengths: Optional precomputed CPU-side per-sample token counts.
+                When provided by the collator, avoids an ``attention_mask.sum().tolist()``
+                GPU→CPU sync on every forward.
             **kwargs: Additional keyword arguments.
 
         Returns:
             Token embeddings of shape (batch_size, seq_len, hidden_size) with
             proper unpacking to restore original batch structure.
         """
-        lengths = attention_mask.sum(dim=-1, dtype=torch.int64).tolist()
+        if token_lengths is not None:
+            lengths = token_lengths
+        else:
+            lengths = attention_mask.sum(dim=-1, dtype=torch.int64).tolist()
         seq_len = int(input_ids.size(1))
         if not lengths or all(int(ln) == seq_len for ln in lengths):
             bert_kwargs = dict(kwargs)
@@ -813,12 +820,14 @@ class Encoder(nn.Module):
                 bert_kwargs["pair_attention_mask"] = pair_attention_mask
             return self.bert_layer(input_ids=input_ids, **bert_kwargs)
 
+        # One bulk tolist() is cheaper than N per-row tolist() calls.
+        all_ids = input_ids.tolist()
         requests = []
-        for row, length in zip(input_ids, lengths):
+        for ids_row, length in zip(all_ids, lengths):
             if length <= 0:
                 requests.append({"input_ids": []})
             else:
-                requests.append({"input_ids": row[:length].tolist()})
+                requests.append({"input_ids": ids_row[:length]})
 
         pad_token_id = self.bert_layer.model.config.pad_token_id
         if pad_token_id is None:
@@ -934,8 +943,8 @@ class BiEncoder(Encoder):
             input_ids: Label token IDs of shape (batch_size, seq_len).
             attention_mask: Attention mask of shape (batch_size, seq_len).
             *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments (packing_config and pair_attention_mask
-                are removed as they're not supported for labels).
+            **kwargs: Additional keyword arguments (packing_config, pair_attention_mask
+                and token_lengths are removed as they're not supported for labels).
 
         Returns:
             Pooled label embeddings of shape (batch_size, hidden_size).
@@ -943,6 +952,11 @@ class BiEncoder(Encoder):
         label_kwargs = dict(kwargs)
         label_kwargs.pop("packing_config", None)
         label_kwargs.pop("pair_attention_mask", None)
+        # token_lengths carries precomputed lengths for the *text* inputs (see
+        # collator); forwarding it to the labels encoder crashes plain HF
+        # backbones ("BertModel.forward() got an unexpected keyword argument
+        # 'token_lengths'", #370).
+        label_kwargs.pop("token_lengths", None)
         label_kwargs["attention_mask"] = attention_mask
         labels_embeddings = self.labels_encoder(input_ids, *args, **label_kwargs)
         if hasattr(self, "labels_projection"):

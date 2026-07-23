@@ -71,9 +71,19 @@ def process(data):
     """
     words = data["sentence"].split()
     entities = []  # List of entities (start, end, type)
+    entity_indices = {}
 
-    for entity in data["entities"]:
-        start_char, end_char = entity["pos"]
+    def add_entity(entity):
+        """Add an entity once and return its index, or None for invalid offsets."""
+        position = entity.get("pos", [])
+        if not isinstance(position, (list, tuple)) or len(position) != 2:
+            return None
+
+        entity_key = (tuple(position), entity["type"].lower(), entity.get("name"))
+        if entity_key in entity_indices:
+            return entity_indices[entity_key]
+
+        start_char, end_char = position
 
         # Initialize variables to keep track of word positions
         start_word = None
@@ -90,11 +100,34 @@ def process(data):
                 break
             char_count += word_length + 1  # Add 1 for the space
 
+        # Skip annotations whose character offsets do not match word boundaries.
+        # Such annotations cannot be represented as token spans and would later
+        # fail when entities are sorted during batching.
+        if start_word is None or end_word is None:
+            return None
+
         # Append the word positions to the list
+        entity_indices[entity_key] = len(entities)
         entities.append((start_word, end_word, entity["type"].lower()))
+        return entity_indices[entity_key]
+
+    for entity in data.get("entities", []):
+        add_entity(entity)
+
+    relations = []
+    for relation in data.get("relations", []):
+        # RE datasets use inline head/tail entity definitions.
+        if not isinstance(relation, dict) or "head" not in relation or "tail" not in relation:
+            continue
+        head_idx = add_entity(relation["head"])
+        tail_idx = add_entity(relation["tail"])
+        if head_idx is not None and tail_idx is not None:
+            relations.append((head_idx, tail_idx, relation["type"].lower()))
 
     # Create a list of word positions for each entity
     sample = {"tokenized_text": words, "ner": entities}
+    if "relations" in data:
+        sample["relations"] = relations
 
     return sample
 
@@ -124,11 +157,11 @@ def create_dataset(path):
     train_dataset = []
     dev_dataset = []
     test_dataset = []
-    for data in train:
+    for data in train or []:
         train_dataset.append(process(data))
-    for data in dev:
+    for data in dev or []:
         dev_dataset.append(process(data))
-    for data in test:
+    for data in test or []:
         test_dataset.append(process(data))
     labels = [label.lower() for label in labels]
     return train_dataset, dev_dataset, test_dataset, labels
@@ -158,7 +191,9 @@ def get_for_one_path(path, model):
         a threshold of 0.5 and batch size of 12.
     """
     # load the dataset
-    _, _, test_dataset, entity_types = create_dataset(path)
+    _, _, test_dataset, labels = create_dataset(path)
+    has_relations = any("relations" in example for example in test_dataset)
+    entity_types = sorted({entity[2] for example in test_dataset for entity in example["ner"]}) if has_relations else labels
 
     data_name = path.split("/")[-1]  # get the name of the dataset
 
@@ -168,10 +203,26 @@ def get_for_one_path(path, model):
         flat_ner = False
 
     # evaluate the model
-    results, f1 = model.evaluate(
-        test_dataset, flat_ner=flat_ner, threshold=0.5, batch_size=12, entity_types=entity_types
-    )
-    return data_name, results, f1
+    evaluation_kwargs = {
+        "flat_ner": flat_ner,
+        "threshold": 0.6,
+        "batch_size": 12,
+        "entity_types": entity_types,
+    }
+    if has_relations:
+        evaluation_kwargs["relation_types"] = labels
+    evaluation = model.evaluate(test_dataset, **evaluation_kwargs)
+
+    # GLiNER NER models return ``(output, f1)``, while the relation-aware
+    # variant returns ``((ner_output, ner_f1), (rel_output, rel_f1))``.
+    if isinstance(evaluation[0], tuple):
+        results, f1 = evaluation[0]
+        relation_results, relation_f1 = evaluation[1] if has_relations else (None, None)
+    else:
+        results, f1 = evaluation
+        relation_results, relation_f1 = None, None
+
+    return data_name, results, f1, relation_results, relation_f1
 
 
 def get_for_all_path(model, steps, log_dir, data_paths):
@@ -229,22 +280,28 @@ def get_for_all_path(model, steps, log_dir, data_paths):
 
     zero_shot_benc_results = {}
     all_results = {}  # without crossNER
+    relation_results = {}
 
     for p in tqdm(all_paths):
         if "sample_" not in p:
-            data_name, results, f1 = get_for_one_path(p, model)
+            data_name, results, f1, relation_output, relation_f1 = get_for_one_path(p, model)
             # write to file
             with open(save_path, "a") as f:
                 f.write(data_name + "\n")
                 f.write(str(results) + "\n")
+                if relation_output is not None:
+                    f.write("Relations: " + str(relation_output) + "\n")
 
             if data_name in zero_shot_benc:
                 zero_shot_benc_results[data_name] = f1
             else:
                 all_results[data_name] = f1
+            if relation_f1 is not None:
+                relation_results[data_name] = relation_f1
 
-    avg_all = sum(all_results.values()) / len(all_results)
-    avg_zs = sum(zero_shot_benc_results.values()) / len(zero_shot_benc_results)
+    avg_all = sum(all_results.values()) / len(all_results) if all_results else None
+    avg_zs = sum(zero_shot_benc_results.values()) / len(zero_shot_benc_results) if zero_shot_benc_results else None
+    avg_relations = sum(relation_results.values()) / len(relation_results) if relation_results else None
 
     save_path_table = os.path.join(log_dir, "tables.txt")
 
@@ -253,13 +310,21 @@ def get_for_all_path(model, steps, log_dir, data_paths):
     for k, v in all_results.items():
         table_bench_all += f"{k:20}: {v:.1%}\n"
     # (20 size aswell for average i.e. :20)
-    table_bench_all += f"{'Average':20}: {avg_all:.1%}"
+    if avg_all is not None:
+        table_bench_all += f"{'Average':20}: {avg_all:.1%}"
 
     # results for zero-shot benchmark
     table_bench_zeroshot = ""
     for k, v in zero_shot_benc_results.items():
         table_bench_zeroshot += f"{k:20}: {v:.1%}\n"
-    table_bench_zeroshot += f"{'Average':20}: {avg_zs:.1%}"
+    if avg_zs is not None:
+        table_bench_zeroshot += f"{'Average':20}: {avg_zs:.1%}"
+
+    table_relations = ""
+    for k, v in relation_results.items():
+        table_relations += f"{k:20}: {v:.1%}\n"
+    if avg_relations is not None:
+        table_relations += f"{'Average':20}: {avg_relations:.1%}"
 
     # write to file
     with open(save_path_table, "a") as f:
@@ -269,6 +334,9 @@ def get_for_all_path(model, steps, log_dir, data_paths):
         f.write(table_bench_all + "\n\n")
         f.write("Table for zero-shot benchmark\n")
         f.write(table_bench_zeroshot + "\n")
+        if table_relations:
+            f.write("Table for relations\n")
+            f.write(table_relations + "\n")
         f.write("##############################################\n\n")
 
 

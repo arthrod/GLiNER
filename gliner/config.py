@@ -39,6 +39,8 @@ class BaseGLiNERConfig(PretrainedConfig):
         span_loss_coef: float = 1.0,
         represent_spans: bool = False,
         neg_spans_ratio: float = 1.0,
+        precomputed_prompts_mode: Optional[bool] = None,
+        id_to_classes: Optional[dict] = None,
         **kwargs,
     ):
         """Initialize BaseGLiNERConfig.
@@ -72,6 +74,8 @@ class BaseGLiNERConfig(PretrainedConfig):
             span_loss_coef (float, optional): Span loss coefficient. Defaults to 1.0.
             represent_spans (bool, optional): Whether to represent spans. Defaults to False.
             neg_spans_ratio (float, optional): Ratio of negative spans. Defaults to 1.0.
+            precomputed_prompts_mode (Optional[bool]): Whether to use precomputed prompts. Defaults to None.
+            id_to_classes (Optional[dict]): Mapping from class IDs to class names. Defaults to None.
             **kwargs: Additional keyword arguments passed to parent class.
         """
         super().__init__(**kwargs)
@@ -108,6 +112,8 @@ class BaseGLiNERConfig(PretrainedConfig):
         self.span_loss_coef = span_loss_coef
         self.represent_spans = represent_spans
         self.neg_spans_ratio = neg_spans_ratio
+        self.precomputed_prompts_mode = precomputed_prompts_mode
+        self.id_to_classes = id_to_classes
 
 
 class UniEncoderConfig(BaseGLiNERConfig):
@@ -197,6 +203,11 @@ class UniEncoderRelexConfig(UniEncoderConfig):
         rel_token: str = "<<REL>>",
         adjacency_loss_coef=1.0,
         relation_loss_coef=1.0,
+        augment_data_prob=0.5,
+        augment_ent_drop_prob=(0.0, 1.0),
+        augment_rel_drop_prob=(0.0, 0.3),
+        augment_add_other_prob=0.5,
+        rel_id_to_classes: Optional[dict] = None,
         **kwargs,
     ):
         """Initialize UniEncoderRelexConfig.
@@ -204,6 +215,8 @@ class UniEncoderRelexConfig(UniEncoderConfig):
         Args:
             relations_layer (str, optional): Name of relations layer,
                 see gliner.modeling.multitask.relations_layers.py. Defaults to None.
+                Use "none" to enable single-step relation extraction that scores all
+                entity pair combinations directly without adjacency filtering.
             triples_layer (str, optional): Name of triples layer,
                 see gliner.modeling.multitask.triples_layers.py. Defaults to None.
             embed_rel_token (bool, optional): Whether to embed relation tokens. Defaults to True.
@@ -211,6 +224,14 @@ class UniEncoderRelexConfig(UniEncoderConfig):
             rel_token (str, optional): Relation marker token. Defaults to "<<REL>>".
             adjacency_loss_coef (float, optional): Adjacency modeling loss coefficient. Defaults to 1.0.
             relation_loss_coef (float, optional): Relation representaton loss coefficient. Defaults to 1.0.
+            augment_data_prob (float, optional): Probability of applying data augmentation
+                to an example. Defaults to 0.0 (disabled).
+            augment_ent_drop_prob (tuple, optional): Range (min, max) from which to sample
+                the per-type entity drop probability. Defaults to (0.0, 0.4).
+            augment_rel_drop_prob (tuple, optional): Range (min, max) from which to sample
+                the per-type relation drop probability. Defaults to (0.0, 0.4).
+            augment_add_other_prob (float, optional): Probability of adding "other" relation to a pair with no relation.
+            rel_id_to_classes (Optional[dict]): Mapping from relation class IDs to class names. Defaults to None.
             **kwargs: Additional keyword arguments passed to UniEncoderConfig.
 
         Raises:
@@ -225,6 +246,11 @@ class UniEncoderRelexConfig(UniEncoderConfig):
         self.rel_token = rel_token
         self.adjacency_loss_coef = adjacency_loss_coef
         self.relation_loss_coef = relation_loss_coef
+        self.augment_data_prob = augment_data_prob
+        self.augment_ent_drop_prob = tuple(augment_ent_drop_prob)
+        self.augment_rel_drop_prob = tuple(augment_rel_drop_prob)
+        self.augment_add_other_prob = augment_add_other_prob
+        self.rel_id_to_classes = rel_id_to_classes
 
 
 class UniEncoderSpanRelexConfig(UniEncoderRelexConfig):
@@ -319,9 +345,9 @@ class GLiNERConfig(BaseGLiNERConfig):
         self.labels_encoder = labels_encoder
         self.labels_decoder = labels_decoder
         self.relations_layer = relations_layer
+        self.model_type = self._resolve_model_type()
 
-    @property
-    def model_type(self):
+    def _resolve_model_type(self):
         """Auto-detect model type based on configuration."""
         if self.labels_decoder:
             if self.span_mode == "token-level":

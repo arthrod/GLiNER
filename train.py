@@ -22,6 +22,19 @@ def build_model(model_cfg: dict, train_cfg: dict):
     return GLiNER.from_config(model_cfg)
 
 
+def enable_gradient_checkpointing(model: GLiNER) -> None:
+    """Enable activation recomputation on the underlying Transformers encoder."""
+    encoder = model.model.token_rep_layer.bert_layer.model
+    if not hasattr(encoder, "gradient_checkpointing_enable"):
+        raise RuntimeError(
+            f"Gradient checkpointing is not supported by {encoder.__class__.__name__}"
+        )
+    encoder.gradient_checkpointing_enable()
+    if hasattr(encoder.config, "use_cache"):
+        encoder.config.use_cache = False
+    print("Gradient checkpointing enabled (activation recomputation; lower VRAM usage).")
+
+
 def main(cfg_path: str):
     """Main training function."""
     # Load config
@@ -48,6 +61,7 @@ def main(cfg_path: str):
 
     # Build model
     model = build_model(model_cfg, train_cfg).to(dtype=torch.float32)
+    enable_gradient_checkpointing(model)
     print(f"Model type: {model.__class__.__name__}")
     
     # Get freeze components
@@ -64,7 +78,7 @@ def main(cfg_path: str):
         # Schedule
         max_steps=cfg.training.num_steps,
         lr_scheduler_type=cfg.training.scheduler_type,
-        warmup_ratio=cfg.training.warmup_ratio,
+        warmup_steps=cfg.training.warmup_steps,
         # Batch & optimization
         per_device_train_batch_size=cfg.training.train_batch_size,
         per_device_eval_batch_size=cfg.training.train_batch_size,
@@ -82,7 +96,7 @@ def main(cfg_path: str):
         masking=cfg.training.masking,
         # Logging & saving
         save_steps=cfg.training.eval_every,
-        logging_steps=cfg.training.eval_every,
+        logging_steps=50,
         save_total_limit=cfg.training.save_total_limit,
         # Freezing
         freeze_components=freeze_components,
@@ -96,6 +110,6 @@ def main(cfg_path: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train GLiNER model")
-    parser.add_argument("--config", type=str, default="configs/config.yaml", help="Path to config file (YAML or JSON)")
+    parser.add_argument("--config", type=str, default="configs/config_relex.yaml", help="Path to config file (YAML or JSON)")
     args = parser.parse_args()
     main(args.config)

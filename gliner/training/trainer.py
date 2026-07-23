@@ -78,6 +78,8 @@ class TrainingArguments(transformers.TrainingArguments):
     others_weight_decay: Optional[float] = 0.0
     focal_loss_alpha: Optional[float] = -1
     focal_loss_gamma: Optional[float] = 0
+    rel_focal_loss_alpha: Optional[float] = None
+    rel_focal_loss_gamma: Optional[float] = None
     focal_loss_prob_margin: Optional[float] = 0
     label_smoothing: Optional[float] = 0
     loss_reduction: Optional[str] = "sum"
@@ -86,14 +88,14 @@ class TrainingArguments(transformers.TrainingArguments):
 
 
 class Trainer(transformers.Trainer):
-    """
-    Transformers v4/v5 compatible custom Trainer.
+    """Transformers v4/v5 compatible custom Trainer.
+
     - v5-safe method signatures (num_items_in_batch)
     - no hard dependency on self.use_apex
     - skips only OOM by default (other exceptions are raised so you don't silently get 0 loss)
     """
 
-    def _save(self, output_dir: str = None, state_dict=None):
+    def _save(self, output_dir: Optional[str] = None, state_dict=None):
         # called by HF during checkpoint saves
         if not self.args.should_save:
             return
@@ -126,7 +128,7 @@ class Trainer(transformers.Trainer):
         if proc is not None and hasattr(proc, "save_pretrained"):
             proc.save_pretrained(output_dir)
 
-    def save_model(self, output_dir: str = None, _internal_call: bool = False):
+    def save_model(self, output_dir: Optional[str] = None, _internal_call: bool = False):
         # make final save consistent with checkpoint saving
         self._save(output_dir)
 
@@ -146,9 +148,17 @@ class Trainer(transformers.Trainer):
         num_items_in_batch: Optional[int] = None,
     ):
         # Prepare inputs are done in training_step / prediction_step
+        rel_alpha = (
+            self.args.rel_focal_loss_alpha if self.args.rel_focal_loss_alpha is not None else self.args.focal_loss_alpha
+        )
+        rel_gamma = (
+            self.args.rel_focal_loss_gamma if self.args.rel_focal_loss_gamma is not None else self.args.focal_loss_gamma
+        )
         outputs = model(
             alpha=self.args.focal_loss_alpha,
             gamma=self.args.focal_loss_gamma,
+            rel_alpha=rel_alpha,
+            rel_gamma=rel_gamma,
             prob_margin=self.args.focal_loss_prob_margin,
             label_smoothing=self.args.label_smoothing,
             reduction=self.args.loss_reduction,
