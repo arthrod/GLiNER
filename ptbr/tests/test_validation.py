@@ -41,12 +41,11 @@ def report(name, passed, detail=""):
 
 
 def load_mock(filename):
-    """
-    Load and parse a JSON mock file from the test mocks directory.
-    
+    """Load and parse a JSON mock file from the test mocks directory.
+
     Parameters:
         filename (str): Name of the mock file relative to the global MOCKS directory.
-    
+
     Returns:
         obj: The parsed JSON content (typically a dict or list) from the specified file.
     """
@@ -58,6 +57,7 @@ def load_mock(filename):
 # ===================================================================
 # 1. Valid data should pass
 # ===================================================================
+
 
 def test_valid_with_extras():
     data = load_mock("valid_with_extras.json")
@@ -83,19 +83,18 @@ def test_sample_data():
 # 2. Invalid mocks -- each must produce errors
 # ===================================================================
 
+
 def test_text_is_raw_string():
     data = load_mock("text_is_raw_string.json")
     ok, errs = validate_data(data)
-    report("text_is_raw_string catches all", not ok and len(errs) == 2,
-           f"ok={ok}, errors={len(errs)}")
+    report("text_is_raw_string catches all", not ok and len(errs) == 2, f"ok={ok}, errors={len(errs)}")
     report("error mentions list of strings", any("list of strings" in e for e in errs))
 
 
 def test_text_has_mixed_types():
     data = load_mock("text_has_mixed_types.json")
     ok, errs = validate_data(data)
-    report("text_has_mixed_types catches all 3", not ok and len(errs) == 3,
-           f"ok={ok}, errors={len(errs)}")
+    report("text_has_mixed_types catches all 3", not ok and len(errs) == 3, f"ok={ok}, errors={len(errs)}")
 
 
 def test_indices_are_floats():
@@ -108,8 +107,7 @@ def test_indices_are_floats():
 def test_spans_wrong_shape():
     data = load_mock("spans_wrong_shape.json")
     ok, errs = validate_data(data)
-    report("spans_wrong_shape catches all 4", not ok and len(errs) == 4,
-           f"ok={ok}, errors={len(errs)}")
+    report("spans_wrong_shape catches all 4", not ok and len(errs) == 4, f"ok={ok}, errors={len(errs)}")
 
 
 def test_boundary_violations():
@@ -150,15 +148,13 @@ def test_missing_fields():
         m = re.match(r"\[(\d+)\]", e)
         if m:
             flagged.add(int(m.group(1)))
-    report("all 5 items with missing fields flagged", len(flagged) == 5,
-           f"flagged={sorted(flagged)}")
+    report("all 5 items with missing fields flagged", len(flagged) == 5, f"flagged={sorted(flagged)}")
 
 
 def test_ner_wrong_type():
     data = load_mock("ner_wrong_type.json")
     ok, errs = validate_data(data)
-    report("ner_wrong_type catches all 4", not ok and len(errs) == 4,
-           f"ok={ok}, errors={len(errs)}")
+    report("ner_wrong_type catches all 4", not ok and len(errs) == 4, f"ok={ok}, errors={len(errs)}")
 
 
 def test_item_wrong_type():
@@ -171,8 +167,7 @@ def test_item_wrong_type():
         m = re.match(r"\[(\d+)\]", e)
         if m:
             flagged.add(int(m.group(1)))
-    report("exactly items 0-3 flagged", flagged == {0, 1, 2, 3},
-           f"flagged={sorted(flagged)}")
+    report("exactly items 0-3 flagged", flagged == {0, 1, 2, 3}, f"flagged={sorted(flagged)}")
 
 
 def test_relations_bad():
@@ -184,8 +179,7 @@ def test_relations_bad():
         m = re.match(r"\[(\d+)\]", e)
         if m:
             flagged.add(int(m.group(1)))
-    report("all 4 bad relation items flagged", len(flagged) == 4,
-           f"flagged={sorted(flagged)}")
+    report("all 4 bad relation items flagged", len(flagged) == 4, f"flagged={sorted(flagged)}")
 
 
 def test_sneaky_mixed():
@@ -199,8 +193,11 @@ def test_sneaky_mixed():
         if m:
             flagged.add(int(m.group(1)))
     expected_bad = {2, 4, 6, 8, 10}
-    report("catches exactly the 5 bad rows", flagged == expected_bad,
-           f"flagged={sorted(flagged)}, expected={sorted(expected_bad)}")
+    report(
+        "catches exactly the 5 bad rows",
+        flagged == expected_bad,
+        f"flagged={sorted(flagged)}, expected={sorted(expected_bad)}",
+    )
     # Verify the 7 good rows produce NO errors
     good_flagged = flagged - expected_bad
     report("zero false positives on good rows", len(good_flagged) == 0)
@@ -235,6 +232,7 @@ def test_empty_edge_cases():
 # 3. JSONL loading
 # ===================================================================
 
+
 def test_jsonl_loading():
     entries = [
         {"tokenized_text": ["Hello", "world"], "ner": [[0, 1, "Greeting"]]},
@@ -247,8 +245,7 @@ def test_jsonl_loading():
     try:
         data = load_data(tmp)
         ok, _errs = validate_data(data)
-        report("JSONL loading works", len(data) == 2 and ok,
-               f"loaded={len(data)}, valid={ok}")
+        report("JSONL loading works", len(data) == 2 and ok, f"loaded={len(data)}, valid={ok}")
     finally:
         os.unlink(tmp)
 
@@ -266,8 +263,7 @@ def test_jsonl_with_noise():
     try:
         data = load_data(tmp)
         ok, errs = validate_data(data)
-        report("JSONL noise detected", not ok and len(errs) == 1,
-               f"errors={len(errs)}")
+        report("JSONL noise detected", not ok and len(errs) == 1, f"errors={len(errs)}")
         report("error on correct row", errs and errs[0].startswith("[1]"))
     finally:
         os.unlink(tmp)
@@ -276,6 +272,7 @@ def test_jsonl_with_noise():
 # ===================================================================
 # 4. Column remapping
 # ===================================================================
+
 
 def test_column_remapping():
     entries = [
@@ -287,8 +284,7 @@ def test_column_remapping():
     try:
         data = load_data(tmp, text_column="text", ner_column="entities")
         ok, _errs = validate_data(data)
-        report("column remapping works", ok and "tokenized_text" in data[0],
-               f"keys={list(data[0].keys())}")
+        report("column remapping works", ok and "tokenized_text" in data[0], f"keys={list(data[0].keys())}")
         report("extra columns preserved after remap", "id" in data[0])
     finally:
         os.unlink(tmp)
@@ -307,10 +303,16 @@ def test_column_remapping_missing_custom_column():
             load_data(tmp, text_column="text", ner_column="entities")
         except ValueError as exc:
             message = str(exc)
-            report("missing remapped column raises ValueError",
-                   "Missing required column(s): 'entities'" in message, message)
-            report("missing remapped column reports local available columns",
-                   "Available columns in local file" in message, message)
+            report(
+                "missing remapped column raises ValueError",
+                "Missing required column(s): 'entities'" in message,
+                message,
+            )
+            report(
+                "missing remapped column reports local available columns",
+                "Available columns in local file" in message,
+                message,
+            )
         else:
             report("missing remapped column raises ValueError", False, "no exception")
     finally:
@@ -321,6 +323,7 @@ def test_column_remapping_missing_custom_column():
 # 5. prepare() returns GLiNERData
 # ===================================================================
 
+
 def test_prepare_module():
     sample = Path(__file__).resolve().parents[2] / "examples" / "sample_data.json"
     if not sample.exists():
@@ -329,14 +332,14 @@ def test_prepare_module():
     result = prepare(str(sample))
     report("prepare returns GLiNERData", isinstance(result, GLiNERData))
     report("prepare sets is_valid", result.is_valid is True)
-    report("prepare extracts labels", len(result.labels) > 0,
-           f"{len(result.labels)} labels")
+    report("prepare extracts labels", len(result.labels) > 0, f"{len(result.labels)} labels")
     report("prepare sets source", result.source == str(sample))
 
 
 # ===================================================================
 # 6. CLI smoke test
 # ===================================================================
+
 
 def _run_validate_cli(path):
     if importlib.util.find_spec("typer") is None:
@@ -373,6 +376,7 @@ def test_cli_validate_bad():
 # ===================================================================
 # Run all
 # ===================================================================
+
 
 def main():
     print("=" * 60)

@@ -73,22 +73,21 @@ class TrainingArguments(transformers.TrainingArguments):
             Defaults to 'global'.
     """
 
-    cache_dir: Optional[str] = field(default=None)
+    cache_dir: str | None = field(default=None)
     optim: str = field(default="adamw_torch")
-    others_lr: Optional[float] = None
-    others_weight_decay: Optional[float] = 0.0
-    focal_loss_alpha: Optional[float] = -1
-    focal_loss_gamma: Optional[float] = 0
-    focal_loss_prob_margin: Optional[float] = 0
-    label_smoothing: Optional[float] = 0
-    loss_reduction: Optional[str] = "sum"
-    negatives: Optional[float] = 1.0
-    masking: Optional[str] = "global"
+    others_lr: float | None = None
+    others_weight_decay: float | None = 0.0
+    focal_loss_alpha: float | None = -1
+    focal_loss_gamma: float | None = 0
+    focal_loss_prob_margin: float | None = 0
+    label_smoothing: float | None = 0
+    loss_reduction: str | None = "sum"
+    negatives: float | None = 1.0
+    masking: str | None = "global"
 
 
 class Trainer(transformers.Trainer):
-    """
-    Transformers v4/v5 compatible custom Trainer.
+    """Transformers v4/v5 compatible custom Trainer.
     - v5-safe method signatures (num_items_in_batch)
     - no hard dependency on self.use_apex
     - skips only OOM by default (other exceptions are raised so you don't silently get 0 loss)
@@ -174,7 +173,7 @@ class Trainer(transformers.Trainer):
         model,
         inputs,
         return_outputs: bool = False,
-        num_items_in_batch: Optional[int] = None,
+        num_items_in_batch: int | None = None,
     ):
         # Prepare inputs are done in training_step / prediction_step
         outputs = model(
@@ -194,8 +193,8 @@ class Trainer(transformers.Trainer):
     def training_step(
         self,
         model: nn.Module,
-        inputs: Dict[str, Union[torch.Tensor, Any]],
-        num_items_in_batch: Optional[int] = None,
+        inputs: dict[str, torch.Tensor | Any],
+        num_items_in_batch: int | None = None,
     ) -> torch.Tensor:
         model.train()
         inputs = self._prepare_inputs(inputs)
@@ -323,10 +322,10 @@ class Trainer(transformers.Trainer):
     def prediction_step(
         self,
         model: nn.Module,
-        inputs: Dict[str, Union[torch.Tensor, Any]],
+        inputs: dict[str, torch.Tensor | Any],
         prediction_loss_only: bool,
-        ignore_keys: Optional[List[str]] = None,
-    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        ignore_keys: list[str] | None = None,
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
         model.eval()
         inputs = self._prepare_inputs(inputs)
 
@@ -362,7 +361,7 @@ class Trainer(transformers.Trainer):
 
         return self.accelerator.prepare(DataLoader(train_dataset, **dataloader_params))
 
-    def get_eval_dataloader(self, eval_dataset: Optional[Union[str, Dataset]] = None) -> DataLoader:
+    def get_eval_dataloader(self, eval_dataset: str | Dataset | None = None) -> DataLoader:
         if eval_dataset is None and self.eval_dataset is None:
             raise ValueError("Trainer: evaluation requires an eval_dataset.")
 

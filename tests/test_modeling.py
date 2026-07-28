@@ -1,27 +1,29 @@
-import pytest
-import torch
-from gliner.modeling.utils import (
-    extract_word_embeddings,
-    extract_prompt_features,
-    extract_prompt_features_and_word_embeddings,
-    build_entity_pairs,
-)
 from unittest.mock import Mock
-from gliner.modeling.base import (
-    BaseModel,
-    UniEncoderSpanModel,
-    UniEncoderTokenModel,
-    BiEncoderSpanModel,
-    UniEncoderSpanDecoderModel,
-    UniEncoderSpanRelexModel,
-)
+
+import torch
+import pytest
+
 from gliner.config import (
     BaseGLiNERConfig,
+    BiEncoderSpanConfig,
     UniEncoderSpanConfig,
     UniEncoderTokenConfig,
-    UniEncoderSpanDecoderConfig,
     UniEncoderSpanRelexConfig,
-    BiEncoderSpanConfig,
+    UniEncoderSpanDecoderConfig,
+)
+from gliner.modeling.base import (
+    BaseModel,
+    BiEncoderSpanModel,
+    UniEncoderSpanModel,
+    UniEncoderTokenModel,
+    UniEncoderSpanRelexModel,
+    UniEncoderSpanDecoderModel,
+)
+from gliner.modeling.utils import (
+    build_entity_pairs,
+    extract_prompt_features,
+    extract_word_embeddings,
+    extract_prompt_features_and_word_embeddings,
 )
 
 
@@ -115,7 +117,13 @@ class TestExtractWordEmbeddings:
         text_lengths = torch.tensor([0], dtype=torch.long).unsqueeze(-1)
 
         words_embedding, mask = extract_word_embeddings(
-            token_embeds, words_mask, attention_mask, batch_size, max_text_length, embed_dim, text_lengths
+            token_embeds,
+            words_mask,
+            attention_mask,
+            batch_size,
+            max_text_length,
+            embed_dim,
+            text_lengths,
         )
 
         # Should return all zeros
@@ -214,7 +222,12 @@ class TestExtractPromptFeatures:
         attention_mask = torch.ones(batch_size, seq_length, dtype=torch.long)
 
         prompts_embedding, prompts_mask = extract_prompt_features(
-            class_token_index, token_embeds, input_ids, attention_mask, batch_size, embed_dim
+            class_token_index,
+            token_embeds,
+            input_ids,
+            attention_mask,
+            batch_size,
+            embed_dim,
         )
 
         # Should have at least shape (1, 0, embed_dim) or handle gracefully
@@ -282,7 +295,7 @@ class TestExtractPromptFeaturesAndWordEmbeddings:
     def test_output_shapes(self, combined_setup):
         """Should return tensors with correct shapes."""
         prompts_embedding, prompts_mask, words_embedding, word_mask = extract_prompt_features_and_word_embeddings(
-            **combined_setup
+            **combined_setup,
         )
 
         batch_size = combined_setup["token_embeds"].shape[0]
@@ -326,7 +339,7 @@ class TestExtractPromptFeaturesAndWordEmbeddings:
     def test_preserves_dtype_and_device(self, combined_setup):
         """Should preserve dtype and device throughout."""
         prompts_embedding, prompts_mask, words_embedding, word_mask = extract_prompt_features_and_word_embeddings(
-            **combined_setup
+            **combined_setup,
         )
 
         original_dtype = combined_setup["token_embeds"].dtype
@@ -368,7 +381,9 @@ class TestBuildEntityPairs:
     def test_returns_four_tensors(self, basic_pairs_setup):
         """Should return four tensors: pair_idx, pair_mask, head_rep, tail_rep."""
         result = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], basic_pairs_setup["threshold"]
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            basic_pairs_setup["threshold"],
         )
 
         assert len(result) == 4
@@ -382,7 +397,9 @@ class TestBuildEntityPairs:
     def test_output_shapes(self, basic_pairs_setup):
         """Should return tensors with correct shapes."""
         pair_idx, pair_mask, head_rep, tail_rep = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], basic_pairs_setup["threshold"]
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            basic_pairs_setup["threshold"],
         )
 
         B = basic_pairs_setup["B"]
@@ -398,7 +415,9 @@ class TestBuildEntityPairs:
     def test_extracts_correct_pairs_above_threshold(self, basic_pairs_setup):
         """Should extract all directed pairs (both directions) with scores above threshold."""
         pair_idx, pair_mask, _, _ = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], basic_pairs_setup["threshold"]
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            basic_pairs_setup["threshold"],
         )
 
         # Get valid pairs from first batch
@@ -411,7 +430,9 @@ class TestBuildEntityPairs:
     def test_pads_with_minus_one(self, basic_pairs_setup):
         """Should pad unused pair positions with -1."""
         pair_idx, pair_mask, _, _ = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], basic_pairs_setup["threshold"]
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            basic_pairs_setup["threshold"],
         )
 
         # Find padded positions
@@ -423,7 +444,9 @@ class TestBuildEntityPairs:
     def test_mask_indicates_valid_pairs(self, basic_pairs_setup):
         """Should have True in mask for valid pairs, False for padding."""
         pair_idx, pair_mask, _, _ = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], basic_pairs_setup["threshold"]
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            basic_pairs_setup["threshold"],
         )
 
         # All valid pairs should have mask=True
@@ -435,7 +458,9 @@ class TestBuildEntityPairs:
     def test_head_tail_representations_match_pairs(self, basic_pairs_setup):
         """Should extract correct head and tail representations."""
         pair_idx, pair_mask, head_rep, tail_rep = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], basic_pairs_setup["threshold"]
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            basic_pairs_setup["threshold"],
         )
 
         span_rep = basic_pairs_setup["span_rep"]
@@ -453,12 +478,16 @@ class TestBuildEntityPairs:
         """Should exclude pairs below threshold."""
         # Test with high threshold
         pair_idx_high, pair_mask_high, _, _ = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], threshold=0.85
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            threshold=0.85,
         )
 
         # Test with low threshold
         pair_idx_low, pair_mask_low, _, _ = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], threshold=0.3
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            threshold=0.3,
         )
 
         # High threshold should result in fewer or equal pairs
@@ -528,7 +557,9 @@ class TestBuildEntityPairs:
     def test_preserves_dtype_and_device(self, basic_pairs_setup):
         """Should preserve device of input tensors."""
         pair_idx, pair_mask, head_rep, tail_rep = build_entity_pairs(
-            basic_pairs_setup["adj"], basic_pairs_setup["span_rep"], basic_pairs_setup["threshold"]
+            basic_pairs_setup["adj"],
+            basic_pairs_setup["span_rep"],
+            basic_pairs_setup["threshold"],
         )
 
         device = basic_pairs_setup["adj"].device
@@ -898,7 +929,12 @@ class TestUniEncoderSpanDecoderModel:
         decoder_loss = torch.tensor(5.0)
 
         total_loss = model.loss(
-            scores, labels, prompts_embedding_mask, span_mask, decoder_loss=decoder_loss, reduction="sum"
+            scores,
+            labels,
+            prompts_embedding_mask,
+            span_mask,
+            decoder_loss=decoder_loss,
+            reduction="sum",
         )
 
         assert isinstance(total_loss, torch.Tensor)
@@ -1024,7 +1060,6 @@ class TestBiEncoderSpanModel:
 
     def test_forward_output_shape_without_labels(self, mock_config, model_inputs):
         """Should return output with correct logits shape without labels."""
-        from unittest.mock import Mock
 
         # Remove labels to test inference mode
         model_inputs_no_labels = {k: v for k, v in model_inputs.items() if k != "labels"}
@@ -1047,7 +1082,6 @@ class TestBiEncoderSpanModel:
 
     def test_forward_with_precomputed_labels_embeds(self, mock_config, model_inputs):
         """Should accept precomputed labels embeddings instead of ids."""
-        from unittest.mock import Mock
 
         # Replace labels_input_ids with labels_embeds
         C, D = 5, 64
@@ -1061,7 +1095,9 @@ class TestBiEncoderSpanModel:
         # Mock encode_text method
         model.token_rep_layer.encode_text = Mock()
         model.token_rep_layer.encode_text.return_value = torch.randn(
-            model_inputs["input_ids"].shape[0], model_inputs["input_ids"].shape[1], mock_config.hidden_size
+            model_inputs["input_ids"].shape[0],
+            model_inputs["input_ids"].shape[1],
+            mock_config.hidden_size,
         )
 
         with torch.no_grad():

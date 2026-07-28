@@ -2,7 +2,7 @@
 
 This module provides ONNX Runtime implementations of various GLiNER model
 architectures, including uni-encoder and bi-encoder variants for both
-span-level and token-level named entity recognition, as well as relation
+span-level and token_level named entity recognition, as well as relation
 extraction models.
 """
 
@@ -40,7 +40,7 @@ class BaseORTModel(ABC):
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
 
-    def prepare_inputs(self, inputs: Dict[str, torch.Tensor]) -> Dict[str, np.ndarray]:
+    def prepare_inputs(self, inputs: dict[str, torch.Tensor]) -> dict[str, np.ndarray]:
         """Prepare inputs for ONNX model inference.
 
         Converts PyTorch tensors to numpy arrays and filters out inputs
@@ -66,7 +66,7 @@ class BaseORTModel(ABC):
             prepared_inputs[key] = tensor.cpu().detach().numpy()
         return prepared_inputs
 
-    def run_inference(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def run_inference(self, inputs: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         """Run the ONNX model inference.
 
         Args:
@@ -80,7 +80,7 @@ class BaseORTModel(ABC):
         return outputs
 
     @abstractmethod
-    def forward(self, input_ids, attention_mask, **kwargs) -> Dict[str, Any]:
+    def forward(self, input_ids, attention_mask, **kwargs) -> dict[str, Any]:
         """Perform forward pass through the model.
 
         Abstract method that must be implemented by subclasses to define
@@ -94,7 +94,6 @@ class BaseORTModel(ABC):
         Returns:
             Dictionary containing model outputs.
         """
-        pass
 
     def __call__(self, *args, **kwargs):
         """Make the model callable.
@@ -127,7 +126,7 @@ class UniEncoderSpanORTModel(BaseORTModel):
         span_idx: torch.Tensor,
         span_mask: torch.Tensor,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forward pass for span model using ONNX inference.
 
         Args:
@@ -173,11 +172,11 @@ class BiEncoderSpanORTModel(BaseORTModel):
         text_lengths: torch.Tensor,
         span_idx: torch.Tensor,
         span_mask: torch.Tensor,
-        labels_embeds: Optional[torch.Tensor] = None,
-        labels_input_ids: Optional[torch.FloatTensor] = None,
-        labels_attention_mask: Optional[torch.LongTensor] = None,
+        labels_embeds: torch.Tensor | None = None,
+        labels_input_ids: torch.FloatTensor | None = None,
+        labels_attention_mask: torch.LongTensor | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forward pass for bi-encoder span model using ONNX inference.
 
         Args:
@@ -221,10 +220,10 @@ class BiEncoderSpanORTModel(BaseORTModel):
 
 
 class UniEncoderTokenORTModel(BaseORTModel):
-    """ONNX Runtime model for uni-encoder token-level NER.
+    """ONNX Runtime model for uni-encoder token_level NER.
 
     Uses a single encoder to process both text and entity labels,
-    performing token-level entity recognition.
+    performing token_level entity recognition.
     """
 
     def forward(
@@ -234,7 +233,7 @@ class UniEncoderTokenORTModel(BaseORTModel):
         words_mask: torch.Tensor,
         text_lengths: torch.Tensor,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forward pass for token model using ONNX inference.
 
         Args:
@@ -262,10 +261,10 @@ class UniEncoderTokenORTModel(BaseORTModel):
 
 
 class BiEncoderTokenORTModel(BaseORTModel):
-    """ONNX Runtime model for bi-encoder token-level NER.
+    """ONNX Runtime model for bi-encoder token_level NER.
 
     Uses separate encoders for text and entity labels, performing
-    token-level entity recognition with bi-encoder architecture.
+    token_level entity recognition with bi-encoder architecture.
     """
 
     def forward(
@@ -274,11 +273,11 @@ class BiEncoderTokenORTModel(BaseORTModel):
         attention_mask: torch.Tensor,
         words_mask: torch.Tensor,
         text_lengths: torch.Tensor,
-        labels_embeds: Optional[torch.Tensor] = None,
-        labels_input_ids: Optional[torch.FloatTensor] = None,
-        labels_attention_mask: Optional[torch.LongTensor] = None,
+        labels_embeds: torch.Tensor | None = None,
+        labels_input_ids: torch.FloatTensor | None = None,
+        labels_attention_mask: torch.LongTensor | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forward pass for bi-encoder token model using ONNX inference.
 
         Args:
@@ -334,7 +333,7 @@ class UniEncoderSpanRelexORTModel(BaseORTModel):
         span_idx: torch.Tensor,
         span_mask: torch.Tensor,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forward pass for span relation extraction model using ONNX inference.
 
         Args:
@@ -372,7 +371,7 @@ class UniEncoderSpanRelexORTModel(BaseORTModel):
 
 
 class UniEncoderTokenRelexORTModel(BaseORTModel):
-    """ONNX Runtime model for uni-encoder token-level relation extraction.
+    """ONNX Runtime model for uni-encoder token_level relation extraction.
 
     Uses a single encoder to process text and perform both entity recognition
     and relation extraction at the token level.
@@ -385,7 +384,7 @@ class UniEncoderTokenRelexORTModel(BaseORTModel):
         words_mask: torch.Tensor,
         text_lengths: torch.Tensor,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forward pass for span relation extraction model using ONNX inference.
 
         Args:

@@ -21,7 +21,7 @@ class Node:
     def get_child(self, child_key: int) -> Optional["Node"]:
         return self._children.get(child_key)
 
-    def get_children(self) -> List["Node"]:
+    def get_children(self) -> list["Node"]:
         # Preserve insertion order like iterating a vector
         return list(self._children.values())
 
@@ -33,17 +33,17 @@ class Node:
 
 
 class Trie:
-    def __init__(self, init_value: Optional[List[List[int]]] = None):
+    def __init__(self, init_value: list[list[int]] | None = None):
         # Root has key=0 and is permanent (matches the C++ code)
         self.root = Node(0, True)
         if init_value:
             self.add_batch(init_value, permanent=True)
 
-    def add_batch(self, entities: List[List[int]], permanent: bool) -> None:
+    def add_batch(self, entities: list[list[int]], permanent: bool) -> None:
         for entity in entities:
             self.add(entity, permanent)
 
-    def add(self, entity: List[int], permanent: bool) -> None:
+    def add(self, entity: list[int], permanent: bool) -> None:
         current = self.root
         for token_id in entity:
             nxt = current.get_child(token_id)
@@ -52,7 +52,7 @@ class Trie:
                 current.add_child(nxt)
             current = nxt
 
-    def get_possible_next_keys(self, entity: List[int]) -> List[int]:
+    def get_possible_next_keys(self, entity: list[int]) -> list[int]:
         tmp = self.root
         for token_id in entity:
             nxt = tmp.get_child(token_id)
@@ -61,7 +61,7 @@ class Trie:
             tmp = nxt
         return [child.get_key() for child in tmp.get_children()]
 
-    def get_branch(self, entity: List[int]) -> List[Node]:
+    def get_branch(self, entity: list[int]) -> list[Node]:
         # Includes root at position 0 when the full path exists.
         branch = [self.root]
         tmp = self.root
@@ -73,11 +73,11 @@ class Trie:
             branch.append(tmp)
         return branch
 
-    def remove_batch(self, entities: List[List[int]]) -> None:
+    def remove_batch(self, entities: list[list[int]]) -> None:
         for entity in entities:
             self.remove_entity(entity)
 
-    def remove_entity(self, entity: List[int]) -> None:
+    def remove_entity(self, entity: list[int]) -> None:
         branch = self.get_branch(entity)
         # If not found or only root, nothing to remove
         if len(branch) <= 1:
@@ -89,7 +89,7 @@ class Trie:
 
 
 class LabelsTrie:
-    def __init__(self, entities: Optional[List[List[int]]] = None):
+    def __init__(self, entities: list[list[int]] | None = None):
         """Initialize the trie.
 
         Args:
@@ -101,7 +101,7 @@ class LabelsTrie:
         else:
             self.trie = Trie(entities)
 
-    def add_batch(self, entities: List[List[int]]):
+    def add_batch(self, entities: list[list[int]]):
         """Add multiple token sequences to the trie.
 
         Args:
@@ -109,7 +109,7 @@ class LabelsTrie:
         """
         self.trie.add_batch(entities, permanent=False)
 
-    def add(self, tokens: List[int]):
+    def add(self, tokens: list[int]):
         """Add a single token sequence to the trie.
 
         Args:
@@ -117,7 +117,7 @@ class LabelsTrie:
         """
         self.trie.add(tokens, permanent=False)
 
-    def get(self, prefix: List[int]) -> List[int]:
+    def get(self, prefix: list[int]) -> list[int]:
         """Get possible next tokens after a given prefix.
 
         Args:
@@ -128,7 +128,7 @@ class LabelsTrie:
         """
         return self.trie.get_possible_next_keys(prefix)
 
-    def remove_batch(self, entities: List[List[int]]):
+    def remove_batch(self, entities: list[list[int]]):
         """Remove multiple token sequences from the trie.
 
         Args:
@@ -136,7 +136,7 @@ class LabelsTrie:
         """
         self.trie.remove_batch(entities)
 
-    def remove_entity(self, tokens: List[int]):
+    def remove_entity(self, tokens: list[int]):
         """Remove a single token sequence from the trie.
 
         Args:

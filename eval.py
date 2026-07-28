@@ -8,7 +8,7 @@ def create_parser():
     parser = argparse.ArgumentParser(description="Span-based NER")
     parser.add_argument("--model", type=str, default="logs/model_12000", help="Path to model folder")
     parser.add_argument("--log_dir", type=str, default="logs", help="Path to model folder")
-    parser.add_argument('--data', type=str, default='data/ie_data/NER/', help='Path to the eval datasets directory')
+    parser.add_argument("--data", type=str, default="data/ie_data/NER/", help="Path to the eval datasets directory")
     return parser
 
 

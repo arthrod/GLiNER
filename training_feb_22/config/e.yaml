@@ -1,0 +1,134 @@
+# ============================================================================
+# A05_ptbr_multilingual_gliner_multi_v21_pii_spam.yaml
+# pt-BR adaptation: multilingual base + Portuguese corpora + Portuguese spam text.
+# ============================================================================
+
+run:
+  name: "e-gliner-pii-ptbr-multi-v21-v1"
+  description: "pt-BR adaptation for PII-in-spam; multilingual GLiNER base + Portuguese corpora + Brazilian-pattern PII injection."
+  tags: ["pii", "spam", "ptbr", "portuguese", "gliner", "zero-shot", "multilingual"]
+  seed: 42
+
+model:
+  model_name: "microsoft/deberta-v3-base"   # fallback only
+  name: "gliner-pii-ptbr-multi-v21"
+
+  labels_encoder: null
+  labels_decoder: null
+  decoder_mode: null
+  full_decoder_context: true
+  blank_entity_prob: 0.1
+  decoder_loss_coef: 0.5
+
+  relations_layer: null
+  triples_layer: null
+  embed_rel_token: true
+  rel_token_index: -1
+  rel_token: "<<REL>>"
+  adjacency_loss_coef: 1.0
+  relation_loss_coef: 1.0
+
+  span_mode: "markerV0"
+  max_width: 32
+  represent_spans: false
+  neg_spans_ratio: 1.0
+
+  hidden_size: 768
+  dropout: 0.30
+
+  fine_tune: true
+  subtoken_pooling: "first"
+
+  fuse_layers: false
+  post_fusion_schema: ""
+  num_post_fusion_layers: 1
+
+  num_rnn_layers: 1
+
+  max_len: 512
+  max_types: 80
+  max_neg_type_ratio: 2
+  words_splitter_type: "whitespace"
+
+  embed_ent_token: true
+  class_token_index: -1
+  ent_token: "<<ENT>>"
+  sep_token: "<<SEP>>"
+  vocab_size: -1
+
+  token_loss_coef: 1.0
+  span_loss_coef: 1.0
+
+  encoder_config: null
+  _attn_implementation: null
+
+data:
+  root_dir: "gliner_logs/gliner-pii-ptbr-multi-v21-v1"
+  train_data: "data/merged/ptbr_pii_spam_mix_train.json"
+  val_data_dir: "data/merged/ptbr_pii_spam_mix_val.json"
+
+training:
+  # multilingual GLiNER v2.1 exists and is explicitly described as multilingual in GLiNER docs/model cards
+  prev_path: "urchade/gliner_multi-v2.1"
+
+  num_steps: 18000
+  scheduler_type: "cosine"
+  warmup_ratio: 0.05
+
+  train_batch_size: 32
+  eval_batch_size: 48
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+
+  optimizer: "adamw_torch"
+  lr_encoder: 7.5e-6
+  lr_others: 3.0e-5
+  weight_decay_encoder: 0.01
+  weight_decay_other: 0.01
+
+  loss_alpha: 0.75
+  loss_gamma: 2.0
+  loss_prob_margin: 0.0
+  label_smoothing: 0.0
+  loss_reduction: "sum"
+
+  negatives: 2.0
+  masking: "none"
+
+  eval_every: 1000
+  save_total_limit: 6
+  logging_steps: 50
+
+  bf16: true
+  fp16: false
+  use_cpu: false
+
+  dataloader_num_workers: 6
+  dataloader_pin_memory: true
+  dataloader_persistent_workers: false
+  dataloader_prefetch_factor: 2
+
+  freeze_components: null
+  compile_model: false
+
+lora:
+  enabled: true
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules: ["all-linear"]
+  task_type: "TOKEN_CLS"
+  modules_to_save: null
+
+environment:
+  push_to_hub: true
+  hub_model_id: "YOUR_ORG/gliner-pii-ptbr-multi-v21-v1"
+  hf_token: null
+
+  report_to: "wandb"
+  wandb_project: "gliner-pii"
+  wandb_entity: null
+  wandb_api_key: null
+
+  cuda_visible_devices: "0"

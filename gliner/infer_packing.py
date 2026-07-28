@@ -10,8 +10,9 @@ pass, results can be unpacked back to the original request ordering.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+from collections.abc import Sequence
 
 import numpy as np
 import torch
@@ -29,7 +30,7 @@ class InferencePackingConfig:
     """
 
     max_length: int
-    sep_token_id: Optional[int] = None
+    sep_token_id: int | None = None
     streams_per_batch: int = 1
 
 
@@ -56,15 +57,15 @@ class PackedBatch:
     attention_mask: torch.LongTensor
     pair_attention_mask: torch.BoolTensor
     segment_ids: torch.LongTensor
-    map_out: List[List[int]]
-    offsets: List[List[int]]
-    lengths: List[List[int]]
+    map_out: list[list[int]]
+    offsets: list[list[int]]
+    lengths: list[list[int]]
 
 
-Request = Dict[str, Any]
+Request = dict[str, Any]
 
 
-def _ensure_list(tokens: Sequence[int]) -> List[int]:
+def _ensure_list(tokens: Sequence[int]) -> list[int]:
     """Convert a sequence of tokens to a Python list.
 
     Args:
@@ -132,10 +133,10 @@ class _PackedStream:
 
     def __init__(self) -> None:
         """Initialize an empty packed stream."""
-        self.tokens: List[int] = []
-        self.map_out: List[int] = []
-        self.offsets: List[int] = []
-        self.lengths: List[int] = []
+        self.tokens: list[int] = []
+        self.map_out: list[int] = []
+        self.offsets: list[int] = []
+        self.lengths: list[int] = []
 
     @property
     def total_tokens(self) -> int:
@@ -161,7 +162,7 @@ class _PackedStream:
         self.lengths.append(len(segment_tokens))
 
 
-def _prepare_streams(requests: List[Request], cfg: InferencePackingConfig) -> List[_PackedStream]:
+def _prepare_streams(requests: list[Request], cfg: InferencePackingConfig) -> list[_PackedStream]:
     """Prepare packed streams from a list of requests using a first-fit strategy.
 
     Iterates through requests and packs each into the first stream with enough
@@ -181,7 +182,7 @@ def _prepare_streams(requests: List[Request], cfg: InferencePackingConfig) -> Li
     if cfg.streams_per_batch < 1:
         raise ValueError("streams_per_batch must be >= 1")
 
-    streams: List[_PackedStream] = []
+    streams: list[_PackedStream] = []
 
     for req_idx, request in enumerate(requests):
         tokens = request.get("input_ids")
@@ -208,7 +209,7 @@ def _prepare_streams(requests: List[Request], cfg: InferencePackingConfig) -> Li
     return streams
 
 
-def _build_segment_ids(streams: List[_PackedStream], max_len: int) -> torch.LongTensor:
+def _build_segment_ids(streams: list[_PackedStream], max_len: int) -> torch.LongTensor:
     """Build segment ID tensors for each stream.
 
     Assigns a unique segment ID (starting from 1) to each packed sequence within
@@ -222,7 +223,7 @@ def _build_segment_ids(streams: List[_PackedStream], max_len: int) -> torch.Long
         Tensor of shape (num_streams, max_len) containing segment IDs for each
         token position. Returns a (0, max_len) tensor if streams is empty.
     """
-    segment_rows: List[torch.Tensor] = []
+    segment_rows: list[torch.Tensor] = []
     for stream in streams:
         seg = torch.zeros(max_len, dtype=torch.long)
         seg_id = 1
@@ -235,7 +236,7 @@ def _build_segment_ids(streams: List[_PackedStream], max_len: int) -> torch.Long
     return torch.stack(segment_rows, dim=0) if segment_rows else torch.zeros((0, max_len), dtype=torch.long)
 
 
-def pack_requests(requests: List[Request], cfg: InferencePackingConfig, pad_token_id: int) -> PackedBatch:
+def pack_requests(requests: list[Request], cfg: InferencePackingConfig, pad_token_id: int) -> PackedBatch:
     """Pack a collection of requests into one or more streams.
 
     Groups multiple short sequences into contiguous token streams to reduce padding
@@ -351,7 +352,7 @@ def _resolve_backend_tensor(tensor_like: Any) -> torch.Tensor:
     raise TypeError(f"Unsupported tensor type: {type(tensor_like)!r}")
 
 
-def unpack_spans(per_token_outputs: Any, packed: PackedBatch) -> List[Any]:
+def unpack_spans(per_token_outputs: Any, packed: PackedBatch) -> list[Any]:
     """Unpack encoder outputs back to the original request layout.
 
     Takes per-token outputs from a packed batch and redistributes them back to
@@ -382,7 +383,7 @@ def unpack_spans(per_token_outputs: Any, packed: PackedBatch) -> List[Any]:
         for req_idx in stream_map:
             num_requests = max(num_requests, req_idx + 1)
 
-    outputs: List[List[torch.Tensor]] = [[] for _ in range(num_requests)]
+    outputs: list[list[torch.Tensor]] = [[] for _ in range(num_requests)]
 
     for stream_idx, req_indices in enumerate(packed.map_out):
         offsets = packed.offsets[stream_idx]
@@ -396,7 +397,7 @@ def unpack_spans(per_token_outputs: Any, packed: PackedBatch) -> List[Any]:
                 segment = tensor[stream_idx, offset : offset + length]
             outputs[req_idx].append(segment)
 
-    merged: List[Any] = []
+    merged: list[Any] = []
     for parts in outputs:
         if not parts:
             merged.append(tensor.new_zeros((0, *tensor.shape[2:])))
@@ -409,7 +410,7 @@ def unpack_spans(per_token_outputs: Any, packed: PackedBatch) -> List[Any]:
     if isinstance(per_token_outputs, torch.Tensor):
         return merged
 
-    np_outputs: List[Any] = []
+    np_outputs: list[Any] = []
     for item in merged:
         np_outputs.append(item.cpu().numpy())
     return np_outputs

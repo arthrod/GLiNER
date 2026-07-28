@@ -2,25 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from collections.abc import Iterable
 
 import torch
 from torch import nn
 
 from gliner.infer_packing import (
-    InferencePackingConfig,
     PackedBatch,
-    pack_requests,
+    InferencePackingConfig,
     unpack_spans,
+    pack_requests,
 )
 
 
 @dataclass
 class DummyTokenizer:
     pad_token_id: int = 0
-    sep_token_id: Optional[int] = None
+    sep_token_id: int | None = None
 
 
 class MockEncoder(nn.Module):
@@ -34,8 +35,8 @@ class MockEncoder(nn.Module):
     def forward(
         self,
         input_ids: torch.LongTensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        pair_attention_mask: Optional[torch.Tensor] = None,
+        attention_mask: torch.Tensor | None = None,
+        pair_attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         embeddings = self.embedding(input_ids)
 
@@ -59,8 +60,8 @@ class MockEncoder(nn.Module):
         return embeddings + mixed
 
 
-def make_requests(lengths: Iterable[int], vocab: int = 30522) -> List[Dict[str, List[int]]]:
-    requests: List[Dict[str, List[int]]] = []
+def make_requests(lengths: Iterable[int], vocab: int = 30522) -> list[dict[str, list[int]]]:
+    requests: list[dict[str, list[int]]] = []
     token = 1
     for length in lengths:
         if length < 0:
@@ -73,7 +74,7 @@ def make_requests(lengths: Iterable[int], vocab: int = 30522) -> List[Dict[str, 
     return requests
 
 
-def _pad_sequence(ids: List[int], pad_token_id: int, target: int) -> torch.Tensor:
+def _pad_sequence(ids: list[int], pad_token_id: int, target: int) -> torch.Tensor:
     tensor = torch.full((target,), pad_token_id, dtype=torch.long)
     if ids:
         tensor[: len(ids)] = torch.tensor(ids, dtype=torch.long)
@@ -83,12 +84,12 @@ def _pad_sequence(ids: List[int], pad_token_id: int, target: int) -> torch.Tenso
 def run_baseline(
     model: nn.Module,
     tokenizer: SimpleNamespace,
-    requests: List[Dict[str, Any]],
+    requests: list[dict[str, Any]],
     *,
-    max_length: Optional[int] = None,
-) -> List[torch.Tensor]:
+    max_length: int | None = None,
+) -> list[torch.Tensor]:
     device = next(model.parameters()).device
-    trimmed: List[List[int]] = []
+    trimmed: list[list[int]] = []
     for req in requests:
         tokens = list(req["input_ids"])
         if max_length is not None:
@@ -100,9 +101,7 @@ def run_baseline(
 
     max_len = max(len(tokens) for tokens in trimmed)
     pad_id = getattr(tokenizer, "pad_token_id", 0)
-    input_rows = [
-        _pad_sequence(tokens, pad_id, max_len) for tokens in trimmed
-    ]
+    input_rows = [_pad_sequence(tokens, pad_id, max_len) for tokens in trimmed]
     mask_rows = []
     for tokens in trimmed:
         mask = torch.zeros(max_len, dtype=torch.long)
@@ -117,7 +116,7 @@ def run_baseline(
     with torch.no_grad():
         outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
-    per_request: List[torch.Tensor] = []
+    per_request: list[torch.Tensor] = []
     for tensor, tokens in zip(outputs, trimmed):
         per_request.append(tensor[: len(tokens)].detach().cpu())
     return per_request
@@ -126,12 +125,12 @@ def run_baseline(
 def run_packed(
     model: nn.Module,
     tokenizer: SimpleNamespace,
-    requests: List[Dict[str, Any]],
+    requests: list[dict[str, Any]],
     cfg: InferencePackingConfig,
     *,
-    max_length: Optional[int] = None,
+    max_length: int | None = None,
     return_packed: bool = False,
-) -> List[torch.Tensor] | tuple[List[torch.Tensor], PackedBatch]:
+) -> list[torch.Tensor] | tuple[list[torch.Tensor], PackedBatch]:
     pad_id = getattr(tokenizer, "pad_token_id", 0)
     if max_length is not None:
         trimmed = []

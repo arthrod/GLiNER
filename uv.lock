@@ -529,7 +529,6 @@ gpu = [
 ]
 stanza = [
     { name = "langdetect" },
-    { name = "stanza" },
 ]
 tokenizers = [
     { name = "camel-tools" },
@@ -539,7 +538,6 @@ tokenizers = [
     { name = "langdetect" },
     { name = "python-mecab-ko" },
     { name = "spacy" },
-    { name = "stanza" },
 ]
 training = [
     { name = "accelerate" },
@@ -569,8 +567,6 @@ requires-dist = [
     { name = "sentencepiece" },
     { name = "spacy", marker = "extra == 'tokenizers'" },
     { name = "stanza", specifier = ">=1.11.0" },
-    { name = "stanza", marker = "extra == 'stanza'" },
-    { name = "stanza", marker = "extra == 'tokenizers'" },
     { name = "torch", specifier = ">=2.0.0" },
     { name = "tqdm" },
     { name = "transformers", specifier = ">=4.51.3,<5.2.0" },

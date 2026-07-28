@@ -12,8 +12,7 @@ from .base import GLiNERBasePipeline
 
 
 class GLiNERClassifier(GLiNERBasePipeline):
-    """
-    A class to evaluate the GLiNER model for classification tasks using F1 scores.
+    """A class to evaluate the GLiNER model for classification tasks using F1 scores.
 
     Attributes:
         device (str): Device to run the model on, e.g., 'cuda:0' or 'cpu'.
@@ -39,13 +38,12 @@ class GLiNERClassifier(GLiNERBasePipeline):
 
     def __init__(
         self,
-        model_id: Optional[str] = None,
-        model: Optional[GLiNER] = None,
+        model_id: str | None = None,
+        model: GLiNER | None = None,
         device: str = "cuda:0",
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
     ):
-        """
-        Initializes the GLiNERClassifier.
+        """Initializes the GLiNERClassifier.
 
         Args:
             model_id (str, optional): Identifier for the model to be loaded. Defaults to None.
@@ -58,8 +56,7 @@ class GLiNERClassifier(GLiNERBasePipeline):
         super().__init__(model_id=model_id, model=model, prompt=prompt, device=device)
 
     def compute_f_score(self, predicts, true_labels):
-        """
-        Computes the micro, macro, and weighted F1 scores.
+        """Computes the micro, macro, and weighted F1 scores.
 
         Args:
             predicts (list): List of predicted labels.
@@ -74,10 +71,15 @@ class GLiNERClassifier(GLiNERBasePipeline):
         return {"micro": micro, "macro": macro, "weighted": weighted}
 
     def prepare_dataset(
-        self, dataset: Dataset, classes=None, text_column="text", label_column="label", split=None, max_examples=-1
+        self,
+        dataset: Dataset,
+        classes=None,
+        text_column="text",
+        label_column="label",
+        split=None,
+        max_examples=-1,
     ):
-        """
-        Prepares the dataset by extracting texts and true labels.
+        """Prepares the dataset by extracting texts and true labels.
 
         Args:
             dataset (Dataset or dict): The dataset to prepare.
@@ -115,8 +117,7 @@ class GLiNERClassifier(GLiNERBasePipeline):
         return texts, classes, true_labels
 
     def process_predictions(self, predictions, multi_label=False, **kwargs):
-        """
-        Processes predictions to extract the highest-scoring label(s).
+        """Processes predictions to extract the highest-scoring label(s).
 
         Args:
             predictions (list): List of predictions with scores.
@@ -151,8 +152,7 @@ class GLiNERClassifier(GLiNERBasePipeline):
         return batch_predicted_labels
 
     def prepare_texts(self, texts, classes, **kwargs):
-        """
-        Prepares prompts for classification by appending labels to texts.
+        """Prepares prompts for classification by appending labels to texts.
 
         Args:
             texts (list): List of input texts.
@@ -171,14 +171,13 @@ class GLiNERClassifier(GLiNERBasePipeline):
 
     def evaluate(
         self,
-        dataset_id: Optional[str] = None,
-        dataset: Optional[Dataset] = None,
-        labels: Optional[List[str]] = None,
+        dataset_id: str | None = None,
+        dataset: Dataset | None = None,
+        labels: list[str] | None = None,
         threshold: float = 0.5,
         max_examples: float = -1,
     ):
-        """
-        Evaluates the model on a specified dataset and computes evaluation metrics.
+        """Evaluates the model on a specified dataset and computes evaluation metrics.
 
         Args:
             dataset_id (str, optional): Identifier for the dataset to load (e.g., from Hugging Face datasets).

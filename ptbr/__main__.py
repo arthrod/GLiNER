@@ -33,22 +33,25 @@ def data_cmd(
     ner_column: str = typer.Option("ner", help="Source column name for NER annotations."),
     split: str = typer.Option("train", help="Dataset split (e.g. train, validation, test)."),
     validate: bool = typer.Option(False, help="Validate against GLiNER native format."),
-    generate_label_embeddings: Optional[str] = typer.Option(
-        None, help="Model name/path for bi-encoder label embeddings."
+    generate_label_embeddings: str | None = typer.Option(
+        None,
+        help="Model name/path for bi-encoder label embeddings.",
     ),
     trust_remote_code: bool = typer.Option(
-        False, help="Allow custom code execution when loading remote models."
+        False,
+        help="Allow custom code execution when loading remote models.",
     ),
     output_embeddings_path: str = typer.Option(
-        "label_embeddings.pt", help="Output path for label embeddings."
+        "label_embeddings.pt",
+        help="Output path for label embeddings.",
     ),
     output_labels_path: str = typer.Option(
-        "labels.json", help="Output path for extracted labels JSON."
+        "labels.json",
+        help="Output path for extracted labels JSON.",
     ),
 ):
-    """
-    Load GLiNER-formatted data, optionally validate it, and optionally generate and save label embeddings.
-    
+    """Load GLiNER-formatted data, optionally validate it, and optionally generate and save label embeddings.
+
     Parameters:
         file_or_repo (str): Local JSON/JSONL file path or HuggingFace dataset repository id.
         text_column (str): Column name that contains tokenized text.
@@ -86,7 +89,8 @@ def data_cmd(
         typer.echo(f"Loading model: {generate_label_embeddings}")
         try:
             model = GLiNER.from_pretrained(
-                generate_label_embeddings, trust_remote_code=trust_remote_code
+                generate_label_embeddings,
+                trust_remote_code=trust_remote_code,
             )
         except Exception as exc:
             typer.echo(f"Failed to load model '{generate_label_embeddings}': {exc}", err=True)
@@ -108,8 +112,7 @@ def data_cmd(
             json.dump(labels, f, ensure_ascii=False, indent=2)
 
         typer.echo(
-            f"Saved {output_embeddings_path} ({tuple(embeddings.shape)}) "
-            f"and {output_labels_path}"
+            f"Saved {output_embeddings_path} ({tuple(embeddings.shape)}) and {output_labels_path}",
         )
 
 
@@ -126,24 +129,26 @@ def config_cmd(
     full_or_lora: str = typer.Option("full", help="Training mode: 'full' or 'lora'."),
     method: str = typer.Option("span", help="GLiNER method: span, token, biencoder, decoder, relex."),
 ):
-    """
-    Validate a GLiNER training configuration YAML file and optionally print a rich validation report.
-    
+    """Validate a GLiNER training configuration YAML file and optionally print a rich validation report.
+
     If `validate` is True, prints and logs a detailed validation report for the provided config file. Exits the process with code 1 when the validation report is not valid.
-    
+
     Parameters:
         file (str): Path to the YAML configuration file.
         validate (bool): When True, run full validation and emit a rich report.
         full_or_lora (str): Training mode, either "full" or "lora".
         method (str): GLiNER method to validate for (e.g., "span", "token", "biencoder", "decoder", "relex").
-    
+
     Raises:
         typer.Exit: Exits with code 1 if the configuration validation fails.
     """
     from ptbr.config_cli import print_and_log_result, load_and_validate_config
 
     result = load_and_validate_config(
-        file, full_or_lora=full_or_lora, method=method, validate=validate,
+        file,
+        full_or_lora=full_or_lora,
+        method=method,
+        validate=validate,
     )
 
     if validate:

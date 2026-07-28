@@ -4,7 +4,7 @@ import json
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Set, Tuple, Union, Optional
+from typing import Any, Set, Dict, List, Tuple, Union, Optional
 from pathlib import Path
 
 import torch
@@ -113,11 +113,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     def __init__(
         self,
         config: BaseGLiNERConfig,
-        model: Optional[BaseModel] = None,
-        tokenizer: Optional[BaseModel] = None,
-        data_processor: Optional[BaseProcessor] = None,
-        backbone_from_pretrained: Optional[bool] = False,
-        cache_dir: Optional[Union[str, Path]] = None,
+        model: BaseModel | None = None,
+        tokenizer: BaseModel | None = None,
+        data_processor: BaseProcessor | None = None,
+        backbone_from_pretrained: bool | None = False,
+        cache_dir: str | Path | None = None,
         **kwargs,
     ):
         """Initialize a BaseGLiNER model.
@@ -152,27 +152,23 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         self.decoder = self.decoder_class(config)
 
         self._keys_to_ignore_on_save = None
-        self._inference_packing_config: Optional[InferencePackingConfig] = None
+        self._inference_packing_config: InferencePackingConfig | None = None
 
     @abstractmethod
     def _create_model(self, config, backbone_from_pretrained, cache_dir, **kwargs):
-        """
-        Create model instance. Must be implemented by child classes.
+        """Create model instance. Must be implemented by child classes.
 
         Returns:
             Model instance
         """
-        pass
 
     @abstractmethod
     def _create_data_processor(self, config, cache_dir, tokenizer=None, **kwargs):
-        """
-        Create data processor instance. Must be implemented by child classes.
+        """Create data processor instance. Must be implemented by child classes.
 
         Returns:
             Data processor instance
         """
-        pass
 
     @abstractmethod
     def resize_embeddings(self):
@@ -185,7 +181,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     @abstractmethod
     def evaluate(self):
         pass
-    
+
     def forward(self, *args, **kwargs):
         """Forward pass through the model.
 
@@ -214,7 +210,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         device = next(self.model.parameters()).device
         return device
 
-    def configure_inference_packing(self, config: Optional[InferencePackingConfig]) -> None:
+    def configure_inference_packing(self, config: InferencePackingConfig | None) -> None:
         """Configure default packing behavior for inference calls.
 
         Passing ``None`` disables packing by default. Individual inference
@@ -258,14 +254,14 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
     def save_pretrained(
         self,
-        save_directory: Union[str, Path],
+        save_directory: str | Path,
         *,
-        config: Optional[BaseGLiNERConfig] = None,
-        repo_id: Optional[str] = None,
+        config: BaseGLiNERConfig | None = None,
+        repo_id: str | None = None,
         push_to_hub: bool = False,
         safe_serialization: bool = False,
         **push_to_hub_kwargs,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Save model weights and configuration to local directory.
 
         Args:
@@ -312,8 +308,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
     @classmethod
     def _load_config(cls, config_file: Path, **config_overrides) -> object:
-        """
-        Load configuration from file with optional overrides.
+        """Load configuration from file with optional overrides.
 
         Args:
             config_file: Path to config file
@@ -349,9 +344,8 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         return tokenizer
 
     @classmethod
-    def _load_tokenizer(cls, config: GLiNERConfig, model_dir: Path, cache_dir: Optional[Path] = None):
-        """
-        Load tokenizer from directory.
+    def _load_tokenizer(cls, config: GLiNERConfig, model_dir: Path, cache_dir: Path | None = None):
+        """Load tokenizer from directory.
 
         Args:
             config: GLiNER config instance
@@ -365,16 +359,23 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
         trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         if tokenizer_config_path.is_file():
-            tokenizer = AutoTokenizer.from_pretrained(model_dir, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_dir,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
         else:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+            tokenizer = AutoTokenizer.from_pretrained(
+                config.model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
 
         return cls._set_tokenizer_spec_tokens(tokenizer)
 
     @classmethod
     def _load_state_dict(cls, model_file: Path, map_location: str = "cpu"):
-        """
-        Load state dict from file.
+        """Load state dict from file.
 
         Args:
             model_file: Path to model file
@@ -396,16 +397,15 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     def _download_model(
         cls,
         model_id: str,
-        revision: Optional[str] = None,
-        cache_dir: Optional[Union[str, Path]] = None,
+        revision: str | None = None,
+        cache_dir: str | Path | None = None,
         force_download: bool = False,
-        proxies: Optional[dict] = None,
+        proxies: dict | None = None,
         resume_download: bool = False,
-        token: Union[str, bool, None] = None,
+        token: str | bool | None = None,
         local_files_only: bool = False,
     ) -> Path:
-        """
-        Download model from HuggingFace Hub or use local directory.
+        """Download model from HuggingFace Hub or use local directory.
 
         Args:
             model_id: Model identifier or local path
@@ -433,7 +433,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
                     resume_download=resume_download,
                     token=token,
                     local_files_only=local_files_only,
-                )
+                ),
             )
 
         return model_dir
@@ -450,18 +450,18 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     @classmethod
     def load_from_config(
         cls,
-        config: Union[str, Path, GLiNERConfig, dict],
-        cache_dir: Optional[Union[str, Path]] = None,
+        config: str | Path | GLiNERConfig | dict,
+        cache_dir: str | Path | None = None,
         load_tokenizer: bool = True,
         resize_token_embeddings: bool = True,
         backbone_from_pretrained: bool = True,
         compile_torch_model: bool = False,
         map_location: str = "cpu",
         # Config overrides
-        max_length: Optional[int] = None,
-        max_width: Optional[int] = None,
-        post_fusion_schema: Optional[str] = None,
-        _attn_implementation: Optional[str] = None,
+        max_length: int | None = None,
+        max_width: int | None = None,
+        post_fusion_schema: str | None = None,
+        _attn_implementation: str | None = None,
         **model_kwargs,
     ):
         """Initialize a model from configuration without loading pretrained weights.
@@ -528,7 +528,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         tokenizer = None
         if load_tokenizer:
             trust_remote_code = bool(getattr(config_instance, "trust_remote_code", False))
-            tokenizer = AutoTokenizer.from_pretrained(config_instance.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+            tokenizer = AutoTokenizer.from_pretrained(
+                config_instance.model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
             cls._set_tokenizer_spec_tokens(tokenizer)
         # Create model instance from scratch
         instance = cls(
@@ -561,28 +565,28 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     def from_pretrained(
         cls,
         model_id: str,
-        model_dir: Optional[str] = None,
-        revision: Optional[str] = None,
-        cache_dir: Optional[Union[str, Path]] = None,
+        model_dir: str | None = None,
+        revision: str | None = None,
+        cache_dir: str | Path | None = None,
         force_download: bool = False,
-        proxies: Optional[dict] = None,
+        proxies: dict | None = None,
         resume_download: bool = False,
         local_files_only: bool = False,
-        token: Union[str, bool, None] = None,
+        token: str | bool | None = None,
         map_location: str = "cpu",
         strict: bool = False,
-        load_tokenizer: Optional[bool] = None,
-        resize_token_embeddings: Optional[bool] = True,
-        compile_torch_model: Optional[bool] = False,
-        load_onnx_model: Optional[bool] = False,
-        onnx_model_file: Optional[str] = "model.onnx",
+        load_tokenizer: bool | None = None,
+        resize_token_embeddings: bool | None = True,
+        compile_torch_model: bool | None = False,
+        load_onnx_model: bool | None = False,
+        onnx_model_file: str | None = "model.onnx",
         session_options=None,
         trust_remote_code: bool = False,
         # Config overrides
-        max_length: Optional[int] = None,
-        max_width: Optional[int] = None,
-        post_fusion_schema: Optional[str] = None,
-        _attn_implementation: Optional[str] = None,
+        max_length: int | None = None,
+        max_width: int | None = None,
+        post_fusion_schema: str | None = None,
+        _attn_implementation: str | None = None,
         **model_kwargs,
     ):
         """Load pretrained model from HuggingFace Hub or local directory.
@@ -619,7 +623,14 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         # Download or locate model
         if model_dir is None:
             model_dir = cls._download_model(
-                model_id, revision, cache_dir, force_download, proxies, resume_download, token, local_files_only
+                model_id,
+                revision,
+                cache_dir,
+                force_download,
+                proxies,
+                resume_download,
+                token,
+                local_files_only,
             )
 
         # Load config
@@ -656,7 +667,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
             # Create model instance
             instance = cls(
-                config, tokenizer=tokenizer, backbone_from_pretrained=False, cache_dir=cache_dir, **model_kwargs
+                config,
+                tokenizer=tokenizer,
+                backbone_from_pretrained=False,
+                cache_dir=cache_dir,
+                **model_kwargs,
             )
 
             cls._resize_token_embeddings(instance, config, tokenizer, resize_token_embeddings)
@@ -695,7 +710,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     def _check_onnx_export_preconditions(self):
         if self.onnx_model:
             raise RuntimeError(
-                "This instance already wraps an ONNX/ORT model. Export is intended for PyTorch-based models."
+                "This instance already wraps an ONNX/ORT model. Export is intended for PyTorch-based models.",
             )
         if not ONNX_AVAILABLE:
             raise RuntimeError("onnxruntime is not available. Install `onnxruntime` to export to ONNX.")
@@ -704,11 +719,10 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
     def _build_dummy_batch(
         self,
-        labels: Optional[list[str]] = None,
+        labels: list[str] | None = None,
         text: str = "ONNX export dummy input.",
     ) -> dict[str, torch.Tensor]:
-        """
-        Build a single CPU batch using the model's own preprocessing stack.
+        """Build a single CPU batch using the model's own preprocessing stack.
 
         Concrete exporters can call this and then select the keys they need.
         """
@@ -774,7 +788,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         onnx_path: Path,
         quantized_path: Path,
         quantize: bool,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         if not quantize:
             return None
 
@@ -805,12 +819,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
                 - dynamic_axes: Dynamic axis specifications
         """
         raise NotImplementedError(
-            f"{self.__class__.__name__} must implement _get_onnx_input_spec() or override export_to_onnx() entirely."
+            f"{self.__class__.__name__} must implement _get_onnx_input_spec() or override export_to_onnx() entirely.",
         )
 
     def _create_onnx_wrapper(self, core_model: nn.Module) -> nn.Module:
-        """
-        Create ONNX export wrapper.
+        """Create ONNX export wrapper.
 
         Default implementation creates a simple passthrough wrapper.
         Override this method for custom wrapper logic.
@@ -844,8 +857,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         return {}
 
     def _prepare_onnx_batch(self, batch: dict[str, torch.Tensor], **export_kwargs) -> tuple[tuple, dict[str, Any]]:
-        """
-        Prepare batch for ONNX export. Can be overridden for special preprocessing.
+        """Prepare batch for ONNX export. Can be overridden for special preprocessing.
 
         Args:
             batch: Dummy batch from _build_dummy_batch
@@ -861,13 +873,13 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
 
     def export_to_onnx(
         self,
-        save_dir: Union[str, Path],
+        save_dir: str | Path,
         onnx_filename: str = "model.onnx",
         quantized_filename: str = "model_quantized.onnx",
         quantize: bool = False,
         opset: int = 19,
         **export_kwargs,
-    ) -> dict[str, Optional[str]]:
+    ) -> dict[str, str | None]:
         """Unified ONNX export method using specifications from child classes.
 
         Args:
@@ -926,8 +938,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         }
 
     def _create_data_collator(self, **kwargs):
-        """
-        Create data collator. Override in child classes if needed.
+        """Create data collator. Override in child classes if needed.
 
         Returns:
             Data collator instance
@@ -935,8 +946,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         return self.data_collator_class(self.config, data_processor=self.data_processor, prepare_labels=True, **kwargs)
 
     def _get_freezable_components(self):
-        """
-        Get dictionary mapping component names to their actual modules.
+        """Get dictionary mapping component names to their actual modules.
 
         Returns:
             dict: Mapping of component names to module objects
@@ -970,8 +980,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         return components
 
     def freeze_component(self, component_name: str):
-        """
-        Freeze a specific component of the model.
+        """Freeze a specific component of the model.
 
         Args:
             component_name: Name of component to freeze (e.g., 'text_encoder', 'labels_encoder', 'decoder')
@@ -985,8 +994,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             warnings.warn(f"Component '{component_name}' not found. Available components: {available}", stacklevel=2)
 
     def unfreeze_component(self, component_name: str):
-        """
-        Unfreeze a specific component of the model.
+        """Unfreeze a specific component of the model.
 
         Args:
             component_name: Name of component to unfreeze
@@ -1002,11 +1010,11 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
     @classmethod
     def create_training_args(
         cls,
-        output_dir: Union[str, Path],
+        output_dir: str | Path,
         learning_rate: float = 5e-5,
         weight_decay: float = 0.01,
-        others_lr: Optional[float] = None,
-        others_weight_decay: Optional[float] = None,
+        others_lr: float | None = None,
+        others_weight_decay: float | None = None,
         focal_loss_alpha: float = -1,
         focal_loss_gamma: float = 0.0,
         focal_loss_prob_margin: float = 0.0,
@@ -1020,7 +1028,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         per_device_eval_batch_size: int = 8,
         max_grad_norm: float = 1.0,
         max_steps: int = 10000,
-        eval_steps: Optional[int] = None,
+        eval_steps: int | None = None,
         save_steps: int = 1000,
         save_total_limit: int = 10,
         logging_steps: int = 10,
@@ -1033,16 +1041,15 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         dataloader_num_workers: int = 1,
         dataloader_pin_memory: bool = True,
         dataloader_persistent_workers: bool = False,
-        dataloader_prefetch_factor: Optional[int] = 2,
-        report_to: Union[str, list] = "none",
-        run_name: Optional[str] = None,
+        dataloader_prefetch_factor: int | None = 2,
+        report_to: str | list = "none",
+        run_name: str | None = None,
         push_to_hub: bool = False,
-        hub_model_id: Optional[str] = None,
+        hub_model_id: str | None = None,
         **kwargs,
     ) -> TrainingArguments:
-        """
-        Create a configured TrainingArguments object with sensible defaults for GLiNER training.
-        
+        """Create a configured TrainingArguments object with sensible defaults for GLiNER training.
+
         Parameters:
             output_dir: Directory where checkpoints and outputs will be saved.
             learning_rate: Base learning rate for main parameters.
@@ -1081,7 +1088,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             push_to_hub: Whether to push the trained model to the Hugging Face Hub.
             hub_model_id: Hub repository identifier to push to.
             **kwargs: Additional TrainingArguments fields to pass through.
-        
+
         Returns:
             A TrainingArguments instance pre-populated for GLiNER training.
         """
@@ -1129,18 +1136,17 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         self,
         train_dataset,
         eval_dataset,
-        training_args: Optional[TrainingArguments] = None,
-        freeze_components: Optional[list[str]] = None,
+        training_args: TrainingArguments | None = None,
+        freeze_components: list[str] | None = None,
         compile_model: bool = False,
-        output_dir: Optional[Union[str, Path]] = None,
-        resume_from_checkpoint: Optional[Union[str, Path, bool]] = None,
+        output_dir: str | Path | None = None,
+        resume_from_checkpoint: str | Path | bool | None = None,
         **training_kwargs,
     ) -> Trainer:
-        """
-        Execute training with Hugging Face's Trainer using the provided datasets and training configuration.
-        
+        """Execute training with Hugging Face's Trainer using the provided datasets and training configuration.
+
         If `training_args` is None, a TrainingArguments object is created from `output_dir` and `training_kwargs`. When `eval_dataset` is provided and no evaluation strategy is set, evaluation is enabled with `eval_strategy='steps'` and `eval_steps` defaulting to `save_steps`.
-        
+
         Parameters:
             train_dataset: The dataset used for training.
             eval_dataset: The dataset used for evaluation (may be None).
@@ -1150,7 +1156,7 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
             output_dir: Directory to save training outputs; required if `training_args` is None.
             resume_from_checkpoint: Path to a checkpoint to resume from, or True to auto-detect the latest checkpoint; if None training starts from scratch.
             **training_kwargs: Additional keyword arguments forwarded to `create_training_args` when `training_args` is not provided.
-        
+
         Returns:
             The Trainer instance used to run training (with trained model weights).
         """
@@ -1164,10 +1170,18 @@ class BaseGLiNER(ABC, nn.Module, PyTorchModelHubMixin):
         # eval_strategy was never set (defaults to "no").  Using "steps"
         # because this codebase commonly trains with max_steps, not epochs.
         if eval_dataset is not None:
-            current_strategy = getattr(training_args, "eval_strategy",
-                                       getattr(training_args, "evaluation_strategy", "no"))
+            has_eval_strategy = hasattr(training_args, "eval_strategy")
+            has_evaluation_strategy = hasattr(training_args, "evaluation_strategy")
+            current_strategy = (
+                training_args.eval_strategy
+                if has_eval_strategy
+                else getattr(training_args, "evaluation_strategy", "no")
+            )
             if current_strategy == "no":
-                training_args.eval_strategy = "steps"
+                if has_eval_strategy:
+                    training_args.eval_strategy = "steps"
+                if has_evaluation_strategy:
+                    training_args.evaluation_strategy = "steps"
                 # If no explicit eval_steps, fall back to save_steps so that
                 # evaluation runs at the same cadence as checkpointing.
                 if getattr(training_args, "eval_steps", None) is None:
@@ -1219,7 +1233,11 @@ class BaseEncoderGLiNER(BaseGLiNER):
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         if tokenizer is None:
             trust_remote_code = bool(getattr(config, "trust_remote_code", False))
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+            tokenizer = AutoTokenizer.from_pretrained(
+                config.model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
             self._set_tokenizer_spec_tokens(tokenizer)
         self.data_processor = self.data_processor_class(config, tokenizer, words_splitter)
         return self.data_processor
@@ -1244,7 +1262,7 @@ class BaseEncoderGLiNER(BaseGLiNER):
             if hasattr(self.config, "encoder_config"):
                 self.config.encoder_config.vocab_size = model_embeds.num_embeddings
 
-    def prepare_inputs(self, texts: List[str]):
+    def prepare_inputs(self, texts: list[str]):
         """Prepare inputs for the model by tokenizing and creating index mappings.
 
         Args:
@@ -1273,7 +1291,7 @@ class BaseEncoderGLiNER(BaseGLiNER):
             all_end_token_idx_to_text_idx.append(end_token_idx_to_text_idx)
         return all_tokens, all_start_token_idx_to_text_idx, all_end_token_idx_to_text_idx
 
-    def prepare_base_input(self, all_tokens: List[List[str]]) -> List[Dict[str, Any]]:
+    def prepare_base_input(self, all_tokens: list[list[str]]) -> list[dict[str, Any]]:
         """Prepare base input format for data collation.
 
         Args:
@@ -1285,7 +1303,7 @@ class BaseEncoderGLiNER(BaseGLiNER):
         input_x = [{"tokenized_text": tk, "ner": None} for tk in all_tokens]
         return input_x
 
-    def _filter_valid_texts(self, texts: List[str]) -> Tuple[List[str], List[int]]:
+    def _filter_valid_texts(self, texts: list[str]) -> tuple[list[str], list[int]]:
         """Filter out empty or whitespace-only strings from input texts.
 
         Args:
@@ -1308,10 +1326,10 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
     def _convert_spans_to_word_indices(
         self,
-        input_spans: List[List[Dict]],
-        all_start_token_idx_to_text_idx: List[List[int]],
-        all_end_token_idx_to_text_idx: List[List[int]],
-    ) -> List[List[Tuple[int, int]]]:
+        input_spans: list[list[dict]],
+        all_start_token_idx_to_text_idx: list[list[int]],
+        all_end_token_idx_to_text_idx: list[list[int]],
+    ) -> list[list[tuple[int, int]]]:
         """Convert character-level input spans to word-level (start, end) tuples.
 
         Args:
@@ -1327,12 +1345,10 @@ class BaseEncoderGLiNER(BaseGLiNER):
         for text_i, spans in enumerate(input_spans):
             # Build reverse lookups: char position -> word index
             start_char_to_word = {
-                char_pos: word_idx
-                for word_idx, char_pos in enumerate(all_start_token_idx_to_text_idx[text_i])
+                char_pos: word_idx for word_idx, char_pos in enumerate(all_start_token_idx_to_text_idx[text_i])
             }
             end_char_to_word = {
-                char_pos: word_idx
-                for word_idx, char_pos in enumerate(all_end_token_idx_to_text_idx[text_i])
+                char_pos: word_idx for word_idx, char_pos in enumerate(all_end_token_idx_to_text_idx[text_i])
             }
 
             word_spans = []
@@ -1346,13 +1362,13 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
     def _map_entities_to_original(
         self,
-        outputs: List[List[Any]],
-        valid_to_orig_idx: List[int],
-        all_start_token_idx_to_text_idx: List[List[int]],
-        all_end_token_idx_to_text_idx: List[List[int]],
-        valid_texts: List[str],
+        outputs: list[list[Any]],
+        valid_to_orig_idx: list[int],
+        all_start_token_idx_to_text_idx: list[list[int]],
+        all_end_token_idx_to_text_idx: list[list[int]],
+        valid_texts: list[str],
         num_original_texts: int,
-    ) -> List[List[Dict[str, Any]]]:
+    ) -> list[list[dict[str, Any]]]:
         """Map entity predictions back to original text indices.
 
         Args:
@@ -1396,7 +1412,17 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
         return all_entities
 
-    def _process_batches(self, data_loader, threshold, flat_ner, multi_label, packing_config=None, return_class_probs=False, word_input_spans=None, **external_inputs):
+    def _process_batches(
+        self,
+        data_loader,
+        threshold,
+        flat_ner,
+        multi_label,
+        packing_config=None,
+        return_class_probs=False,
+        word_input_spans=None,
+        **external_inputs,
+    ):
         """Shared batch processing logic."""
         outputs = []
         is_onnx = self.onnx_model
@@ -1425,7 +1451,7 @@ class BaseEncoderGLiNER(BaseGLiNER):
             batch_input_spans = None
             if word_input_spans is not None:
                 current_batch_size = len(batch["tokens"])
-                batch_input_spans = word_input_spans[batch_offset:batch_offset + current_batch_size]
+                batch_input_spans = word_input_spans[batch_offset : batch_offset + current_batch_size]
                 batch_offset += current_batch_size
 
             # Decode
@@ -1449,17 +1475,17 @@ class BaseEncoderGLiNER(BaseGLiNER):
     @torch.no_grad()
     def inference(
         self,
-        texts: Union[str, List[str]],
-        labels: List[str],
+        texts: str | list[str],
+        labels: list[str],
         flat_ner: bool = True,
         threshold: float = 0.5,
         multi_label: bool = False,
         batch_size: int = 8,
-        packing_config: Optional[InferencePackingConfig] = None,
-        input_spans: List[List[Dict]] = None,
+        packing_config: InferencePackingConfig | None = None,
+        input_spans: list[list[dict]] = None,
         return_class_probs: bool = False,
         **external_inputs,
-    ) -> List[List[Dict[str, Any]]]:
+    ) -> list[list[dict[str, Any]]]:
         """Predict entities for a batch of texts.
 
         Args:
@@ -1499,15 +1525,16 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
         entity_types = list(dict.fromkeys(labels))
 
-        tokens, all_start_token_idx_to_text_idx, all_end_token_idx_to_text_idx = \
-            self.prepare_inputs(valid_texts)
+        tokens, all_start_token_idx_to_text_idx, all_end_token_idx_to_text_idx = self.prepare_inputs(valid_texts)
 
         # Convert input_spans from character positions to word indices
         word_input_spans = None
         if input_spans is not None:
             valid_input_spans = [input_spans[i] for i in valid_to_orig_idx]
             word_input_spans = self._convert_spans_to_word_indices(
-                valid_input_spans, all_start_token_idx_to_text_idx, all_end_token_idx_to_text_idx
+                valid_input_spans,
+                all_start_token_idx_to_text_idx,
+                all_end_token_idx_to_text_idx,
             )
 
         input_x = self.prepare_base_input(tokens)
@@ -1559,13 +1586,13 @@ class BaseEncoderGLiNER(BaseGLiNER):
     def predict_entities(
         self,
         text: str,
-        labels: List[str],
+        labels: list[str],
         flat_ner: bool = True,
         threshold: float = 0.5,
         multi_label: bool = False,
         return_class_probs: bool = False,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Predict entities for a single text input.
 
         Args:
@@ -1581,19 +1608,24 @@ class BaseEncoderGLiNER(BaseGLiNER):
             List of entity predictions as dictionaries.
         """
         return self.inference(
-            [text], labels, flat_ner=flat_ner, threshold=threshold, multi_label=multi_label,
-            return_class_probs=return_class_probs, **kwargs
+            [text],
+            labels,
+            flat_ner=flat_ner,
+            threshold=threshold,
+            multi_label=multi_label,
+            return_class_probs=return_class_probs,
+            **kwargs,
         )[0]
 
     def batch_predict_entities(
         self,
-        texts: List[str],
-        labels: List[str],
+        texts: list[str],
+        labels: list[str],
         flat_ner: bool = True,
         threshold: float = 0.5,
         multi_label: bool = False,
         **kwargs,
-    ) -> List[List[Dict[str, Any]]]:
+    ) -> list[list[dict[str, Any]]]:
         """Predict entities for multiple texts.
 
         DEPRECATED: Use `inference` instead.
@@ -1629,12 +1661,12 @@ class BaseEncoderGLiNER(BaseGLiNER):
 
     def evaluate(
         self,
-        test_data: List[Dict[str, Any]],
+        test_data: list[dict[str, Any]],
         flat_ner: bool = False,
         multi_label: bool = False,
         threshold: float = 0.5,
         batch_size: int = 12,
-    ) -> Tuple[Any, float]:
+    ) -> tuple[Any, float]:
         """Evaluate the model on a given test dataset.
 
         Args:
@@ -1677,13 +1709,24 @@ class BaseEncoderGLiNER(BaseGLiNER):
 class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
     def _create_data_processor(self, config, cache_dir, tokenizer=None, words_splitter=None, **kwargs):
         trust_remote_code = bool(getattr(config, "trust_remote_code", False))
-        labels_tokenizer = AutoTokenizer.from_pretrained(config.labels_encoder, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+        labels_tokenizer = AutoTokenizer.from_pretrained(
+            config.labels_encoder,
+            cache_dir=cache_dir,
+            trust_remote_code=trust_remote_code,
+        )
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+            tokenizer = AutoTokenizer.from_pretrained(
+                config.model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
             self._set_tokenizer_spec_tokens(tokenizer)
 
         self.data_processor = self.data_processor_class(
-            config, tokenizer, words_splitter, labels_tokenizer=labels_tokenizer
+            config,
+            tokenizer,
+            words_splitter,
+            labels_tokenizer=labels_tokenizer,
         )
         return self.data_processor
 
@@ -1691,7 +1734,7 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
         warnings.warn("Resizing embeddings is not supported for bi-encoder models.", stacklevel=2)
 
     @torch.no_grad()
-    def encode_labels(self, labels: List[str], batch_size: int = 8) -> torch.FloatTensor:
+    def encode_labels(self, labels: list[str], batch_size: int = 8) -> torch.FloatTensor:
         """Compute embeddings for labels using the label encoder.
 
         Args:
@@ -1714,7 +1757,10 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
 
         for batch in tqdm(dataloader, desc="Encoding labels"):
             tokenized_labels = self.data_processor.labels_tokenizer(
-                batch, return_tensors="pt", truncation=True, padding="max_length"
+                batch,
+                return_tensors="pt",
+                truncation=True,
+                padding="max_length",
             ).to(self.device)
             with torch.no_grad():  # Disable gradient calculation for inference
                 curr_labels_embeddings = self.model.token_rep_layer.encode_labels(**tokenized_labels)
@@ -1725,17 +1771,17 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
     @torch.no_grad()
     def batch_predict_with_embeds(
         self,
-        texts: List[str],
+        texts: list[str],
         labels_embeddings: torch.Tensor,
-        labels: List[str],
+        labels: list[str],
         flat_ner: bool = True,
         threshold: float = 0.5,
         multi_label: bool = False,
         batch_size: int = 8,
-        packing_config: Optional[InferencePackingConfig] = None,
-        input_spans: List[List[Dict]] = None,
+        packing_config: InferencePackingConfig | None = None,
+        input_spans: list[list[dict]] = None,
         return_class_probs: bool = False,
-    ) -> List[List[Dict[str, Any]]]:
+    ) -> list[list[dict[str, Any]]]:
         """Predict entities for a batch of texts using pre-computed label embeddings.
 
         Args:
@@ -1771,8 +1817,15 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
         return all_entities
 
     def predict_with_embeds(
-        self, text, labels_embeddings, labels, flat_ner=True, threshold=0.5, multi_label=False,
-        return_class_probs=False, **kwargs
+        self,
+        text,
+        labels_embeddings,
+        labels,
+        flat_ner=True,
+        threshold=0.5,
+        multi_label=False,
+        return_class_probs=False,
+        **kwargs,
     ):
         """Predict entities for a single text input using pre-computed label embeddings.
 
@@ -1790,8 +1843,14 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
             List of entity predictions.
         """
         return self.batch_predict_with_embeds(
-            [text], labels_embeddings, labels, flat_ner=flat_ner, threshold=threshold, multi_label=multi_label,
-            return_class_probs=return_class_probs, **kwargs
+            [text],
+            labels_embeddings,
+            labels,
+            flat_ner=flat_ner,
+            threshold=threshold,
+            multi_label=multi_label,
+            return_class_probs=return_class_probs,
+            **kwargs,
         )[0]
 
     def _get_onnx_export_kwargs(self) -> dict[str, Any]:
@@ -1859,8 +1918,7 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
         }
 
     def _create_onnx_wrapper(self, core_model: nn.Module) -> nn.Module:
-        """
-        Create flexible wrapper that handles both modes.
+        """Create flexible wrapper that handles both modes.
 
         The wrapper signature adapts based on input spec.
         """
@@ -1882,13 +1940,12 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
 
     def _prepare_onnx_batch(
         self,
-        batch: Dict[str, torch.Tensor],
+        batch: dict[str, torch.Tensor],
         from_labels_embeddings: bool = False,
-        labels: Optional[list[str]] = None,
+        labels: list[str] | None = None,
         **export_kwargs,
-    ) -> tuple[tuple, Dict[str, Any]]:
-        """
-        Prepare batch for bi-encoder export with optional pre-computed embeddings.
+    ) -> tuple[tuple, dict[str, Any]]:
+        """Prepare batch for bi-encoder export with optional pre-computed embeddings.
 
         Args:
             batch: Dummy batch
@@ -1926,9 +1983,8 @@ class BaseBiEncoderGLiNER(BaseEncoderGLiNER):
             all_inputs = tuple(labels_embeds if name == embed_name else batch[name] for name in spec["input_names"])
 
             return all_inputs, spec
-        else:
-            # Use default spec (full bi-encoder)
-            return super()._prepare_onnx_batch(batch, **export_kwargs)
+        # Use default spec (full bi-encoder)
+        return super()._prepare_onnx_batch(batch, **export_kwargs)
 
 
 class UniEncoderSpanGLiNER(BaseEncoderGLiNER):
@@ -2152,7 +2208,11 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
         """Create data processor with decoder tokenizer."""
         trust_remote_code = bool(getattr(config, "trust_remote_code", False))
         if tokenizer is None:
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+            tokenizer = AutoTokenizer.from_pretrained(
+                config.model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
             self._set_tokenizer_spec_tokens(tokenizer)
 
         if words_splitter is None:
@@ -2162,17 +2222,23 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
         decoder_tokenizer = None
         if config.labels_decoder is not None:
             decoder_tokenizer = AutoTokenizer.from_pretrained(
-                config.labels_decoder, cache_dir=cache_dir, add_prefix_space=True, trust_remote_code=trust_remote_code
+                config.labels_decoder,
+                cache_dir=cache_dir,
+                add_prefix_space=True,
+                trust_remote_code=trust_remote_code,
             )
             if decoder_tokenizer.pad_token is None:
                 decoder_tokenizer.pad_token = decoder_tokenizer.eos_token
 
         self.data_processor = self.data_processor_class(
-            config, tokenizer, words_splitter, decoder_tokenizer=decoder_tokenizer
+            config,
+            tokenizer,
+            words_splitter,
+            decoder_tokenizer=decoder_tokenizer,
         )
         return self.data_processor
 
-    def set_labels_trie(self, labels: List[str]):
+    def set_labels_trie(self, labels: list[str]):
         """Initialize the labels trie for constrained generation.
 
         Args:
@@ -2232,19 +2298,19 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
     @torch.no_grad()
     def inference(
         self,
-        texts: Union[str, List[str]],
-        labels: List[str],
+        texts: str | list[str],
+        labels: list[str],
         flat_ner: bool = True,
         threshold: float = 0.5,
         multi_label: bool = False,
         batch_size: int = 8,
-        gen_constraints: Optional[List[str]] = None,
+        gen_constraints: list[str] | None = None,
         num_gen_sequences: int = 1,
-        packing_config: Optional[InferencePackingConfig] = None,
-        input_spans: List[List[Dict]] = None,
+        packing_config: InferencePackingConfig | None = None,
+        input_spans: list[list[dict]] = None,
         return_class_probs: bool = False,
         **gen_kwargs,
-    ) -> List[List[Dict[str, Any]]]:
+    ) -> list[list[dict[str, Any]]]:
         """Predict entities with optional label generation.
 
         Args:
@@ -2288,7 +2354,9 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
             valid_input_spans = [input_spans[i] for i in valid_to_orig_idx]
             print(valid_input_spans)
             word_input_spans = self._convert_spans_to_word_indices(
-                valid_input_spans, all_start_token_idx_to_text_idx, all_end_token_idx_to_text_idx
+                valid_input_spans,
+                all_start_token_idx_to_text_idx,
+                all_end_token_idx_to_text_idx,
             )
 
         input_x = self.prepare_base_input(tokens)
@@ -2328,14 +2396,17 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
             if self.config.labels_decoder is not None:
                 labels_trie = self.set_labels_trie(gen_constraints) if gen_constraints else None
                 gen_labels = self.generate_labels(
-                    model_output, labels_trie=labels_trie, num_return_sequences=num_gen_sequences, **gen_kwargs
+                    model_output,
+                    labels_trie=labels_trie,
+                    num_return_sequences=num_gen_sequences,
+                    **gen_kwargs,
                 )
 
             # Slice input_spans for this batch
             batch_input_spans = None
             if word_input_spans is not None:
                 current_batch_size = len(batch["tokens"])
-                batch_input_spans = word_input_spans[batch_offset:batch_offset + current_batch_size]
+                batch_input_spans = word_input_spans[batch_offset : batch_offset + current_batch_size]
                 batch_offset += current_batch_size
 
             decoded = self.decoder.decode(
@@ -2388,14 +2459,13 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
 
     def export_to_onnx(
         self,
-        save_dir: Union[str, Path],
+        save_dir: str | Path,
         onnx_filename: str = "model.onnx",
         quantized_filename: str = "model_quantized.onnx",
         quantize: bool = False,
         opset: int = 19,
-    ) -> dict[str, Optional[str]]:
-        """
-        ONNX export not supported for encoder-decoder models.
+    ) -> dict[str, str | None]:
+        """ONNX export not supported for encoder-decoder models.
 
         Raises:
             NotImplementedError: Always raised as this model type cannot be exported to ONNX
@@ -2407,14 +2477,14 @@ class UniEncoderSpanDecoderGLiNER(BaseEncoderGLiNER):
             "static ONNX graph export. Consider:\n"
             "1. Export the encoder-only variant (UniEncoderSpanGLiNER)\n"
             "2. Use PyTorch for inference with this model\n"
-            "3. Implement a custom ONNX pipeline with separate encoder/decoder exports"
+            "3. Implement a custom ONNX pipeline with separate encoder/decoder exports",
         )
 
 
 class UniEncoderTokenDecoderGLiNER(UniEncoderSpanDecoderGLiNER):
     """GLiNER model with token-based encoding and label decoding capabilities.
 
-    Combines token-level BIO tagging with a decoder that generates entity type
+    Combines token_level BIO tagging with a decoder that generates entity type
     labels autoregressively.
     """
 
@@ -2444,7 +2514,11 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
         """Create relation extraction data processor."""
         if tokenizer is None:
             trust_remote_code = bool(getattr(config, "trust_remote_code", False))
-            tokenizer = AutoTokenizer.from_pretrained(config.model_name, cache_dir=cache_dir, trust_remote_code=trust_remote_code)
+            tokenizer = AutoTokenizer.from_pretrained(
+                config.model_name,
+                cache_dir=cache_dir,
+                trust_remote_code=trust_remote_code,
+            )
             self._set_tokenizer_spec_tokens(tokenizer)
 
         if words_splitter is None:
@@ -2473,20 +2547,20 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
     @torch.no_grad()
     def inference(
         self,
-        texts: Union[str, List[str]],
-        labels: List[str],
-        relations: List[str] = [],
+        texts: str | list[str],
+        labels: list[str],
+        relations: list[str] = [],
         flat_ner: bool = True,
         threshold: float = 0.5,
-        adjacency_threshold: Optional[float] = None,
-        relation_threshold: Optional[float] = None,
+        adjacency_threshold: float | None = None,
+        relation_threshold: float | None = None,
         multi_label: bool = False,
         batch_size: int = 8,
-        packing_config: Optional[InferencePackingConfig] = None,
-        input_spans: List[List[Dict]] = None,
+        packing_config: InferencePackingConfig | None = None,
+        input_spans: list[list[dict]] = None,
         return_relations: bool = True,
         return_class_probs: bool = False,
-    ) -> Union[List[List[Dict[str, Any]]], Tuple[List[List[Dict[str, Any]]], List[List[Dict[str, Any]]]]]:
+    ) -> list[list[dict[str, Any]]] | tuple[list[list[dict[str, Any]]], list[list[dict[str, Any]]]]:
         """Predict entities and relations.
 
         Args:
@@ -2540,7 +2614,9 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
         if input_spans is not None:
             valid_input_spans = [input_spans[i] for i in valid_to_orig_idx]
             word_input_spans = self._convert_spans_to_word_indices(
-                valid_input_spans, all_start_token_idx_to_text_idx, all_end_token_idx_to_text_idx
+                valid_input_spans,
+                all_start_token_idx_to_text_idx,
+                all_end_token_idx_to_text_idx,
             )
 
         input_x = self.prepare_base_input(tokens)
@@ -2601,7 +2677,7 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
             batch_input_spans = None
             if word_input_spans is not None:
                 current_batch_size = len(batch["tokens"])
-                batch_input_spans = word_input_spans[batch_offset:batch_offset + current_batch_size]
+                batch_input_spans = word_input_spans[batch_offset : batch_offset + current_batch_size]
                 batch_offset += current_batch_size
 
             decoded_results = self.decoder.decode(
@@ -2691,13 +2767,12 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
         valid_to_orig_idx=None,
         num_original_texts=None,
     ):
-        """
-        Process relation predictions into readable format.
+        """Process relation predictions into readable format.
 
         Args:
             relation_outputs: List of relation tuples per example, where each tuple is
                             (head_idx, relation_label, tail_idx, score)
-            all_entity_outputs: List of entity outputs per example (token-level)
+            all_entity_outputs: List of entity outputs per example (token_level)
             all_start_token_idx_to_text_idx: Token to text index mappings (start)
             all_end_token_idx_to_text_idx: Token to text index mappings (end)
             valid_texts: Valid (non-empty) input texts
@@ -2722,7 +2797,7 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
                 continue
 
             relations = []
-            entities_list = all_entity_outputs[valid_i]  # Token-level entities: (start, end, type, score)
+            entities_list = all_entity_outputs[valid_i]  # token_level entities: (start, end, type, score)
             start_token_idx_to_text_idx = all_start_token_idx_to_text_idx[valid_i]
             end_token_idx_to_text_idx = all_end_token_idx_to_text_idx[valid_i]
 
@@ -2760,7 +2835,7 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
                         },
                         "relation": relation_label,
                         "score": score,
-                    }
+                    },
                 )
 
             all_relations[orig_i] = relations
@@ -2769,14 +2844,14 @@ class UniEncoderSpanRelexGLiNER(BaseEncoderGLiNER):
 
     def evaluate(
         self,
-        test_data: List[Dict[str, Any]],
+        test_data: list[dict[str, Any]],
         flat_ner: bool = False,
         multi_label: bool = False,
         threshold: float = 0.5,
-        adjacency_threshold: Optional[float] = None,
-        relation_threshold: Optional[float] = None,
+        adjacency_threshold: float | None = None,
+        relation_threshold: float | None = None,
         batch_size: int = 12,
-    ) -> Tuple[Tuple[Any, float], Tuple[Any, float]]:
+    ) -> tuple[tuple[Any, float], tuple[Any, float]]:
         """Evaluate the model on both NER and relation extraction tasks.
 
         Args:
@@ -3059,7 +3134,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
     including uni-encoder, bi-encoder, decoder-based, and relation extraction models.
 
     The class automatically detects the model type based on:
-        - span_mode: Token-level vs span-level
+        - span_mode: token_level vs span-level
         - labels_encoder: Uni-encoder vs bi-encoder
         - labels_decoder: Standard vs decoder-based
         - relations_layer: NER-only vs joint entity-relation extraction
@@ -3086,7 +3161,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
         >>> model = GLiNER(config)
     """
 
-    def __init__(self, config: Union[str, Path, GLiNERConfig], **kwargs):
+    def __init__(self, config: str | Path | GLiNERConfig, **kwargs):
         """Initialize a GLiNER model with automatic type detection.
 
         This constructor determines the appropriate GLiNER variant based on the configuration
@@ -3136,8 +3211,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
         if has_relations:
             if is_token_level:
                 return UniEncoderTokenRelexGLiNER
-            else:
-                return UniEncoderSpanRelexGLiNER
+            return UniEncoderSpanRelexGLiNER
 
         if has_labels_decoder:
             if has_labels_encoder:
@@ -3153,38 +3227,36 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
         if has_labels_encoder:
             if is_token_level:
                 return BiEncoderTokenGLiNER
-            else:
-                return BiEncoderSpanGLiNER
+            return BiEncoderSpanGLiNER
 
         if is_token_level:
             return UniEncoderTokenGLiNER
-        else:
-            return UniEncoderSpanGLiNER
+        return UniEncoderSpanGLiNER
 
     @classmethod
     def from_pretrained(
         cls,
         model_id: str,
-        revision: Optional[str] = None,
-        cache_dir: Optional[Union[str, Path]] = None,
+        revision: str | None = None,
+        cache_dir: str | Path | None = None,
         force_download: bool = False,
-        proxies: Optional[dict] = None,
+        proxies: dict | None = None,
         resume_download: bool = False,
         local_files_only: bool = False,
-        token: Union[str, bool, None] = None,
+        token: str | bool | None = None,
         map_location: str = "cpu",
         strict: bool = False,
-        load_tokenizer: Optional[bool] = None,
-        resize_token_embeddings: Optional[bool] = True,
-        compile_torch_model: Optional[bool] = False,
-        load_onnx_model: Optional[bool] = False,
-        onnx_model_file: Optional[str] = "model.onnx",
+        load_tokenizer: bool | None = None,
+        resize_token_embeddings: bool | None = True,
+        compile_torch_model: bool | None = False,
+        load_onnx_model: bool | None = False,
+        onnx_model_file: str | None = "model.onnx",
         trust_remote_code: bool = False,
         # Config overrides
-        max_length: Optional[int] = None,
-        max_width: Optional[int] = None,
-        post_fusion_schema: Optional[str] = None,
-        _attn_implementation: Optional[str] = None,
+        max_length: int | None = None,
+        max_width: int | None = None,
+        post_fusion_schema: str | None = None,
+        _attn_implementation: str | None = None,
         **model_kwargs,
     ):
         """Load a pretrained GLiNER model with automatic type detection.
@@ -3236,7 +3308,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
                     resume_download=resume_download,
                     token=token,
                     local_files_only=local_files_only,
-                )
+                ),
             )
 
         # Load config to determine model type
@@ -3284,18 +3356,18 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
     @classmethod
     def from_config(
         cls,
-        config: Union[GLiNERConfig, str, Path, dict],
-        cache_dir: Optional[Union[str, Path]] = None,
+        config: GLiNERConfig | str | Path | dict,
+        cache_dir: str | Path | None = None,
         load_tokenizer: bool = True,
         resize_token_embeddings: bool = True,
         backbone_from_pretrained: bool = True,
         compile_torch_model: bool = False,
         map_location: str = "cpu",
         # Config overrides
-        max_length: Optional[int] = None,
-        max_width: Optional[int] = None,
-        post_fusion_schema: Optional[str] = None,
-        _attn_implementation: Optional[str] = None,
+        max_length: int | None = None,
+        max_width: int | None = None,
+        post_fusion_schema: str | None = None,
+        _attn_implementation: str | None = None,
         **model_kwargs,
     ):
         """Create a GLiNER model from configuration.
@@ -3373,7 +3445,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_uni_encoder_token": {
                 "class": UniEncoderTokenGLiNER,
-                "description": "Token-level NER with single encoder",
+                "description": "token_level NER with single encoder",
                 "config": {
                     "span_mode": "token_level",
                     "labels_encoder": None,
@@ -3393,7 +3465,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_bi_encoder_token": {
                 "class": BiEncoderTokenGLiNER,
-                "description": "Token-level NER with separate text and label encoders",
+                "description": "token_level NER with separate text and label encoders",
                 "config": {
                     "span_mode": "token_level",
                     "labels_encoder": "required",
@@ -3408,7 +3480,7 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_uni_encoder_token_decoder": {
                 "class": UniEncoderTokenDecoderGLiNER,
-                "description": "Token-level NER with label generation decoder",
+                "description": "token_level NER with label generation decoder",
                 "config": {"span_mode": "token_level", "labels_decoder": "required", "relations_layer": None},
             },
             "gliner_uni_encoder_span_relex": {
@@ -3418,14 +3490,13 @@ class GLiNER(nn.Module, PyTorchModelHubMixin):
             },
             "gliner_uni_encoder_token_relex": {
                 "class": UniEncoderTokenRelexGLiNER,
-                "description": "Joint entity and relation extraction with single encoder using token-level architecture",
+                "description": "Joint entity and relation extraction with single encoder using token_level architecture",
                 "config": {"span_mode": "token_level", "labels_encoder": None, "relations_layer": "required"},
             },
         }
 
     def get_model_type(self) -> str:
-        """
-        Get the type of the current model instance.
+        """Get the type of the current model instance.
 
         Returns:
             String identifier of the model type

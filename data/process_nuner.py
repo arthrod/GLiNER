@@ -1,13 +1,14 @@
-from datasets import load_dataset
 import re
 import ast
 import json
+
 from tqdm import tqdm
+from datasets import load_dataset
 
 
 def tokenize_text(text):
     """Tokenizes the input text into a list of tokens."""
-    return re.findall(r'\w+(?:[-_]\w+)*|\S', text)
+    return re.findall(r"\w+(?:[-_]\w+)*|\S", text)
 
 
 def process_entities(dataset):
@@ -24,7 +25,7 @@ def process_entities(dataset):
                 entity_tokens = tokenize_text(entity_text)
                 matches = []
                 for i in range(len(tokenized_text) - len(entity_tokens) + 1):
-                    if " ".join(tokenized_text[i:i + len(entity_tokens)]).lower() == " ".join(entity_tokens).lower():
+                    if " ".join(tokenized_text[i : i + len(entity_tokens)]).lower() == " ".join(entity_tokens).lower():
                         matches.append((i, i + len(entity_tokens) - 1, entity_types[j]))
                 if matches:
                     entity_spans.extend(matches)
@@ -38,7 +39,7 @@ def process_entities(dataset):
 
 def save_data_to_file(data, filepath):
     """Saves the processed data to a JSON file."""
-    with open(filepath, 'w') as f:
+    with open(filepath, "w") as f:
         json.dump(data, f)
 
 
@@ -46,6 +47,6 @@ if __name__ == "__main__":
     dataset = load_dataset("numind/NuNER")
     processed_data = process_entities(dataset)
 
-    save_data_to_file(processed_data, 'nuner_train.json')
+    save_data_to_file(processed_data, "nuner_train.json")
 
     print("dataset size:", len(processed_data))

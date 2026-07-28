@@ -11,7 +11,7 @@ def extract_word_embeddings(
     max_text_length: int,
     embed_dim: int,
     text_lengths: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Extract word-level embeddings from subword token embeddings.
 
     Maps subword token embeddings back to word-level embeddings using a word mask
@@ -44,7 +44,11 @@ def extract_word_embeddings(
               Shape: (batch_size, max_text_length)
     """
     words_embedding = torch.zeros(
-        batch_size, max_text_length, embed_dim, dtype=token_embeds.dtype, device=token_embeds.device
+        batch_size,
+        max_text_length,
+        embed_dim,
+        dtype=token_embeds.dtype,
+        device=token_embeds.device,
     )
 
     # Find positions where words_mask > 0 (actual word positions)
@@ -58,7 +62,8 @@ def extract_word_embeddings(
 
     # Create mask for valid word positions
     aranged_word_idx = torch.arange(max_text_length, dtype=attention_mask.dtype, device=token_embeds.device).expand(
-        batch_size, -1
+        batch_size,
+        -1,
     )
 
     mask = aranged_word_idx < text_lengths
@@ -73,7 +78,7 @@ def extract_prompt_features(
     batch_size: int,
     embed_dim: int,
     embed_ent_token: bool = True,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Extract prompt/entity type embeddings from special class tokens.
 
     Extracts embeddings for entity types or other prompt elements that are marked
@@ -118,7 +123,8 @@ def extract_prompt_features(
     # Maximum number of class tokens across batch
     max_embed_dim = num_class_tokens.max()
     aranged_class_idx = torch.arange(max_embed_dim, dtype=attention_mask.dtype, device=token_embeds.device).expand(
-        batch_size, -1
+        batch_size,
+        -1,
     )
 
     # Find valid positions (not padding)
@@ -131,7 +137,11 @@ def extract_prompt_features(
 
     # Initialize prompt embeddings tensor
     prompts_embedding = torch.zeros(
-        batch_size, max_embed_dim, embed_dim, dtype=token_embeds.dtype, device=token_embeds.device
+        batch_size,
+        max_embed_dim,
+        embed_dim,
+        dtype=token_embeds.dtype,
+        device=token_embeds.device,
     )
 
     # Create mask for valid (non-padded) positions
@@ -152,7 +162,7 @@ def extract_prompt_features_and_word_embeddings(
     words_mask: torch.Tensor,
     embed_ent_token: bool = True,
     **kwargs,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Extract both prompt embeddings and word embeddings in one call.
 
     Convenience function that combines extract_prompt_features and
@@ -195,12 +205,25 @@ def extract_prompt_features_and_word_embeddings(
 
     # Extract prompt/entity type embeddings
     prompts_embedding, prompts_embedding_mask = extract_prompt_features(
-        class_token_index, token_embeds, input_ids, attention_mask, batch_size, embed_dim, embed_ent_token, **kwargs
+        class_token_index,
+        token_embeds,
+        input_ids,
+        attention_mask,
+        batch_size,
+        embed_dim,
+        embed_ent_token,
+        **kwargs,
     )
 
     # Extract word-level embeddings
     words_embedding, mask = extract_word_embeddings(
-        token_embeds, words_mask, attention_mask, batch_size, max_text_length, embed_dim, text_lengths
+        token_embeds,
+        words_mask,
+        attention_mask,
+        batch_size,
+        max_text_length,
+        embed_dim,
+        text_lengths,
     )
 
     return prompts_embedding, prompts_embedding_mask, words_embedding, mask
@@ -210,7 +233,7 @@ def build_entity_pairs(
     adj: torch.Tensor,
     span_rep: torch.Tensor,
     threshold: float = 0.5,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Build entity pairs for relation extraction based on adjacency scores.
 
     Extracts entity pairs (head, tail) where the adjacency score exceeds a
@@ -298,11 +321,10 @@ def build_entity_pairs(
 
 def extract_spans_from_tokens(
     scores: torch.Tensor,
-    labels: Optional[torch.Tensor] = None,
+    labels: torch.Tensor | None = None,
     threshold: float = 0.5,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Extract entity spans from BIO-style token predictions.
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Extract entity spans from BIO-style token predictions.
 
     Args:
         scores: (B, W, C, 3) - logits for [start, end, inside]

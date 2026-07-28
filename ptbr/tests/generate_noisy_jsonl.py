@@ -340,8 +340,7 @@ def main():
     t0 = time.time()
     base = [random_valid_entry(i) for i in range(TOTAL)]
     with open(base_path, "w", encoding="utf-8") as f:
-        for entry in base:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(entry, ensure_ascii=False) + "\n" for entry in base)
     print(f"  Wrote {base_path}  ({time.time() - t0:.1f}s)")
 
     # Quick sanity: base should be 100 % valid
@@ -363,7 +362,7 @@ def main():
         raise RuntimeError(
             "Not enough corrupted entries to cover all noise types: "
             f"num_corrupt={num_corrupt}, len(ALL_NOISE)={len(ALL_NOISE)}. "
-            "Increase TOTAL or CORRUPTION_RATE."
+            "Increase TOTAL or CORRUPTION_RATE.",
         )
 
     # Assign guaranteed-at-least-once for each noise type

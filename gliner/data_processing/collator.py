@@ -13,8 +13,7 @@ from .processor import (
 
 
 class BaseDataCollator(ABC):
-    """
-    Abstract base class for all data collators.
+    """Abstract base class for all data collators.
 
     Provides common functionality for collating batches and preparing model inputs.
     Subclasses should implement processor-specific logic and field handling.
@@ -23,14 +22,13 @@ class BaseDataCollator(ABC):
     def __init__(
         self,
         config,
-        data_processor: Optional[BaseProcessor] = None,
+        data_processor: BaseProcessor | None = None,
         return_tokens: bool = False,
         return_id_to_classes: bool = False,
         return_entities: bool = False,
         prepare_labels: bool = True,
     ):
-        """
-        Initialize the base data collator.
+        """Initialize the base data collator.
 
         Args:
             config: Configuration object containing model/training parameters.
@@ -48,9 +46,8 @@ class BaseDataCollator(ABC):
         self.return_entities = return_entities
         self.prepare_labels = prepare_labels
 
-    def collate_batch(self, input_x: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
-        """
-        Collate raw input examples into a batch.
+    def collate_batch(self, input_x: list[dict[str, Any]], **kwargs) -> dict[str, Any]:
+        """Collate raw input examples into a batch.
 
         Args:
             input_x: List of raw input examples.
@@ -62,9 +59,8 @@ class BaseDataCollator(ABC):
         raw_batch = self.data_processor.collate_raw_batch(input_x, **kwargs)
         return raw_batch
 
-    def collate_function(self, raw_batch: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        """
-        Transform raw batch into model input format.
+    def collate_function(self, raw_batch: dict[str, Any], **kwargs) -> dict[str, Any]:
+        """Transform raw batch into model input format.
 
         Args:
             raw_batch: Raw collated batch from collate_batch.
@@ -76,9 +72,8 @@ class BaseDataCollator(ABC):
         model_input = self.data_processor.collate_fn(raw_batch, **kwargs)
         return model_input
 
-    def _add_conditional_returns(self, model_input: Dict[str, Any], raw_batch: Dict[str, Any]) -> None:
-        """
-        Add optional fields to model input based on collator configuration.
+    def _add_conditional_returns(self, model_input: dict[str, Any], raw_batch: dict[str, Any]) -> None:
+        """Add optional fields to model input based on collator configuration.
 
         Args:
             model_input: Model input dictionary to update in-place.
@@ -92,9 +87,8 @@ class BaseDataCollator(ABC):
             model_input["entities"] = raw_batch.get("entities")
 
     @staticmethod
-    def _filter_none_values(data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Remove entries with None values from dictionary.
+    def _filter_none_values(data: dict[str, Any]) -> dict[str, Any]:
+        """Remove entries with None values from dictionary.
 
         Args:
             data: Dictionary potentially containing None values.
@@ -106,10 +100,10 @@ class BaseDataCollator(ABC):
 
     @staticmethod
     def _get_id_to_classes_for_sample(
-        id_to_classes: Union[Dict[int, str], List[Dict[int, str]]], sample_idx: int
-    ) -> Dict[int, str]:
-        """
-        Get id_to_classes mapping for a specific sample.
+        id_to_classes: dict[int, str] | list[dict[int, str]],
+        sample_idx: int,
+    ) -> dict[int, str]:
+        """Get id_to_classes mapping for a specific sample.
 
         Args:
             id_to_classes: Either a single mapping shared across all samples
@@ -124,9 +118,8 @@ class BaseDataCollator(ABC):
         return id_to_classes
 
     @abstractmethod
-    def __call__(self, input_x: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
-        """
-        Main collation method to be implemented by subclasses.
+    def __call__(self, input_x: list[dict[str, Any]], **kwargs) -> dict[str, Any]:
+        """Main collation method to be implemented by subclasses.
 
         Args:
             input_x: List of raw input examples.
@@ -139,16 +132,14 @@ class BaseDataCollator(ABC):
 
 
 class BaseSpanCollator(BaseDataCollator):
-    """
-    Base collator for span-based processors.
+    """Base collator for span-based processors.
 
     Provides common logic for handling span indices, span masks, and span labels.
     Used by all span-level NER/RE models.
     """
 
-    def _add_span_fields(self, model_input: Dict[str, Any], raw_batch: Dict[str, Any]) -> None:
-        """
-        Add span-specific fields to model input.
+    def _add_span_fields(self, model_input: dict[str, Any], raw_batch: dict[str, Any]) -> None:
+        """Add span-specific fields to model input.
 
         Args:
             model_input: Model input dictionary to update in-place.
@@ -159,21 +150,19 @@ class BaseSpanCollator(BaseDataCollator):
                 "span_idx": raw_batch.get("span_idx"),
                 "span_mask": raw_batch.get("span_mask"),
                 "text_lengths": raw_batch.get("seq_length"),
-            }
+            },
         )
 
 
 class BaseTokenCollator(BaseDataCollator):
-    """
-    Base collator for token-based processors.
+    """Base collator for token-based processors.
 
-    Provides common logic for handling token-level annotations and entity IDs.
-    Used by all token-level NER models.
+    Provides common logic for handling token_level annotations and entity IDs.
+    Used by all token_level NER models.
     """
 
-    def _add_token_fields(self, model_input: Dict[str, Any], raw_batch: Dict[str, Any]) -> None:
-        """
-        Add token-specific fields to model input.
+    def _add_token_fields(self, model_input: dict[str, Any], raw_batch: dict[str, Any]) -> None:
+        """Add token-specific fields to model input.
 
         Args:
             model_input: Model input dictionary to update in-place.
@@ -183,8 +172,7 @@ class BaseTokenCollator(BaseDataCollator):
 
 
 class SpanDataCollator(BaseSpanCollator):
-    """
-    Unified data collator for all span-based processors.
+    """Unified data collator for all span-based processors.
 
     Handles span-based NER with various architectures:
     - UniEncoder: Single encoder with span classification
@@ -200,17 +188,14 @@ class SpanDataCollator(BaseSpanCollator):
     def __init__(
         self,
         config,
-        data_processor: Optional[
-            Union[UniEncoderSpanProcessor, BiEncoderSpanProcessor, UniEncoderSpanDecoderProcessor]
-        ] = None,
+        data_processor: UniEncoderSpanProcessor | BiEncoderSpanProcessor | UniEncoderSpanDecoderProcessor | None = None,
         return_tokens: bool = False,
         return_id_to_classes: bool = False,
         return_entities: bool = False,
         prepare_labels: bool = True,
         prepare_entities: bool = True,
     ):
-        """
-        Initialize unified span collator.
+        """Initialize unified span collator.
 
         Args:
             config: Configuration object.
@@ -225,10 +210,12 @@ class SpanDataCollator(BaseSpanCollator):
         self.prepare_entities = prepare_entities
 
     def __call__(
-        self, input_x: List[Dict[str, Any]], entity_types: Optional[Union[List[str], List[List[str]]]] = None, **kwargs
-    ) -> Dict[str, Any]:
-        """
-        Collate batch for span-based model.
+        self,
+        input_x: list[dict[str, Any]],
+        entity_types: list[str] | list[list[str]] | None = None,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """Collate batch for span-based model.
 
         Args:
             input_x: List of input examples with 'tokenized_text' and 'ner' fields.
@@ -262,10 +249,9 @@ class SpanDataCollator(BaseSpanCollator):
 
 
 class TokenDataCollator(BaseTokenCollator):
-    """
-    Unified data collator for all token-based processors.
+    """Unified data collator for all token-based processors.
 
-    Handles token-level NER with various architectures:
+    Handles token_level NER with various architectures:
     - UniEncoder: Single encoder with BIO/BIOES tagging
     - BiEncoder: Separate encoders for text and entity types
 
@@ -277,15 +263,14 @@ class TokenDataCollator(BaseTokenCollator):
     def __init__(
         self,
         config,
-        data_processor: Optional[Union[UniEncoderTokenProcessor, BiEncoderTokenProcessor]] = None,
+        data_processor: UniEncoderTokenProcessor | BiEncoderTokenProcessor | None = None,
         return_tokens: bool = False,
         return_id_to_classes: bool = False,
         return_entities: bool = False,
         prepare_labels: bool = True,
         prepare_entities: bool = True,
     ):
-        """
-        Initialize unified token collator.
+        """Initialize unified token collator.
 
         Args:
             config: Configuration object.
@@ -300,10 +285,12 @@ class TokenDataCollator(BaseTokenCollator):
         self.prepare_entities = prepare_entities
 
     def __call__(
-        self, input_x: List[Dict[str, Any]], entity_types: Optional[Union[List[str], List[List[str]]]] = None, **kwargs
-    ) -> Dict[str, Any]:
-        """
-        Collate batch for token-based model.
+        self,
+        input_x: list[dict[str, Any]],
+        entity_types: list[str] | list[list[str]] | None = None,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """Collate batch for token-based model.
 
         Args:
             input_x: List of input examples with 'tokenized_text' and 'ner' fields.
@@ -311,7 +298,7 @@ class TokenDataCollator(BaseTokenCollator):
             **kwargs: Additional arguments for collation.
 
         Returns:
-            Model-ready batch with token-level labels adapted to processor type.
+            Model-ready batch with token_level labels adapted to processor type.
         """
         raw_batch = self.collate_batch(input_x, entity_types=entity_types, **kwargs)
 
@@ -345,7 +332,7 @@ class RelationExtractionSpanDataCollator(BaseSpanCollator):
     def __init__(
         self,
         config,
-        data_processor: Optional[RelationExtractionSpanProcessor] = None,
+        data_processor: RelationExtractionSpanProcessor | None = None,
         return_tokens: bool = False,
         return_id_to_classes: bool = False,
         return_entities: bool = False,
@@ -353,8 +340,7 @@ class RelationExtractionSpanDataCollator(BaseSpanCollator):
         return_relations: bool = False,
         prepare_labels: bool = True,
     ):
-        """
-        Initialize RelationExtraction span collator.
+        """Initialize RelationExtraction span collator.
 
         Args:
             config: Configuration object.
@@ -372,15 +358,14 @@ class RelationExtractionSpanDataCollator(BaseSpanCollator):
 
     def collate_batch(
         self,
-        input_x: List[Dict[str, Any]],
-        entity_types: Optional[Union[List[str], List[List[str]]]] = None,
-        relation_types: Optional[Union[List[str], List[List[str]]]] = None,
-        ner_negatives: Optional[List[str]] = None,
-        rel_negatives: Optional[List[str]] = None,
+        input_x: list[dict[str, Any]],
+        entity_types: list[str] | list[list[str]] | None = None,
+        relation_types: list[str] | list[list[str]] | None = None,
+        ner_negatives: list[str] | None = None,
+        rel_negatives: list[str] | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Collate raw batch data for relation extraction.
+    ) -> dict[str, Any]:
+        """Collate raw batch data for relation extraction.
 
         Args:
             input_x: List of input examples.
@@ -411,15 +396,14 @@ class RelationExtractionSpanDataCollator(BaseSpanCollator):
 
     def __call__(
         self,
-        input_x: List[Dict[str, Any]],
-        entity_types: Optional[Union[List[str], List[List[str]]]] = None,
-        relation_types: Optional[Union[List[str], List[List[str]]]] = None,
-        ner_negatives: Optional[List[str]] = None,
-        rel_negatives: Optional[List[str]] = None,
+        input_x: list[dict[str, Any]],
+        entity_types: list[str] | list[list[str]] | None = None,
+        relation_types: list[str] | list[list[str]] | None = None,
+        ner_negatives: list[str] | None = None,
+        rel_negatives: list[str] | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Collate batch for RelationExtraction span model.
+    ) -> dict[str, Any]:
+        """Collate batch for RelationExtraction span model.
 
         Args:
             input_x: List of input examples with 'tokenized_text', 'ner',
@@ -445,7 +429,10 @@ class RelationExtractionSpanDataCollator(BaseSpanCollator):
         )
 
         model_input = self.collate_function(
-            raw_batch, prepare_labels=self.prepare_labels, prepare_entities=True, **kwargs
+            raw_batch,
+            prepare_labels=self.prepare_labels,
+            prepare_entities=True,
+            **kwargs,
         )
 
         self._add_span_fields(model_input, raw_batch)
@@ -462,9 +449,8 @@ class RelationExtractionSpanDataCollator(BaseSpanCollator):
             model_input["relations"] = raw_batch.get("relations")
         return self._filter_none_values(model_input)
 
-    def _filter_none_values(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Remove None values from batch dictionary.
+    def _filter_none_values(self, batch_dict: dict[str, Any]) -> dict[str, Any]:
+        """Remove None values from batch dictionary.
 
         Args:
             batch_dict: Dictionary potentially containing None values.
@@ -484,62 +470,41 @@ class RelationExtractionTokenDataCollator(RelationExtractionSpanDataCollator):
     Required Processor: RelationExtractionTokenProcessor
     """
 
-    pass
-
 
 class UniEncoderSpanDataCollator(SpanDataCollator):
-    """
-    Backward compatibility alias for SpanDataCollator with UniEncoderSpanProcessor.
+    """Backward compatibility alias for SpanDataCollator with UniEncoderSpanProcessor.
 
     Use SpanDataCollator directly for new code.
     """
-
-    pass
 
 
 class BiEncoderSpanDataCollator(SpanDataCollator):
-    """
-    Backward compatibility alias for SpanDataCollator with BiEncoderSpanProcessor.
+    """Backward compatibility alias for SpanDataCollator with BiEncoderSpanProcessor.
 
     Use SpanDataCollator directly for new code.
     """
-
-    pass
 
 
 class UniEncoderSpanDecoderDataCollator(SpanDataCollator):
-    """
-    Backward compatibility alias for SpanDataCollator with EncoderDecoderSpanProcessor.
+    """Backward compatibility alias for SpanDataCollator with EncoderDecoderSpanProcessor.
 
     Use SpanDataCollator directly for new code.
     """
 
-    pass
-
 
 class UniEncoderTokenDecoderDataCollator(UniEncoderSpanDecoderDataCollator):
-    """
-    Backward compatibility alias for UniEncoderTokenDecoderDataCollator with UniEncoderSpanDecoderDataCollator.
-    """
-
-    pass
+    """Backward compatibility alias for UniEncoderTokenDecoderDataCollator with UniEncoderSpanDecoderDataCollator."""
 
 
 class UniEncoderTokenDataCollator(TokenDataCollator):
-    """
-    Backward compatibility alias for TokenDataCollator with UniEncoderTokenProcessor.
+    """Backward compatibility alias for TokenDataCollator with UniEncoderTokenProcessor.
 
     Use TokenDataCollator directly for new code.
     """
-
-    pass
 
 
 class BiEncoderTokenDataCollator(TokenDataCollator):
-    """
-    Backward compatibility alias for TokenDataCollator with BiEncoderTokenProcessor.
+    """Backward compatibility alias for TokenDataCollator with BiEncoderTokenProcessor.
 
     Use TokenDataCollator directly for new code.
     """
-
-    pass

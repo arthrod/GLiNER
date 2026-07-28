@@ -23,7 +23,6 @@ class TokenSplitterBase:
 
     def __init__(self):
         """Initialize the token splitter."""
-        pass
 
     def __call__(self, text) -> (str, int, int):
         """Split text into tokens.
@@ -34,7 +33,6 @@ class TokenSplitterBase:
         Yields:
             tuple: A tuple of (token, start_index, end_index).
         """
-        pass
 
 
 class WhitespaceTokenSplitter(TokenSplitterBase):
@@ -395,11 +393,11 @@ class MultiLangWordsSplitter(TokenSplitterBase):
         if self.logging:
             if lang != "unknown":
                 print(  # noqa: T201
-                    f"Detected language: {lang}, using splitter: {splitter.__class__.__name__}"
+                    f"Detected language: {lang}, using splitter: {splitter.__class__.__name__}",
                 )
             else:
                 print(  # noqa: T201
-                    f"Language detection failed, using default splitter: {splitter.__class__.__name__}"
+                    f"Language detection failed, using default splitter: {splitter.__class__.__name__}",
                 )
         yield from splitter(text)
 
@@ -476,7 +474,7 @@ class StanzaWordsSplitter(TokenSplitterBase):
             try:
                 if self.logging:
                     print(  # noqa: T201
-                        f"[StanzaWordsSplitter] downloading model for '{lang}'"
+                        f"[StanzaWordsSplitter] downloading model for '{lang}'",
                     )
                 stanza.download(lang, processors="tokenize", verbose=False)
                 pipeline = stanza.Pipeline(lang, processors="tokenize", verbose=False)
@@ -566,7 +564,7 @@ class WordsSplitter(TokenSplitterBase):
         else:
             raise ValueError(
                 f"{splitter_type} is not implemented, choose between "
-                "'whitespace', 'spacy', 'jieba', 'hanlp' and 'mecab'"
+                "'whitespace', 'spacy', 'jieba', 'hanlp' and 'mecab'",
             )
 
     def __call__(self, text):

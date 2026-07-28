@@ -17,14 +17,13 @@ Test categories:
 """
 
 import inspect
-from dataclasses import fields as dataclass_fields
 from pathlib import Path
+from dataclasses import fields as dataclass_fields
 
 import pytest
 import transformers
 
-from gliner.training.trainer import TrainingArguments, Trainer
-
+from gliner.training.trainer import Trainer, TrainingArguments
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -244,7 +243,8 @@ class TestKwargsPassThrough:
 
     def test_label_smoothing_via_kwargs_reaches_training_args(self, tmp_path):
         args = _create_training_args_via_classmethod(
-            output_dir=tmp_path, label_smoothing=0.1
+            output_dir=tmp_path,
+            label_smoothing=0.1,
         )
         assert args.label_smoothing == 0.1
 
@@ -307,7 +307,7 @@ class TestCreateTrainingArgsSignature:
     def explicit_params(self):
         """
         Return the set of parameter names explicitly declared by BaseGLiNER.create_training_args.
-        
+
         Returns:
             set[str]: Parameter names that are explicitly declared on the classmethod, excluding `self`, `cls`, `*args`, and `**kwargs`.
         """
@@ -320,9 +320,7 @@ class TestCreateTrainingArgsSignature:
         )
 
     def test_fp16_is_explicit(self, explicit_params):
-        assert "fp16" in explicit_params, (
-            "fp16 is not explicit in create_training_args; only bf16 is"
-        )
+        assert "fp16" in explicit_params, "fp16 is not explicit in create_training_args; only bf16 is"
 
     def test_seed_is_explicit(self, explicit_params):
         assert "seed" in explicit_params
@@ -336,7 +334,7 @@ class TestCreateTrainingArgsSignature:
     def test_push_to_hub_is_explicit(self, explicit_params):
         """
         Asserts that BaseGLiNER.create_training_args exposes `push_to_hub` as an explicit parameter.
-        
+
         Parameters:
             explicit_params (set[str]): Names of parameters explicitly declared on `create_training_args` (excluding `cls`, `self`, `*args`, and `**kwargs`).
         """
@@ -345,7 +343,7 @@ class TestCreateTrainingArgsSignature:
     def test_hub_model_id_is_explicit(self, explicit_params):
         """
         Asserts that "hub_model_id" is declared as an explicit parameter of BaseGLiNER.create_training_args.
-        
+
         Parameters:
             explicit_params (set[str]): Set of parameter names explicitly declared on the classmethod signature (excluding `self`, `cls`, `*args`, and `**kwargs`).
         """
@@ -356,19 +354,15 @@ class TestCreateTrainingArgsSignature:
         reason="evaluation_strategy/eval_strategy not explicit; evaluation never runs",
     )
     def test_evaluation_strategy_is_explicit(self, explicit_params):
-        has_eval = (
-            "evaluation_strategy" in explicit_params
-            or "eval_strategy" in explicit_params
-        )
+        has_eval = "evaluation_strategy" in explicit_params or "eval_strategy" in explicit_params
         assert has_eval, (
-            "Neither evaluation_strategy nor eval_strategy is explicit; "
-            "evaluation never runs during training"
+            "Neither evaluation_strategy nor eval_strategy is explicit; evaluation never runs during training"
         )
 
     def test_eval_steps_is_explicit(self, explicit_params):
         """
         Asserts that "eval_steps" is listed among the explicit parameters returned by create_training_args.
-        
+
         Parameters:
             explicit_params (set[str]): Set of explicit parameter names extracted from BaseGLiNER.create_training_args.
         """
@@ -386,7 +380,7 @@ class TestMaskingDefaultMismatch:
     def test_create_training_args_masking_matches_training_args_default(self):
         """
         Ensure the default 'masking' value in BaseGLiNER.create_training_args matches the default on TrainingArguments.
-        
+
         Compares the 'masking' parameter default from BaseGLiNER.create_training_args's signature with the TrainingArguments dataclass field default and fails the test if they differ.
         """
         # Actually inspect the real method
@@ -399,8 +393,7 @@ class TestMaskingDefaultMismatch:
         ta_default = ta_fields["masking"].default
 
         assert cta_default == ta_default, (
-            f"Masking default mismatch: create_training_args='{cta_default}' "
-            f"vs TrainingArguments='{ta_default}'"
+            f"Masking default mismatch: create_training_args='{cta_default}' vs TrainingArguments='{ta_default}'"
         )
 
 
@@ -415,7 +408,7 @@ class TestRemoveUnusedColumns:
     def test_create_training_args_sets_remove_unused_columns_false(self, tmp_path):
         """
         Verify that create_training_args sets remove_unused_columns to False.
-        
+
         Asserts that a TrainingArguments instance produced via BaseGLiNER.create_training_args has
         remove_unused_columns == False so GLiNER's custom batch dictionary keys are preserved.
         """
@@ -428,7 +421,7 @@ class TestRemoveUnusedColumns:
     def test_create_training_args_defaults_remove_unused_columns_false(self, tmp_path):
         """
         Verify create_training_args preserves GLiNER batch keys by defaulting remove_unused_columns to False.
-        
+
         Checks that the classmethod-produced TrainingArguments sets remove_unused_columns to False (HF's default is True, which can cause GLiNER's custom batch dictionary keys to be dropped).
         """
         args = _create_training_args_via_classmethod(output_dir=tmp_path)
@@ -448,19 +441,17 @@ class TestEvaluationConfiguration:
 
     @pytest.mark.xfail(
         strict=True,
-        reason=(
-            "create_training_args never sets evaluation_strategy='steps'; "
-            "evaluation never runs during training"
-        ),
+        reason=("create_training_args never sets evaluation_strategy='steps'; evaluation never runs during training"),
     )
     def test_create_training_args_enables_evaluation(self, tmp_path):
         args = _create_training_args_via_classmethod(output_dir=tmp_path, save_steps=500)
         eval_strategy = getattr(args, "eval_strategy", None) or getattr(
-            args, "evaluation_strategy", None
+            args,
+            "evaluation_strategy",
+            None,
         )
         assert eval_strategy == "steps", (
-            f"evaluation_strategy is '{eval_strategy}', not 'steps'. "
-            f"Evaluation never runs."
+            f"evaluation_strategy is '{eval_strategy}', not 'steps'. Evaluation never runs."
         )
 
     @pytest.mark.xfail(
@@ -643,6 +634,4 @@ class TestConfigYamlDeadFields:
                     break
             if not found:
                 dead_fields.append(field_name)
-        assert not dead_fields, (
-            f"Dead config.yaml training fields: {dead_fields}"
-        )
+        assert not dead_fields, f"Dead config.yaml training fields: {dead_fields}"

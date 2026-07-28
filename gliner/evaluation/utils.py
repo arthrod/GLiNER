@@ -39,8 +39,8 @@ def _prf_divide(
     metric: Literal["precision", "recall", "f-score"],
     modifier: str,
     average: str,
-    warn_for: List[str],
-    zero_division: Union[str, int] = "warn",
+    warn_for: list[str],
+    zero_division: str | int = "warn",
 ) -> np.ndarray:
     """Performs division and handles divide-by-zero with warnings."""
     with np.errstate(divide="ignore", invalid="ignore"):

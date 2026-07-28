@@ -1,5 +1,6 @@
 import random
-from typing import Dict, List, Tuple, Optional, Sequence
+from typing import Dict, List, Tuple, Optional
+from collections.abc import Sequence
 
 import torch
 
@@ -46,7 +47,10 @@ def pad_2d_tensor(key_data, padding_value=0.0):
 
         # Pad the tensor along both dimensions
         padded_tensor = torch.nn.functional.pad(
-            tensor, (0, col_padding, 0, row_padding), mode="constant", value=padding_value
+            tensor,
+            (0, col_padding, 0, row_padding),
+            mode="constant",
+            value=padding_value,
         )
         tensors.append(padded_tensor)
 
@@ -55,7 +59,7 @@ def pad_2d_tensor(key_data, padding_value=0.0):
     return padded_tensors
 
 
-def get_negatives(batch_list: List[Dict], sampled_neg: int = 5, key="ner") -> List[str]:
+def get_negatives(batch_list: list[dict], sampled_neg: int = 5, key="ner") -> list[str]:
     """Sample negative entity or relation types from a batch.
 
     Extracts all unique entity/relation types from a batch of examples and
@@ -96,9 +100,9 @@ def prepare_word_mask(
     texts: Sequence[Sequence[str]],
     tokenized_inputs,
     *,
-    skip_first_words: Optional[Sequence[int]] = None,
+    skip_first_words: Sequence[int] | None = None,
     token_level: bool = False,
-) -> List[List[int]]:
+) -> list[list[int]]:
     """Create word-level masks for subword tokenized sequences.
 
     Maps subword tokens back to their original word positions, enabling span
@@ -118,7 +122,7 @@ def prepare_word_mask(
             each sequence (e.g., prompt words). Must have the same length as texts
             if provided. Skipped words are masked as 0.
         token_level: If True, assign a unique mask value to every token of a word
-            (enabling token-level granularity). If False, only the first subword
+            (enabling token_level granularity). If False, only the first subword
             token of each word gets a mask value; continuation tokens are masked
             as 0 (default: False).
 
@@ -146,11 +150,11 @@ def prepare_word_mask(
     elif len(skip_first_words) != n:
         raise ValueError("skip_first_words must have same length as texts")
 
-    words_masks: List[List[int]] = []
+    words_masks: list[list[int]] = []
 
     for i in range(n):
-        mask: List[int] = []
-        prev_word_id: Optional[int] = None
+        mask: list[int] = []
+        prev_word_id: int | None = None
         seen_words = 0  # counts distinct word_ids we've traversed in this sequence
 
         for wid in tokenized_inputs.word_ids(i):
@@ -179,7 +183,7 @@ def prepare_word_mask(
     return words_masks
 
 
-def make_mapping(types: List[str]) -> Tuple[Dict[str, int], Dict[int, str]]:
+def make_mapping(types: list[str]) -> tuple[dict[str, int], dict[int, str]]:
     """Create bidirectional mappings between type labels and integer IDs.
 
     Generates forward and reverse dictionaries for converting between string

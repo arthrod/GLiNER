@@ -1,14 +1,16 @@
-import argparse
 import json
-import torch
+import argparse
 from pathlib import Path
+
+import torch
+
 from gliner import GLiNER
-from gliner.utils import load_config_as_namespace, namespace_to_dict
+from gliner.utils import namespace_to_dict, load_config_as_namespace
 
 
 def load_json_data(path: str):
     """Load JSON dataset."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -95,9 +97,20 @@ def main(cfg_path: str):
         save_steps=cfg.training.eval_every,
         logging_steps=logging_steps,
         save_total_limit=cfg.training.save_total_limit,
-        # Evaluation — run eval at the same cadence as checkpointing when
-        # an eval dataset is available.
-        **({"eval_strategy": "steps", "eval_steps": cfg.training.eval_every} if eval_dataset is not None else {}),
+        # Evaluation — only forward explicit eval settings; let train_model
+        # auto-enable defaults when eval_dataset is present.
+        **(
+            {
+                k: v
+                for k, v in {
+                    "eval_strategy": getattr(cfg.training, "eval_strategy", None),
+                    "eval_steps": getattr(cfg.training, "eval_steps", None),
+                }.items()
+                if v is not None
+            }
+            if eval_dataset is not None
+            else {}
+        ),
         # Freezing
         freeze_components=freeze_components,
         # Dtype

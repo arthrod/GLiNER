@@ -36,19 +36,19 @@ import yaml
 import pytest
 
 from gliner.config import (
-    BaseGLiNERConfig,
+    GLiNERConfig,
     BiEncoderConfig,
+    BaseGLiNERConfig,
+    UniEncoderConfig,
     BiEncoderSpanConfig,
     BiEncoderTokenConfig,
-    GLiNERConfig,
-    UniEncoderConfig,
-    UniEncoderRelexConfig,
     UniEncoderSpanConfig,
-    UniEncoderSpanDecoderConfig,
-    UniEncoderSpanRelexConfig,
+    UniEncoderRelexConfig,
     UniEncoderTokenConfig,
-    UniEncoderTokenDecoderConfig,
+    UniEncoderSpanRelexConfig,
     UniEncoderTokenRelexConfig,
+    UniEncoderSpanDecoderConfig,
+    UniEncoderTokenDecoderConfig,
 )
 
 # ---------------------------------------------------------------------------
@@ -61,6 +61,7 @@ CONFIGS_DIR = os.path.join(REPO_ROOT, "configs")
 # ===================================================================
 # Helpers
 # ===================================================================
+
 
 def _load_yaml(filename):
     path = os.path.join(CONFIGS_DIR, filename)
@@ -88,12 +89,14 @@ class TestTokenLevelHyphenVsUnderscoreBug:
         """All typed token subclasses set span_mode = 'token_level' (underscore).
         This establishes the canonical form used everywhere except
         GLiNERConfig.model_type."""
-        for cls in (UniEncoderTokenConfig, UniEncoderTokenDecoderConfig,
-                    UniEncoderTokenRelexConfig, BiEncoderTokenConfig):
+        for cls in (
+            UniEncoderTokenConfig,
+            UniEncoderTokenDecoderConfig,
+            UniEncoderTokenRelexConfig,
+            BiEncoderTokenConfig,
+        ):
             cfg = cls()
-            assert cfg.span_mode == "token_level", (
-                f"{cls.__name__}.span_mode = {cfg.span_mode!r}"
-            )
+            assert cfg.span_mode == "token_level", f"{cls.__name__}.span_mode = {cfg.span_mode!r}"
 
     # -- GLiNERConfig routing with underscore form (canonical) ----------
 
@@ -129,8 +132,7 @@ class TestTokenLevelHyphenVsUnderscoreBug:
         """The canonical underscore form 'token_level' correctly routes to a
         token model type in GLiNERConfig."""
         cfg = GLiNERConfig(span_mode="token_level")
-        routes_to_token = ("token" in cfg.model_type
-                           and "span" not in cfg.model_type)
+        routes_to_token = "token" in cfg.model_type and "span" not in cfg.model_type
         assert routes_to_token, f"model_type={cfg.model_type!r}"
 
 
@@ -219,21 +221,29 @@ class TestSpanModeGuardInconsistency:
     incomplete.
     """
 
-    @pytest.mark.parametrize("cls", [
-        UniEncoderSpanConfig,
-        UniEncoderSpanRelexConfig,
-        BiEncoderSpanConfig,
-    ], ids=lambda c: c.__name__)
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            UniEncoderSpanConfig,
+            UniEncoderSpanRelexConfig,
+            BiEncoderSpanConfig,
+        ],
+        ids=lambda c: c.__name__,
+    )
     def test_underscore_rejected(self, cls):
         """Underscore form is correctly rejected."""
         with pytest.raises(ValueError, match="token_level"):
             cls(span_mode="token_level")
 
-    @pytest.mark.parametrize("cls", [
-        UniEncoderSpanConfig,
-        UniEncoderSpanRelexConfig,
-        BiEncoderSpanConfig,
-    ], ids=lambda c: c.__name__)
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            UniEncoderSpanConfig,
+            UniEncoderSpanRelexConfig,
+            BiEncoderSpanConfig,
+        ],
+        ids=lambda c: c.__name__,
+    )
     def test_bug_hyphen_not_rejected(self, cls):
         """BUG: Hyphen form bypasses the guard and is silently accepted.
 
@@ -280,9 +290,7 @@ class TestRepresentSpans:
             represent_spans=False,
         )
         # Current (wrong) behaviour — stays False:
-        assert cfg.represent_spans is False, (
-            "If True, the bug may be fixed."
-        )
+        assert cfg.represent_spans is False, "If True, the bug may be fixed."
 
 
 # ===================================================================
@@ -303,19 +311,20 @@ class TestTokenDecoderNaming:
         """
         cfg = UniEncoderTokenDecoderConfig()
         assert "uni_encoder" not in cfg.model_type, (
-            f"model_type={cfg.model_type!r} — if it now contains 'uni_encoder' "
-            "the naming bug may be fixed."
+            f"model_type={cfg.model_type!r} — if it now contains 'uni_encoder' the naming bug may be fixed."
         )
 
     def test_all_other_uni_configs_have_uni_prefix(self):
         """All other uni-encoder configs include 'uni_encoder'."""
-        for cls in (UniEncoderSpanConfig, UniEncoderTokenConfig,
-                    UniEncoderSpanDecoderConfig, UniEncoderSpanRelexConfig,
-                    UniEncoderTokenRelexConfig):
+        for cls in (
+            UniEncoderSpanConfig,
+            UniEncoderTokenConfig,
+            UniEncoderSpanDecoderConfig,
+            UniEncoderSpanRelexConfig,
+            UniEncoderTokenRelexConfig,
+        ):
             cfg = cls()
-            assert "uni_encoder" in cfg.model_type, (
-                f"{cls.__name__}.model_type = {cfg.model_type!r}"
-            )
+            assert "uni_encoder" in cfg.model_type, f"{cls.__name__}.model_type = {cfg.model_type!r}"
 
     def test_bug_glinerconfig_token_decoder_return_value_differs(self):
         """The model_type returned by GLiNERConfig for the token-decoder
@@ -332,9 +341,7 @@ class TestTokenDecoderNaming:
         # GLiNERConfig returns "gliner_uni_encoder_token_decoder" (via the
         # property string literal on line 328) while the typed subclass has
         # "gliner_encoder_token_decoder" (set at line 186).
-        assert legacy.model_type != typed.model_type, (
-            "If they match, the naming inconsistency may be fixed."
-        )
+        assert legacy.model_type != typed.model_type, "If they match, the naming inconsistency may be fixed."
 
 
 # ===================================================================
@@ -379,9 +386,7 @@ class TestYAMLConfigTokenMisrouting:
         correctly recognized by GLiNERConfig.model_type property."""
         data = _load_yaml("config_token.yaml")
         cfg = GLiNERConfig(**data["model"])
-        assert "token" in cfg.model_type and "span" not in cfg.model_type, (
-            f"Got model_type={cfg.model_type!r}."
-        )
+        assert "token" in cfg.model_type and "span" not in cfg.model_type, f"Got model_type={cfg.model_type!r}."
 
 
 class TestYAMLConfigsCorrectRouting:
@@ -405,14 +410,17 @@ class TestYAMLConfigsCorrectRouting:
     def test_all_yaml_configs_use_model_section(self):
         """All YAML configs use 'model:' section key (not 'gliner_config:').
         This documents the canonical section name for any external validator."""
-        for fn in ("config.yaml", "config_token.yaml", "config_span.yaml",
-                   "config_decoder.yaml", "config_biencoder.yaml",
-                   "config_relex.yaml"):
+        for fn in (
+            "config.yaml",
+            "config_token.yaml",
+            "config_span.yaml",
+            "config_decoder.yaml",
+            "config_biencoder.yaml",
+            "config_relex.yaml",
+        ):
             data = _load_yaml(fn)
             assert "model" in data, f"{fn} missing 'model' section"
-            assert "gliner_config" not in data, (
-                f"{fn} has 'gliner_config' — should use 'model'"
-            )
+            assert "gliner_config" not in data, f"{fn} has 'gliner_config' — should use 'model'"
 
 
 # ===================================================================
@@ -454,14 +462,11 @@ class TestDefaultValues:
         "neg_spans_ratio": 1.0,
     }
 
-    @pytest.mark.parametrize("field,expected",
-                             list(UPSTREAM_BASE_DEFAULTS.items()))
+    @pytest.mark.parametrize("field,expected", list(UPSTREAM_BASE_DEFAULTS.items()))
     def test_base_config_default(self, field, expected):
         cfg = BaseGLiNERConfig()
         actual = getattr(cfg, field)
-        assert actual == expected, (
-            f"BaseGLiNERConfig().{field} = {actual!r}, expected {expected!r}"
-        )
+        assert actual == expected, f"BaseGLiNERConfig().{field} = {actual!r}, expected {expected!r}"
 
     def test_decoder_mode_default_is_none(self):
         """Upstream default for decoder_mode is None, not 'span'.
@@ -497,9 +502,7 @@ class TestDefaultValues:
         cfg = GLiNERConfig()
         for field, expected in self.UPSTREAM_BASE_DEFAULTS.items():
             actual = getattr(cfg, field)
-            assert actual == expected, (
-                f"GLiNERConfig().{field} = {actual!r}, expected {expected!r}"
-            )
+            assert actual == expected, f"GLiNERConfig().{field} = {actual!r}, expected {expected!r}"
 
 
 # ===================================================================
@@ -512,24 +515,51 @@ class TestFieldCoverage:
     code (and validators) need."""
 
     BASE_FIELDS = [
-        "model_name", "name", "max_width", "hidden_size", "dropout",
-        "fine_tune", "subtoken_pooling", "span_mode", "post_fusion_schema",
-        "num_post_fusion_layers", "vocab_size", "max_neg_type_ratio",
-        "max_types", "max_len", "words_splitter_type", "num_rnn_layers",
-        "fuse_layers", "embed_ent_token", "class_token_index",
-        "encoder_config", "ent_token", "sep_token", "_attn_implementation",
-        "token_loss_coef", "span_loss_coef", "represent_spans",
+        "model_name",
+        "name",
+        "max_width",
+        "hidden_size",
+        "dropout",
+        "fine_tune",
+        "subtoken_pooling",
+        "span_mode",
+        "post_fusion_schema",
+        "num_post_fusion_layers",
+        "vocab_size",
+        "max_neg_type_ratio",
+        "max_types",
+        "max_len",
+        "words_splitter_type",
+        "num_rnn_layers",
+        "fuse_layers",
+        "embed_ent_token",
+        "class_token_index",
+        "encoder_config",
+        "ent_token",
+        "sep_token",
+        "_attn_implementation",
+        "token_loss_coef",
+        "span_loss_coef",
+        "represent_spans",
         "neg_spans_ratio",
     ]
 
     DECODER_FIELDS = [
-        "labels_decoder", "decoder_mode", "full_decoder_context",
-        "blank_entity_prob", "labels_decoder_config", "decoder_loss_coef",
+        "labels_decoder",
+        "decoder_mode",
+        "full_decoder_context",
+        "blank_entity_prob",
+        "labels_decoder_config",
+        "decoder_loss_coef",
     ]
 
     RELEX_FIELDS = [
-        "relations_layer", "triples_layer", "embed_rel_token",
-        "rel_token_index", "rel_token", "adjacency_loss_coef",
+        "relations_layer",
+        "triples_layer",
+        "embed_rel_token",
+        "rel_token_index",
+        "rel_token",
+        "adjacency_loss_coef",
         "relation_loss_coef",
     ]
 
@@ -541,23 +571,17 @@ class TestFieldCoverage:
     def test_decoder_config_fields(self):
         cfg = UniEncoderSpanDecoderConfig()
         for f in self.DECODER_FIELDS:
-            assert hasattr(cfg, f), (
-                f"UniEncoderSpanDecoderConfig missing: {f}"
-            )
+            assert hasattr(cfg, f), f"UniEncoderSpanDecoderConfig missing: {f}"
 
     def test_token_decoder_inherits_decoder_fields(self):
         cfg = UniEncoderTokenDecoderConfig()
         for f in self.DECODER_FIELDS:
-            assert hasattr(cfg, f), (
-                f"UniEncoderTokenDecoderConfig missing: {f}"
-            )
+            assert hasattr(cfg, f), f"UniEncoderTokenDecoderConfig missing: {f}"
 
     def test_relex_config_fields(self):
         cfg = UniEncoderRelexConfig()
         for f in self.RELEX_FIELDS:
-            assert hasattr(cfg, f), (
-                f"UniEncoderRelexConfig missing: {f}"
-            )
+            assert hasattr(cfg, f), f"UniEncoderRelexConfig missing: {f}"
 
     def test_biencoder_has_labels_encoder_config(self):
         """labels_encoder_config is needed for reproducibility / Hub
@@ -589,21 +613,23 @@ class TestCrossFieldBehaviour:
     but are absent from GLiNERConfig."""
 
     def test_span_configs_reject_token_level(self):
-        for cls in (UniEncoderSpanConfig, UniEncoderSpanRelexConfig,
-                    BiEncoderSpanConfig):
+        for cls in (UniEncoderSpanConfig, UniEncoderSpanRelexConfig, BiEncoderSpanConfig):
             with pytest.raises(ValueError):
                 cls(span_mode="token_level")
 
     def test_token_configs_force_token_level(self):
         """Token configs override any provided span_mode to 'token_level'."""
-        for cls in (UniEncoderTokenConfig, UniEncoderTokenDecoderConfig,
-                    UniEncoderTokenRelexConfig, BiEncoderTokenConfig):
+        for cls in (
+            UniEncoderTokenConfig,
+            UniEncoderTokenDecoderConfig,
+            UniEncoderTokenRelexConfig,
+            BiEncoderTokenConfig,
+        ):
             cfg = cls(span_mode="markerV0")
             assert cfg.span_mode == "token_level"
 
     def test_routing_priority_decoder_over_encoder(self):
-        cfg = GLiNERConfig(labels_decoder="d", labels_encoder="e",
-                           relations_layer="r")
+        cfg = GLiNERConfig(labels_decoder="d", labels_encoder="e", relations_layer="r")
         assert "decoder" in cfg.model_type
 
     def test_routing_priority_encoder_over_relex(self):
@@ -620,10 +646,21 @@ class TestSpanModeAllowedValues:
     """BaseGLiNERConfig and UniEncoderSpanConfig accept all non-token
     span modes.  This documents the full set so validators can reference it."""
 
-    NON_TOKEN_MODES = sorted([
-        "markerV0", "markerV1", "marker", "query", "mlp", "cat",
-        "conv_conv", "conv_max", "conv_mean", "conv_sum", "conv_share",
-    ])
+    NON_TOKEN_MODES = sorted(
+        [
+            "markerV0",
+            "markerV1",
+            "marker",
+            "query",
+            "mlp",
+            "cat",
+            "conv_conv",
+            "conv_max",
+            "conv_mean",
+            "conv_sum",
+            "conv_share",
+        ],
+    )
 
     @pytest.mark.parametrize("mode", NON_TOKEN_MODES)
     def test_base_config_accepts(self, mode):
@@ -647,7 +684,6 @@ class TestSpanModeAllowedValues:
 
 
 class TestConfigClassHierarchy:
-
     def test_uni_encoder_inherits_base(self):
         assert issubclass(UniEncoderConfig, BaseGLiNERConfig)
 
@@ -661,8 +697,7 @@ class TestConfigClassHierarchy:
         assert issubclass(UniEncoderSpanDecoderConfig, UniEncoderConfig)
 
     def test_token_decoder_inherits_span_decoder(self):
-        assert issubclass(UniEncoderTokenDecoderConfig,
-                          UniEncoderSpanDecoderConfig)
+        assert issubclass(UniEncoderTokenDecoderConfig, UniEncoderSpanDecoderConfig)
 
     def test_relex_inherits_uni(self):
         assert issubclass(UniEncoderRelexConfig, UniEncoderConfig)
@@ -709,14 +744,13 @@ ALL_CONFIG_CLASSES = [
 
 
 class TestSmokeInstantiation:
-
-    @pytest.mark.parametrize("cls", ALL_CONFIG_CLASSES,
-                             ids=lambda c: c.__name__)
+    @pytest.mark.parametrize("cls", ALL_CONFIG_CLASSES, ids=lambda c: c.__name__)
     def test_instantiate_defaults(self, cls):
         cfg = cls()
         assert cfg is not None
 
     def test_config_module_importable(self):
         import gliner.config as mod
+
         assert hasattr(mod, "GLiNERConfig")
         assert hasattr(mod, "BaseGLiNERConfig")

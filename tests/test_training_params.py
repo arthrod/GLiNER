@@ -12,14 +12,13 @@ These tests catch issues identified in the training parameters audit:
 
 import ast
 import inspect
+from pathlib import Path
 
 import pytest
 import transformers
-from pathlib import Path
 
-from gliner.training.trainer import TrainingArguments
 from gliner.model import BaseGLiNER
-
+from gliner.training.trainer import TrainingArguments
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -33,14 +32,11 @@ TRAIN_SCRIPT = REPO_ROOT / "train.py"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _explicit_params(func):
     """Return the set of explicit parameter names (excluding *args / **kwargs)."""
     sig = inspect.signature(func)
-    return {
-        name
-        for name, p in sig.parameters.items()
-        if p.kind not in (p.VAR_KEYWORD, p.VAR_POSITIONAL)
-    }
+    return {name for name, p in sig.parameters.items() if p.kind not in (p.VAR_KEYWORD, p.VAR_POSITIONAL)}
 
 
 def _get_train_model_call():
@@ -48,11 +44,7 @@ def _get_train_model_call():
     source = TRAIN_SCRIPT.read_text()
     tree = ast.parse(source)
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "train_model"
-        ):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "train_model":
             return node
     return None
 
@@ -76,6 +68,7 @@ def _make_args(**overrides):
 # 1. Default Alignment
 # ---------------------------------------------------------------------------
 
+
 class TestTrainingArgsDefaultAlignment:
     """Defaults between create_training_args() and TrainingArguments must match.
 
@@ -92,8 +85,7 @@ class TestTrainingArgsDefaultAlignment:
         factory_default = sig.parameters["masking"].default
 
         assert factory_default == ta_default, (
-            f"masking default mismatch: create_training_args='{factory_default}' "
-            f"vs TrainingArguments='{ta_default}'"
+            f"masking default mismatch: create_training_args='{factory_default}' vs TrainingArguments='{ta_default}'"
         )
 
 
@@ -129,14 +121,14 @@ class TestCreateTrainingArgsExplicitParams:
     def test_param_is_explicit(self, param_name, reason):
         params = _explicit_params(BaseGLiNER.create_training_args)
         assert param_name in params, (
-            f"'{param_name}' is not an explicit parameter in "
-            f"create_training_args(). Reason it should be: {reason}"
+            f"'{param_name}' is not an explicit parameter in create_training_args(). Reason it should be: {reason}"
         )
 
 
 # ---------------------------------------------------------------------------
 # 3. GLiNER-Critical Defaults
 # ---------------------------------------------------------------------------
+
 
 class TestGLiNERCriticalDefaults:
     """Defaults produced by create_training_args() must be safe for GLiNER.
@@ -149,8 +141,7 @@ class TestGLiNERCriticalDefaults:
         """GLiNER uses custom batch dicts; HF default True silently drops columns."""
         args = _make_args()
         assert args.remove_unused_columns is False, (
-            f"remove_unused_columns={args.remove_unused_columns}; "
-            "must be False for GLiNER's custom batch dictionaries"
+            f"remove_unused_columns={args.remove_unused_columns}; must be False for GLiNER's custom batch dictionaries"
         )
 
     @pytest.mark.xfail(reason="create_training_args does not auto-enable eval when save_steps is set")
@@ -166,22 +157,21 @@ class TestGLiNERCriticalDefaults:
         strategy_val = strategy.value if hasattr(strategy, "value") else str(strategy)
 
         assert strategy_val != "no", (
-            f"eval_strategy='{strategy_val}'; evaluation never runs "
-            "even though save_steps=500 is configured"
+            f"eval_strategy='{strategy_val}'; evaluation never runs even though save_steps=500 is configured"
         )
 
     def test_seed_forwarded_via_kwargs(self):
         """seed passed through **kwargs must reach TrainingArguments."""
         args = _make_args(seed=12345)
         assert args.seed == 12345, (
-            f"seed={args.seed}; expected 12345. "
-            "Seed must be forwarded to TrainingArguments for reproducibility."
+            f"seed={args.seed}; expected 12345. Seed must be forwarded to TrainingArguments for reproducibility."
         )
 
 
 # ---------------------------------------------------------------------------
 # 4. train.py Parameter Forwarding
 # ---------------------------------------------------------------------------
+
 
 class TestTrainScriptForwarding:
     """train.py must forward all relevant config parameters to model.train_model()."""
@@ -192,22 +182,21 @@ class TestTrainScriptForwarding:
 
     def test_train_model_call_exists(self):
         """Sanity: train.py must contain a model.train_model() call."""
-        assert len(self.forwarded) > 0, (
-            "No model.train_model() call found in train.py"
-        )
+        assert len(self.forwarded) > 0, "No model.train_model() call found in train.py"
 
-    @pytest.mark.parametrize("param_name", [
-        "label_smoothing",
-        pytest.param("remove_unused_columns", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
-        pytest.param("dataloader_num_workers", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
-        pytest.param("report_to", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
-        pytest.param("use_cpu", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
-    ])
+    @pytest.mark.parametrize(
+        "param_name",
+        [
+            "label_smoothing",
+            pytest.param("remove_unused_columns", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
+            pytest.param("dataloader_num_workers", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
+            pytest.param("report_to", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
+            pytest.param("use_cpu", marks=pytest.mark.xfail(reason="not yet forwarded in train.py")),
+        ],
+    )
     def test_param_forwarded_to_train_model(self, param_name):
         """Critical parameter must appear as a keyword arg in model.train_model()."""
-        assert param_name in self.forwarded, (
-            f"'{param_name}' is not passed to model.train_model() in train.py"
-        )
+        assert param_name in self.forwarded, f"'{param_name}' is not passed to model.train_model() in train.py"
 
     def test_eval_batch_size_independent_of_train_batch_size(self):
         """per_device_eval_batch_size should use a dedicated config field.
@@ -233,10 +222,7 @@ class TestTrainScriptForwarding:
     def test_eval_strategy_forwarded(self):
         """train.py must forward eval_strategy (or evaluation_strategy) so
         evaluation actually runs during training."""
-        assert (
-            "eval_strategy" in self.forwarded
-            or "evaluation_strategy" in self.forwarded
-        ), (
+        assert "eval_strategy" in self.forwarded or "evaluation_strategy" in self.forwarded, (
             "Neither eval_strategy nor evaluation_strategy is forwarded "
             "in train.py's model.train_model() call; evaluation never runs"
         )
@@ -253,8 +239,7 @@ class TestTrainScriptForwarding:
     def test_seed_forwarded(self):
         """train.py must forward seed for full Trainer-level reproducibility."""
         assert "seed" in self.forwarded, (
-            "'seed' is not forwarded in train.py; Trainer shuffle/dropout "
-            "seed differs from torch.manual_seed()"
+            "'seed' is not forwarded in train.py; Trainer shuffle/dropout seed differs from torch.manual_seed()"
         )
 
 
@@ -279,8 +264,7 @@ class TestDeadConfigFields:
         """Config training field must be forwarded to model.train_model()."""
         forwarded = _get_train_model_kwarg_names()
         assert field_name in forwarded, (
-            f"Config field 'training.{field_name}' is defined in config.yaml "
-            f"but never forwarded to model.train_model()"
+            f"Config field 'training.{field_name}' is defined in config.yaml but never forwarded to model.train_model()"
         )
 
     @pytest.mark.xfail(reason="dead config fields not recognized by TrainingArguments")
@@ -299,6 +283,7 @@ class TestDeadConfigFields:
 # ---------------------------------------------------------------------------
 # 6. Label Smoothing
 # ---------------------------------------------------------------------------
+
 
 class TestLabelSmoothing:
     """Label smoothing must be properly wired and guarded against collisions.
@@ -336,6 +321,7 @@ class TestLabelSmoothing:
 # Smoke Tests
 # ---------------------------------------------------------------------------
 
+
 class TestSmoke:
     """Smoke tests: verify the training-args API is importable and functional."""
 
@@ -365,6 +351,4 @@ class TestSmoke:
     def test_kwargs_passthrough_works(self):
         """Verify that **kwargs in create_training_args reaches TrainingArguments."""
         args = _make_args(label_smoothing=0.15)
-        assert args.label_smoothing == pytest.approx(0.15), (
-            "label_smoothing not forwarded through **kwargs"
-        )
+        assert args.label_smoothing == pytest.approx(0.15), "label_smoothing not forwarded through **kwargs"

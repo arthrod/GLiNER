@@ -6,9 +6,8 @@ from pathlib import Path
 import yaml
 
 
-def load_config_as_namespace(config_file: Union[str, Path]) -> argparse.Namespace:
-    """
-    Load YAML/JSON config file as nested Namespace.
+def load_config_as_namespace(config_file: str | Path) -> argparse.Namespace:
+    """Load YAML/JSON config file as nested Namespace.
 
     Args:
         config_file: Path to config file
@@ -32,7 +31,7 @@ def load_config_as_namespace(config_file: Union[str, Path]) -> argparse.Namespac
     return dict_to_namespace(config_dict)
 
 
-def dict_to_namespace(d: Dict[str, Any]) -> argparse.Namespace:
+def dict_to_namespace(d: dict[str, Any]) -> argparse.Namespace:
     """Recursively convert dict to Namespace."""
     namespace = argparse.Namespace()
     for key, value in d.items():
@@ -45,7 +44,7 @@ def dict_to_namespace(d: Dict[str, Any]) -> argparse.Namespace:
     return namespace
 
 
-def namespace_to_dict(namespace: argparse.Namespace) -> Dict[str, Any]:
+def namespace_to_dict(namespace: argparse.Namespace) -> dict[str, Any]:
     """Convert Namespace back to dict."""
     result = {}
     for key, value in vars(namespace).items():
@@ -59,8 +58,7 @@ def namespace_to_dict(namespace: argparse.Namespace) -> Dict[str, Any]:
 
 
 def is_module_available(module_name):
-    """
-    Checks whether the specified Python module is available.
+    """Checks whether the specified Python module is available.
 
     Args:
         module_name (str): The name of the module to check.
@@ -77,5 +75,3 @@ def is_module_available(module_name):
 
 class MissedPackageException(Exception):
     """Raised when the requested decoder model is not supported."""
-
-    pass

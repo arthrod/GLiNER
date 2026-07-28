@@ -105,7 +105,6 @@ class BaseEvaluator(ABC):
         Raises:
             NotImplementedError: If called on the base class directly.
         """
-        pass
 
     @torch.no_grad()
     def evaluate(self):

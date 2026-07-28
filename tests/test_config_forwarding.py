@@ -18,22 +18,23 @@ start passing.
 
 import json
 import inspect
-import importlib
 import tempfile
+import importlib
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import yaml
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_create_training_args():
     """Import and return the create_training_args classmethod."""
     from gliner.model import BaseGLiNER
+
     return BaseGLiNER.create_training_args
 
 
@@ -117,13 +118,13 @@ def _write_config(tmp_path, training_overrides=None):
 def _run_train_main(tmp_path, training_overrides=None):
     """
     Run train.main with GLiNER patched and return the captured train_model call arguments.
-    
+
     Creates a temporary config (optionally applying training_overrides), ensures a GLiNER class is available to the train module, patches GLiNER and load_json_data, invokes train.main with the generated config, and returns the arguments with which the model's train_model was called.
-    
+
     Parameters:
         tmp_path (pathlike): Path to a temporary directory where the config and training data are written.
         training_overrides (dict, optional): Mapping of training configuration fields to override in the generated config.
-    
+
     Returns:
         call_args: The unittest.mock call arguments (args, kwargs) passed to the mocked model.train_model.
     """
@@ -136,10 +137,12 @@ def _run_train_main(tmp_path, training_overrides=None):
     # Ensure the gliner module can be imported by train.py even in
     # constrained test environments.  We only need the GLiNER name.
     import gliner as _gliner_mod
+
     if not hasattr(_gliner_mod, "GLiNER"):
         _gliner_mod.GLiNER = MagicMock()
 
     import train as train_mod
+
     train_mod = importlib.reload(train_mod)
 
     with (
@@ -166,6 +169,7 @@ class TestCreateTrainingArgsSmoke:
 
     def test_returns_training_arguments_instance(self):
         from gliner.training.trainer import TrainingArguments
+
         args = _build_args()
         assert isinstance(args, TrainingArguments)
 
@@ -233,26 +237,39 @@ class TestCreateTrainingArgsSmoke:
         """Every named param documented in the current signature exists."""
         sig = _get_signature()
         expected = {
-            "output_dir", "learning_rate", "weight_decay",
-            "others_lr", "others_weight_decay",
-            "focal_loss_alpha", "focal_loss_gamma", "focal_loss_prob_margin",
-            "loss_reduction", "negatives", "masking",
-            "lr_scheduler_type", "warmup_ratio",
-            "per_device_train_batch_size", "per_device_eval_batch_size",
-            "max_grad_norm", "max_steps", "save_steps", "save_total_limit",
-            "logging_steps", "use_cpu", "bf16",
-            "dataloader_num_workers", "report_to",
+            "output_dir",
+            "learning_rate",
+            "weight_decay",
+            "others_lr",
+            "others_weight_decay",
+            "focal_loss_alpha",
+            "focal_loss_gamma",
+            "focal_loss_prob_margin",
+            "loss_reduction",
+            "negatives",
+            "masking",
+            "lr_scheduler_type",
+            "warmup_ratio",
+            "per_device_train_batch_size",
+            "per_device_eval_batch_size",
+            "max_grad_norm",
+            "max_steps",
+            "save_steps",
+            "save_total_limit",
+            "logging_steps",
+            "use_cpu",
+            "bf16",
+            "dataloader_num_workers",
+            "report_to",
         }
         actual = set(sig.parameters.keys()) - {"cls", "kwargs"}
-        assert expected.issubset(actual), (
-            f"Missing named params: {expected - actual}"
-        )
+        assert expected.issubset(actual), f"Missing named params: {expected - actual}"
 
 
 class TestTrainScriptForwardingValidation:
     """Validation: fields that train.py DOES forward correctly."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def kwargs(self, tmp_path):
         _, kw = _run_train_main(tmp_path)
         return kw
@@ -261,16 +278,16 @@ class TestTrainScriptForwardingValidation:
         assert kwargs["max_steps"] == 100
 
     def test_learning_rate_forwarded(self, kwargs):
-        assert kwargs["learning_rate"] == float(1e-5)
+        assert kwargs["learning_rate"] == 1e-5
 
     def test_others_lr_forwarded(self, kwargs):
-        assert kwargs["others_lr"] == float(3e-5)
+        assert kwargs["others_lr"] == 3e-5
 
     def test_weight_decay_forwarded(self, kwargs):
-        assert kwargs["weight_decay"] == float(0.1)
+        assert kwargs["weight_decay"] == 0.1
 
     def test_others_weight_decay_forwarded(self, kwargs):
-        assert kwargs["others_weight_decay"] == float(0.01)
+        assert kwargs["others_weight_decay"] == 0.01
 
     def test_warmup_ratio_forwarded(self, kwargs):
         assert kwargs["warmup_ratio"] == 0.1
@@ -279,7 +296,7 @@ class TestTrainScriptForwardingValidation:
         assert kwargs["lr_scheduler_type"] == "cosine"
 
     def test_focal_loss_alpha_forwarded(self, kwargs):
-        assert kwargs["focal_loss_alpha"] == float(0.75)
+        assert kwargs["focal_loss_alpha"] == 0.75
 
     def test_focal_loss_gamma_forwarded(self, kwargs):
         assert kwargs["focal_loss_gamma"] == float(2)
@@ -288,7 +305,7 @@ class TestTrainScriptForwardingValidation:
         assert kwargs["loss_reduction"] == "sum"
 
     def test_negatives_forwarded(self, kwargs):
-        assert kwargs["negatives"] == float(1.0)
+        assert kwargs["negatives"] == 1.0
 
     def test_masking_forwarded(self, kwargs):
         assert kwargs["masking"] == "none"
@@ -303,7 +320,7 @@ class TestTrainScriptForwardingValidation:
         # train.py uses cfg.data.root_dir (relative to tmp_path)
         """
         Asserts that the training output directory is forwarded to the model and ends with "/logs".
-        
+
         Parameters:
             kwargs (dict): Keyword arguments captured from train_model call; expected to contain forwarded TrainingArguments fields.
         """
@@ -412,13 +429,12 @@ class TestCreateTrainingArgsSignatureGaps:
     def test_save_safetensors_is_named_parameter(self):
         """
         Check that `create_training_args` exposes `save_safetensors` as a named parameter.
-        
+
         This test asserts that "save_safetensors" appears in the function signature's parameters.
         Marked xfail for environments using Transformers v5 or later where `save_safetensors` was removed.
         """
         assert "save_safetensors" in self.sig.parameters, (
-            "save_safetensors is not a named parameter in create_training_args; "
-            "removed in transformers v5"
+            "save_safetensors is not a named parameter in create_training_args; removed in transformers v5"
         )
 
     def test_remove_unused_columns_is_named_parameter(self):
@@ -456,7 +472,7 @@ class TestTrainScriptForwardingGaps:
     missing or incorrect forwarding.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def kwargs(self, tmp_path):
         """Default config kwargs captured from train.main()."""
         _, kw = _run_train_main(tmp_path)
@@ -479,8 +495,7 @@ class TestTrainScriptForwardingGaps:
     def test_label_smoothing_value_matches_config(self, kwargs):
         """The forwarded label_smoothing value must match the config."""
         assert kwargs.get("label_smoothing") == 0.1, (
-            f"Expected label_smoothing=0.1 from config, "
-            f"got {kwargs.get('label_smoothing')}"
+            f"Expected label_smoothing=0.1 from config, got {kwargs.get('label_smoothing')}"
         )
 
     # -- bf16 -------------------------------------------------------------- #
@@ -494,8 +509,7 @@ class TestTrainScriptForwardingGaps:
         """
         # The test config does NOT set bf16, so it should NOT be forced True.
         assert kwargs.get("bf16") is not True, (
-            "bf16 is hardcoded to True in train.py; it should be read from "
-            "the training config section"
+            "bf16 is hardcoded to True in train.py; it should be read from the training config section"
         )
 
     # -- fp16 -------------------------------------------------------------- #
@@ -508,8 +522,7 @@ class TestTrainScriptForwardingGaps:
         """If fp16 is set in the config, it should reach train_model()."""
         _, kwargs = _run_train_main(tmp_path, {"fp16": True})
         assert "fp16" in kwargs, (
-            "train.py does not forward 'fp16' to model.train_model() "
-            "even when it is present in the config"
+            "train.py does not forward 'fp16' to model.train_model() even when it is present in the config"
         )
 
     # -- eval_every conflation --------------------------------------------- #
@@ -544,8 +557,7 @@ class TestTrainScriptForwardingGaps:
         scheduling relies on this parameter.
         """
         assert "eval_steps" in kwargs, (
-            "train.py never forwards 'eval_steps'; HF Trainer evaluation "
-            "scheduling relies on this parameter"
+            "train.py never forwards 'eval_steps'; HF Trainer evaluation scheduling relies on this parameter"
         )
 
     # -- per_device_eval_batch_size ---------------------------------------- #
@@ -556,10 +568,13 @@ class TestTrainScriptForwardingGaps:
         Report: train.py line 70 uses cfg.training.train_batch_size for
         per_device_eval_batch_size, ignoring any eval-specific setting.
         """
-        _, kwargs = _run_train_main(tmp_path, {
-            "train_batch_size": 4,
-            "eval_batch_size": 8,
-        })
+        _, kwargs = _run_train_main(
+            tmp_path,
+            {
+                "train_batch_size": 4,
+                "eval_batch_size": 8,
+            },
+        )
         eval_bs = kwargs.get("per_device_eval_batch_size")
         train_bs = kwargs.get("per_device_train_batch_size")
         assert eval_bs != train_bs, (
@@ -575,10 +590,13 @@ class TestTrainScriptForwardingGaps:
 
         Report: logging_steps and save_steps are both driven by eval_every.
         """
-        _, kwargs = _run_train_main(tmp_path, {
-            "eval_every": 500,
-            "logging_steps": 10,
-        })
+        _, kwargs = _run_train_main(
+            tmp_path,
+            {
+                "eval_every": 500,
+                "logging_steps": 10,
+            },
+        )
         assert kwargs.get("logging_steps") == 10, (
             f"logging_steps should be 10 (from its own config field), "
             f"got {kwargs.get('logging_steps')} (likely from eval_every)"

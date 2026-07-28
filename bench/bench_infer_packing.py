@@ -3,19 +3,20 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import time
+import argparse
+from typing import Dict, List, Optional
 from dataclasses import asdict, dataclass
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import torch
 from transformers import AutoModel, AutoTokenizer
 
 from gliner import GLiNER
-from gliner.data_processing.collator import DataCollator
 from gliner.infer_packing import InferencePackingConfig, pack_requests
+from gliner.data_processing.collator import DataCollator
 
 
 @dataclass
@@ -25,7 +26,7 @@ class BenchmarkStats:
     padding_ratio: float
 
 
-def _format_table(result: Dict[str, object]) -> str:
+def _format_table(result: dict[str, object]) -> str:
     lines = []
     header = f"{'mode':<10} {'tokens/s':>15} {'examples/s':>15} {'padding':>12}"
     lines.append(header)
@@ -33,7 +34,7 @@ def _format_table(result: Dict[str, object]) -> str:
     for mode in ("baseline", "packed"):
         stats: BenchmarkStats = result[mode]  # type: ignore[assignment]
         lines.append(
-            f"{mode:<10} {stats.tokens_per_s:>15.2e} {stats.examples_per_s:>15.2f} {stats.padding_ratio:>11.2%}"
+            f"{mode:<10} {stats.tokens_per_s:>15.2e} {stats.examples_per_s:>15.2f} {stats.padding_ratio:>11.2%}",
         )
     lines.append("")
     lines.append(f"Speedup (tokens/s): {result['speedup_tokens_per_s']:.2f}x")
@@ -59,10 +60,7 @@ def _parse_args() -> argparse.Namespace:
         "--gliner_model",
         type=str,
         default=None,
-        help=(
-            "Benchmark the full GLiNER network instead of only the encoder by "
-            "providing a model repository or path"
-        ),
+        help=("Benchmark the full GLiNER network instead of only the encoder by providing a model repository or path"),
     )
     parser.add_argument(
         "--gliner_labels",
@@ -77,7 +75,7 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _generate_lengths(args: argparse.Namespace) -> List[int]:
+def _generate_lengths(args: argparse.Namespace) -> list[int]:
     batch = args.batch_size
     max_length = args.max_length
 
@@ -112,7 +110,7 @@ def _prepare_gliner_inputs(
     model: GLiNER,
     lengths: Sequence[int],
     labels: Sequence[str],
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     texts = [_build_dummy_text(length) for length in lengths]
     input_x, _, _ = model.prepare_texts(texts)
     collator = DataCollator(
@@ -122,24 +120,22 @@ def _prepare_gliner_inputs(
         entity_types=list(labels),
     )
     batch = collator(input_x)
-    tensor_inputs = {
-        key: value for key, value in batch.items() if isinstance(value, torch.Tensor)
-    }
+    tensor_inputs = {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
     if "input_ids" not in tensor_inputs or "attention_mask" not in tensor_inputs:
         raise KeyError("GLiNER collator did not return the expected tensors")
     return tensor_inputs
 
 
-def _to_device(inputs: Dict[str, torch.Tensor], device: torch.device) -> Dict[str, torch.Tensor]:
+def _to_device(inputs: dict[str, torch.Tensor], device: torch.device) -> dict[str, torch.Tensor]:
     return {key: value.to(device) for key, value in inputs.items()}
 
 
-def _build_requests(lengths: List[int], vocab_size: int, pad_token_id: int) -> List[Dict[str, List[int]]]:
-    requests: List[Dict[str, List[int]]] = []
+def _build_requests(lengths: list[int], vocab_size: int, pad_token_id: int) -> list[dict[str, list[int]]]:
+    requests: list[dict[str, list[int]]] = []
     token = 0
     for length in lengths:
         actual_len = max(1, min(int(length), vocab_size - 1))
-        sequence: List[int] = []
+        sequence: list[int] = []
         for _ in range(actual_len):
             value = token % vocab_size
             if value == pad_token_id:
@@ -150,7 +146,7 @@ def _build_requests(lengths: List[int], vocab_size: int, pad_token_id: int) -> L
     return requests
 
 
-def _collate_baseline(requests: List[Dict[str, List[int]]], pad_token_id: int) -> Dict[str, torch.Tensor]:
+def _collate_baseline(requests: list[dict[str, list[int]]], pad_token_id: int) -> dict[str, torch.Tensor]:
     max_len = max(len(req["input_ids"]) for req in requests)
     batch = len(requests)
     input_ids = torch.full((batch, max_len), pad_token_id, dtype=torch.long)
@@ -165,12 +161,12 @@ def _collate_baseline(requests: List[Dict[str, List[int]]], pad_token_id: int) -
 
 def _measure_gliner(
     model: GLiNER,
-    inputs: Dict[str, torch.Tensor],
+    inputs: dict[str, torch.Tensor],
     *,
     warmup: int,
     iters: int,
     device: torch.device,
-    packing_config: Optional[InferencePackingConfig] = None,
+    packing_config: InferencePackingConfig | None = None,
 ) -> float:
     with torch.inference_mode():
         for _ in range(max(0, warmup)):
@@ -193,7 +189,7 @@ def _measure_gliner(
 
 def _measure(
     model: AutoModel,
-    inputs: Dict[str, torch.Tensor],
+    inputs: dict[str, torch.Tensor],
     *,
     warmup: int,
     iters: int,
@@ -341,10 +337,18 @@ def main() -> None:
             }
 
         baseline_time = _measure(
-            model, baseline_inputs, warmup=warmup, iters=iters, device=device
+            model,
+            baseline_inputs,
+            warmup=warmup,
+            iters=iters,
+            device=device,
         )
         packed_time = _measure(
-            model, packed_inputs, warmup=warmup, iters=iters, device=device
+            model,
+            packed_inputs,
+            warmup=warmup,
+            iters=iters,
+            device=device,
         )
 
         padded_tokens = baseline_inputs["input_ids"].size(1) * len(requests)
@@ -386,4 +390,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

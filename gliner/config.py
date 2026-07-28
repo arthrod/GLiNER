@@ -31,10 +31,10 @@ class BaseGLiNERConfig(PretrainedConfig):
         fuse_layers: bool = False,
         embed_ent_token: bool = True,
         class_token_index: int = -1,
-        encoder_config: Optional[dict] = None,
+        encoder_config: dict | None = None,
         ent_token: str = "<<ENT>>",
         sep_token: str = "<<SEP>>",
-        _attn_implementation: Optional[str] = None,
+        _attn_implementation: str | None = None,
         token_loss_coef: float = 1.0,
         span_loss_coef: float = 1.0,
         represent_spans: bool = False,
@@ -142,11 +142,11 @@ class UniEncoderSpanDecoderConfig(UniEncoderConfig):
 
     def __init__(
         self,
-        labels_decoder: Optional[str] = None,
-        decoder_mode: Optional[str] = None,
+        labels_decoder: str | None = None,
+        decoder_mode: str | None = None,
         full_decoder_context: bool = True,
         blank_entity_prob: float = 0.1,
-        labels_decoder_config: Optional[dict] = None,
+        labels_decoder_config: dict | None = None,
         decoder_loss_coef=0.5,
         **kwargs,
     ):
@@ -183,15 +183,15 @@ class UniEncoderTokenDecoderConfig(UniEncoderSpanDecoderConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.span_mode = "token_level"
-        self.model_type = "gliner_encoder_token_decoder"
+        self.model_type = "gliner_uni_encoder_token_decoder"
         self.represent_spans = True  # hardcoded to True for token decoder
 
 
 class UniEncoderRelexConfig(UniEncoderConfig):
     def __init__(
         self,
-        relations_layer: Optional[str] = None,
-        triples_layer: Optional[str] = None,
+        relations_layer: str | None = None,
+        triples_layer: str | None = None,
         embed_rel_token: bool = True,
         rel_token_index: int = -1,
         rel_token: str = "<<REL>>",
@@ -238,7 +238,7 @@ class UniEncoderSpanRelexConfig(UniEncoderRelexConfig):
 
 
 class UniEncoderTokenRelexConfig(UniEncoderRelexConfig):
-    """Configuration for uni-encoder token-level model with relation extraction."""
+    """Configuration for uni-encoder token_level model with relation extraction."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -249,7 +249,7 @@ class UniEncoderTokenRelexConfig(UniEncoderRelexConfig):
 class BiEncoderConfig(BaseGLiNERConfig):
     """Base configuration for bi-encoder GLiNER models."""
 
-    def __init__(self, labels_encoder: Optional[str] = None, labels_encoder_config: Optional[dict] = None, **kwargs):
+    def __init__(self, labels_encoder: str | None = None, labels_encoder_config: dict | None = None, **kwargs):
         """Initialize BiEncoderConfig.
 
         Args:
@@ -301,9 +301,9 @@ class GLiNERConfig(BaseGLiNERConfig):
 
     def __init__(
         self,
-        labels_encoder: Optional[str] = None,
-        labels_decoder: Optional[str] = None,
-        relations_layer: Optional[str] = None,
+        labels_encoder: str | None = None,
+        labels_decoder: str | None = None,
+        relations_layer: str | None = None,
         **kwargs,
     ):
         """Initialize GLiNERConfig.
@@ -326,19 +326,16 @@ class GLiNERConfig(BaseGLiNERConfig):
         if self.labels_decoder:
             if self.span_mode == "token_level":
                 return "gliner_uni_encoder_token_decoder"
-            else:
-                return "gliner_uni_encoder_span_decoder"
-        elif self.labels_encoder:
+            return "gliner_uni_encoder_span_decoder"
+        if self.labels_encoder:
             return "gliner_bi_encoder_span" if self.span_mode != "token_level" else "gliner_bi_encoder_token"
-        elif self.relations_layer is not None:
+        if self.relations_layer is not None:
             if self.span_mode == "token_level":
                 return "gliner_uni_encoder_token_relex"
-            else:
-                return "gliner_uni_encoder_span_relex"
-        elif self.span_mode == "token_level":
+            return "gliner_uni_encoder_span_relex"
+        if self.span_mode == "token_level":
             return "gliner_uni_encoder_token"
-        else:
-            return "gliner_uni_encoder_span"
+        return "gliner_uni_encoder_span"
 
 
 # Register all configurations
@@ -356,5 +353,5 @@ CONFIG_MAPPING.update(
         "gliner_bi_encoder": BiEncoderConfig,
         "gliner_bi_encoder_span": BiEncoderSpanConfig,
         "gliner_bi_encoder_token": BiEncoderTokenConfig,
-    }
+    },
 )

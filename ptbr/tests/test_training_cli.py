@@ -56,10 +56,9 @@ MINIMAL_VALID_CONFIG = {
 }
 
 
-@pytest.fixture()
+@pytest.fixture
 def valid_cfg() -> dict:
-    """
-    Return a deep copy of the module's minimal valid configuration.
+    """Return a deep copy of the module's minimal valid configuration.
 
     Returns:
         dict: A deep-copied dictionary of MINIMAL_VALID_CONFIG suitable for use in tests.
@@ -69,10 +68,9 @@ def valid_cfg() -> dict:
     return copy.deepcopy(MINIMAL_VALID_CONFIG)
 
 
-@pytest.fixture()
+@pytest.fixture
 def cfg_file(tmp_path: Path, valid_cfg: dict) -> Path:
-    """
-    Write a configuration dictionary to a temporary YAML file and return its path.
+    """Write a configuration dictionary to a temporary YAML file and return its path.
 
     Parameters:
         tmp_path (Path): Directory in which to create the temporary config file (typically pytest's tmp_path).
@@ -132,9 +130,7 @@ class TestCheckType:
 
     def test_bool_not_int(self) -> None:
         # bool is a subclass of int, but we don't want bools matching int
-        """
-        Ensure _check_type does not treat boolean values as integers.
-        """
+        """Ensure _check_type does not treat boolean values as integers."""
         assert _check_type(True, int) is False
 
     def test_bool_matches_bool(self) -> None:
@@ -154,8 +150,7 @@ class TestCheckType:
 
 class TestValidateConfig:
     def test_minimal_valid(self, valid_cfg: dict) -> None:
-        """
-        Verifies that a minimal valid configuration passes validation.
+        """Verifies that a minimal valid configuration passes validation.
 
         Parameters:
             valid_cfg (dict): A minimal configuration dictionary expected to conform to the validator's schema.
@@ -280,8 +275,7 @@ class TestSemanticChecks:
         assert any("hub_model_id" in e for e in result.errors)
 
     def test_positive_num_steps(self, valid_cfg: dict) -> None:
-        """
-        Verify semantic validation reports an error when training.num_steps is not greater than zero.
+        """Verify semantic validation reports an error when training.num_steps is not greater than zero.
 
         This test sets `training.num_steps` to 0 and asserts that `ValidationResult` contains an error mentioning "num_steps".
 
@@ -549,8 +543,7 @@ class TestCLI:
         assert len(logs) >= 1
 
     def test_resume_without_output_folder(self, cfg_file: Path) -> None:
-        """
-        Allow validation to run when `--resume` is supplied without `--output-folder`.
+        """Allow validation to run when `--resume` is supplied without `--output-folder`.
 
         Invokes the CLI with `--validate` and `--resume` for the provided config file
         and asserts the command exits with code 0.

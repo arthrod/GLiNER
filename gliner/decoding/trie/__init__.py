@@ -1,9 +1,9 @@
 from ...utils import is_module_available
 
 if is_module_available("pyximport"):
-    import pyximport  # type: ignore
+    import pyximport
 
-    pyximport.install()  # type: ignore
+    pyximport.install()
     try:
         from gliner.decoding.trie.labels_trie import LabelsTrie
     except ImportError:

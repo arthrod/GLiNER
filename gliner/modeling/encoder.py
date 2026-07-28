@@ -1,7 +1,8 @@
+import os
 import warnings
 from typing import Any, Dict, List, Tuple, Union, Optional
 from pathlib import Path
-import os
+
 import torch
 from torch import nn
 from transformers import AutoModel, AutoConfig
@@ -61,8 +62,8 @@ class Transformer(nn.Module):
         config: Any,
         from_pretrained: bool = False,
         labels_encoder: bool = False,
-        cache_dir: Optional[Union[str, Path]] = None,
-        trust_remote_code: Optional[bool] = None,
+        cache_dir: str | Path | None = None,
+        trust_remote_code: bool | None = None,
     ) -> None:
         """Initializes the transformer wrapper.
 
@@ -109,28 +110,27 @@ class Transformer(nn.Module):
         if config_name in DECODER_MODEL_MAPPING:
             if not IS_LLM2VEC:
                 raise MissedPackageException(
-                    f"The llm2vec package must be installed to use this decoder model: {config_name}"
+                    f"The llm2vec package must be installed to use this decoder model: {config_name}",
                 )
-            else:
-                ModelClass = DECODER_MODEL_MAPPING[config_name]
+            ModelClass = DECODER_MODEL_MAPPING[config_name]
             custom = True
-        elif config_name in {'T5Config', 'MT5Config'}:
-            custom=True
+        elif config_name in {"T5Config", "MT5Config"}:
+            custom = True
             turbot5_type = os.environ.get("TURBOT5_ATTN_TYPE", "basic")
             if turbot5_type and IS_TURBOT5:
                 ModelClass = FlashT5EncoderModel
-                kwargs = {'attention_type': turbot5_type}
-                config.encoder_config.attention_type=turbot5_type
+                kwargs = {"attention_type": turbot5_type}
+                config.encoder_config.attention_type = turbot5_type
             else:
                 ModelClass = T5EncoderModel
-        elif config_name in {'DebertaV2Config'}:
+        elif config_name in {"DebertaV2Config"}:
             custom = True
             if os.environ.get("USE_FLASHDEBERTA", "") and IS_FLASHDEBERTA:
-                print('Using FlashDeberta backend.')
+                print("Using FlashDeberta backend.")
                 ModelClass = FlashDebertaV2Model
             else:
                 ModelClass = DebertaV2Model
-            
+
         else:
             custom = False
             ModelClass = AutoModel
@@ -264,10 +264,10 @@ class Transformer(nn.Module):
     def _prepare_pair_attention_masks(
         self,
         pair_attention_mask: torch.Tensor,
-        attention_mask: Optional[torch.Tensor],
-        input_ids: Optional[torch.Tensor],
-        inputs_embeds: Optional[torch.Tensor],
-    ) -> Dict[str, torch.Tensor]:
+        attention_mask: torch.Tensor | None,
+        input_ids: torch.Tensor | None,
+        inputs_embeds: torch.Tensor | None,
+    ) -> dict[str, torch.Tensor]:
         """Prepares attention masks for packed sequence processing.
 
         Converts pair attention masks (which specify token-to-token visibility) into
@@ -339,9 +339,9 @@ class Transformer(nn.Module):
 
     def _forward_deberta(
         self,
-        input_ids: Optional[torch.Tensor],
-        model_kwargs: Dict[str, Any],
-        mask_info: Dict[str, torch.Tensor],
+        input_ids: torch.Tensor | None,
+        model_kwargs: dict[str, Any],
+        mask_info: dict[str, torch.Tensor],
     ) -> BaseModelOutput:
         """Forward pass through DeBERTa models with packed attention support.
 
@@ -439,9 +439,9 @@ class Transformer(nn.Module):
 
     def _forward_modernbert(
         self,
-        input_ids: Optional[torch.Tensor],
-        model_kwargs: Dict[str, Any],
-        mask_info: Dict[str, torch.Tensor],
+        input_ids: torch.Tensor | None,
+        model_kwargs: dict[str, Any],
+        mask_info: dict[str, torch.Tensor],
     ) -> BaseModelOutput:
         """Forward pass through ModernBERT models with packed attention support.
 
@@ -548,9 +548,9 @@ class Transformer(nn.Module):
 
     def _forward_t5(
         self,
-        input_ids: Optional[torch.Tensor],
-        model_kwargs: Dict[str, Any],
-        mask_info: Dict[str, torch.Tensor],
+        input_ids: torch.Tensor | None,
+        model_kwargs: dict[str, Any],
+        mask_info: dict[str, torch.Tensor],
     ) -> BaseModelOutput:
         """Forward pass through T5 encoder models with packed attention support.
 
@@ -696,8 +696,8 @@ class Encoder(nn.Module):
         self,
         config: Any,
         from_pretrained: bool = False,
-        cache_dir: Optional[Union[str, Path]] = None,
-        trust_remote_code: Optional[bool] = None,
+        cache_dir: str | Path | None = None,
+        trust_remote_code: bool | None = None,
     ) -> None:
         """Initializes the encoder.
 
@@ -726,7 +726,7 @@ class Encoder(nn.Module):
         if config.hidden_size != bert_hidden_size:
             self.projection = nn.Linear(bert_hidden_size, config.hidden_size)
 
-    def resize_token_embeddings(self, new_num_tokens: int, pad_to_multiple_of: Optional[int] = None) -> nn.Embedding:
+    def resize_token_embeddings(self, new_num_tokens: int, pad_to_multiple_of: int | None = None) -> nn.Embedding:
         """Resizes token embeddings to accommodate new vocabulary size.
 
         Args:
@@ -748,7 +748,11 @@ class Encoder(nn.Module):
         return self.bert_layer.model.get_input_embeddings()
 
     def encode_text(
-        self, input_ids: torch.Tensor, attention_mask: torch.Tensor, *args: Any, **kwargs: Any
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        *args: Any,
+        **kwargs: Any,
     ) -> torch.Tensor:
         """Encodes input text sequences into contextualized embeddings.
 
@@ -767,7 +771,7 @@ class Encoder(nn.Module):
         Returns:
             Token embeddings of shape (batch_size, seq_len, hidden_size).
         """
-        packing_config: Optional[InferencePackingConfig] = kwargs.pop("packing_config", None)
+        packing_config: InferencePackingConfig | None = kwargs.pop("packing_config", None)
         pair_attention_mask = kwargs.pop("pair_attention_mask", None)
 
         if (
@@ -805,7 +809,7 @@ class Encoder(nn.Module):
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         packing_config: InferencePackingConfig,
-        pair_attention_mask: Optional[torch.Tensor],
+        pair_attention_mask: torch.Tensor | None,
         *args: Any,
         **kwargs: Any,
     ) -> torch.Tensor:
@@ -868,7 +872,7 @@ class Encoder(nn.Module):
             **bert_kwargs,
         )
 
-        unpacked: List[torch.Tensor] = unpack_spans(token_embeddings, packed)
+        unpacked: list[torch.Tensor] = unpack_spans(token_embeddings, packed)
         hidden_size = token_embeddings.size(-1)
         batch, seq = input_ids.size()
         output = token_embeddings.new_zeros(batch, seq, hidden_size)
@@ -912,8 +916,8 @@ class BiEncoder(Encoder):
         self,
         config: Any,
         from_pretrained: bool = False,
-        cache_dir: Optional[Union[str, Path]] = None,
-        trust_remote_code: Optional[bool] = None,
+        cache_dir: str | Path | None = None,
+        trust_remote_code: bool | None = None,
     ) -> None:
         """Initializes the bi-encoder.
 
@@ -954,7 +958,7 @@ class BiEncoder(Encoder):
         ignoring padded positions.
 
         Args:
-            token_embeddings: Token-level embeddings of shape (batch_size, seq_len, hidden_size).
+            token_embeddings: token_level embeddings of shape (batch_size, seq_len, hidden_size).
             attention_mask: Binary mask of shape (batch_size, seq_len) where 1 indicates
                 valid tokens and 0 indicates padding.
 
@@ -965,7 +969,11 @@ class BiEncoder(Encoder):
         return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
     def encode_labels(
-        self, input_ids: torch.Tensor, attention_mask: torch.Tensor, *args: Any, **kwargs: Any
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        *args: Any,
+        **kwargs: Any,
     ) -> torch.Tensor:
         """Encodes label sequences into fixed-size embeddings.
 
@@ -996,14 +1004,14 @@ class BiEncoder(Encoder):
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        labels_input_ids: Optional[torch.Tensor] = None,
-        labels_attention_mask: Optional[torch.Tensor] = None,
+        labels_input_ids: torch.Tensor | None = None,
+        labels_attention_mask: torch.Tensor | None = None,
         *args: Any,
         **kwargs: Any,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through the bi-encoder.
 
-        Encodes both text sequences (token-level) and label sequences (pooled) to
+        Encodes both text sequences (token_level) and label sequences (pooled) to
         produce aligned representations.
 
         Args:

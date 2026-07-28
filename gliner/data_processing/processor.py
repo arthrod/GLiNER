@@ -1,8 +1,9 @@
 import random
 import warnings
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Union, Optional, Sequence
+from typing import Dict, List, Tuple, Union, Optional
 from collections import defaultdict
+from collections.abc import Sequence
 
 import torch
 from torch.utils.data import DataLoader
@@ -66,11 +67,13 @@ class BaseProcessor(ABC):
                 tokenizer.pad_token = tokenizer.eos_token
             else:
                 warnings.warn(
-                    "Tokenizer missing 'pad_token'. Consider setting it explicitly.", UserWarning, stacklevel=2
+                    "Tokenizer missing 'pad_token'. Consider setting it explicitly.",
+                    UserWarning,
+                    stacklevel=2,
                 )
 
     @staticmethod
-    def get_dict(spans: List[Tuple[int, int, str]], classes_to_id: Dict[str, int]) -> Dict[Tuple[int, int], int]:
+    def get_dict(spans: list[tuple[int, int, str]], classes_to_id: dict[str, int]) -> dict[tuple[int, int], int]:
         """Create a dictionary mapping spans to their class IDs.
 
         Args:
@@ -88,8 +91,11 @@ class BaseProcessor(ABC):
 
     @abstractmethod
     def preprocess_example(
-        self, tokens: List[str], ner: List[Tuple[int, int, str]], classes_to_id: Dict[str, int]
-    ) -> Dict:
+        self,
+        tokens: list[str],
+        ner: list[tuple[int, int, str]],
+        classes_to_id: dict[str, int],
+    ) -> dict:
         """Preprocess a single example for model input.
 
         Args:
@@ -124,7 +130,6 @@ class BaseProcessor(ABC):
         Raises:
             NotImplementedError: Must be implemented by subclasses.
         """
-        pass
 
     def sort_entities_and_relations(self, ner, relations=None):
         if ner is not None and len(ner) > 0:
@@ -152,11 +157,11 @@ class BaseProcessor(ABC):
     def prepare_inputs(
         self,
         texts: Sequence[Sequence[str]],
-        entities: Union[Sequence[Sequence[str]], Dict[int, Sequence[str]], Sequence[str]],
-        blank: Optional[str] = None,
-        add_entities: Optional[bool] = True,
+        entities: Sequence[Sequence[str]] | dict[int, Sequence[str]] | Sequence[str],
+        blank: str | None = None,
+        add_entities: bool | None = True,
         **kwargs,
-    ) -> Tuple[List[List[str]], List[int]]:
+    ) -> tuple[list[list[str]], list[int]]:
         """Prepare input texts with entity type prompts.
 
         Prepends entity type special tokens that aggregates entity label information.
@@ -176,14 +181,14 @@ class BaseProcessor(ABC):
                 - List of input text sequences with prepended prompts
                 - List of prompt lengths for each example
         """
-        input_texts: List[List[str]] = []
-        prompt_lengths: List[int] = []
+        input_texts: list[list[str]] = []
+        prompt_lengths: list[int] = []
 
         for i, text in enumerate(texts):
             ents = self._select_entities(i, entities, blank)
 
             ents = self._maybe_remap_entities(ents)
-            prompt: List[str] = []
+            prompt: list[str] = []
             for ent in ents:
                 prompt.append(self.ent_token)
                 if add_entities:
@@ -199,9 +204,9 @@ class BaseProcessor(ABC):
     def _select_entities(
         self,
         i: int,
-        entities: Union[Sequence[Sequence[str]], Dict[int, Sequence[str]], Sequence[str]],
-        blank: Optional[str] = None,
-    ) -> List[str]:
+        entities: Sequence[Sequence[str]] | dict[int, Sequence[str]] | Sequence[str],
+        blank: str | None = None,
+    ) -> list[str]:
         """Select entities for a specific example.
 
         Args:
@@ -222,7 +227,7 @@ class BaseProcessor(ABC):
             return list(entities)  # type: ignore[list-item]
         return []
 
-    def _maybe_remap_entities(self, ents: Sequence[str]) -> List[str]:
+    def _maybe_remap_entities(self, ents: Sequence[str]) -> list[str]:
         """Optionally remap entity types.
 
         Default implementation returns entities as-is. Subclasses can override
@@ -236,7 +241,7 @@ class BaseProcessor(ABC):
         """
         return list(ents)
 
-    def _extra_prompt_tokens(self, i: int, text: Sequence[str], ents: Sequence[str]) -> List[str]:
+    def _extra_prompt_tokens(self, i: int, text: Sequence[str], ents: Sequence[str]) -> list[str]:
         """Add extra tokens to the prompt.
 
         Default implementation returns no extra tokens. Subclasses can override
@@ -262,7 +267,7 @@ class BaseProcessor(ABC):
             tokenized_inputs: Tokenized inputs from transformer tokenizer.
             skip_first_words: Optional list of word counts to skip per example
                 (e.g., prompt words).
-            token_level: If True, create token-level masks instead of word-level.
+            token_level: If True, create token_level masks instead of word-level.
 
         Returns:
             Word mask array.
@@ -305,8 +310,12 @@ class BaseProcessor(ABC):
         return tokenized_inputs
 
     def batch_generate_class_mappings(
-        self, batch_list: List[Dict], negatives: Optional[List[str]] = None, key: str = "ner", sampled_neg: int = 100
-    ) -> Tuple[List[Dict[str, int]], List[Dict[int, str]]]:
+        self,
+        batch_list: list[dict],
+        negatives: list[str] | None = None,
+        key: str = "ner",
+        sampled_neg: int = 100,
+    ) -> tuple[list[dict[str, int]], list[dict[int, str]]]:
         """Generate class mappings for a batch with negative sampling.
 
         Creates bidirectional mappings between class labels and integer IDs,
@@ -353,13 +362,13 @@ class BaseProcessor(ABC):
 
     def collate_raw_batch(
         self,
-        batch_list: List[Dict],
-        entity_types: Optional[List[Union[str, List[str]]]] = None,
-        negatives: Optional[List[str]] = None,
-        class_to_ids: Optional[Union[Dict[str, int], List[Dict[str, int]]]] = None,
-        id_to_classes: Optional[Union[Dict[int, str], List[Dict[int, str]]]] = None,
+        batch_list: list[dict],
+        entity_types: list[str | list[str]] | None = None,
+        negatives: list[str] | None = None,
+        class_to_ids: dict[str, int] | list[dict[str, int]] | None = None,
+        id_to_classes: dict[int, str] | list[dict[int, str]] | None = None,
         key="ner",
-    ) -> Dict:
+    ) -> dict:
         """Collate a raw batch with optional dynamic or provided label mappings.
 
         Args:
@@ -414,8 +423,11 @@ class BaseProcessor(ABC):
 
     @abstractmethod
     def create_batch_dict(
-        self, batch: List[Dict], class_to_ids: List[Dict[str, int]], id_to_classes: List[Dict[int, str]]
-    ) -> Dict:
+        self,
+        batch: list[dict],
+        class_to_ids: list[dict[str, int]],
+        id_to_classes: list[dict[int, str]],
+    ) -> dict:
         """Create a batch dictionary from preprocessed examples.
 
         Args:
@@ -602,7 +614,7 @@ class UniEncoderSpanProcessor(BaseProcessor):
 class UniEncoderTokenProcessor(BaseProcessor):
     """Processor for token-based NER with uni-encoder architecture.
 
-    This processor handles token-level classification where each token is
+    This processor handles token_level classification where each token is
     labeled with BIO-style tags (Begin, Inside, Outside) for each entity type.
     """
 
@@ -788,7 +800,7 @@ class UniEncoderTokenProcessor(BaseProcessor):
         return batch_dict
 
     def create_labels(self, batch):
-        """Create token-level labels with begin/inside/end markers.
+        """Create token_level labels with begin/inside/end markers.
 
         Creates labels indicating which tokens are at the start, end, or inside
         of entity spans for each entity type.
@@ -868,7 +880,7 @@ class UniEncoderTokenProcessor(BaseProcessor):
         return labels_one_hot
 
     def tokenize_and_prepare_labels(self, batch, prepare_labels, *args, **kwargs):
-        """Tokenize inputs and prepare token-level labels for a batch.
+        """Tokenize inputs and prepare token_level labels for a batch.
 
         Args:
             batch: Batch dictionary with tokens and class mappings.
@@ -953,8 +965,10 @@ class BaseBiEncoderProcessor(BaseProcessor):
         return tokenized_inputs
 
     def batch_generate_class_mappings(
-        self, batch_list: List[Dict], *args
-    ) -> Tuple[List[Dict[str, int]], List[Dict[int, str]]]:
+        self,
+        batch_list: list[dict],
+        *args,
+    ) -> tuple[list[dict[str, int]], list[dict[int, str]]]:
         """Generate class mappings for bi-encoder with batch-level type pooling.
 
         Unlike uni-encoder which generates per-example mappings, bi-encoder
@@ -1031,12 +1045,12 @@ class BiEncoderSpanProcessor(UniEncoderSpanProcessor, BaseBiEncoderProcessor):
 class BiEncoderTokenProcessor(UniEncoderTokenProcessor, BaseBiEncoderProcessor):
     """Processor for token-based NER with bi-encoder architecture.
 
-    Combines token-level classification from UniEncoderTokenProcessor with the
+    Combines token_level classification from UniEncoderTokenProcessor with the
     dual-encoder approach from BaseBiEncoderProcessor.
     """
 
     def tokenize_and_prepare_labels(self, batch, prepare_labels, prepare_entities=True, **kwargs):
-        """Tokenize inputs and prepare token-level labels for bi-encoder.
+        """Tokenize inputs and prepare token_level labels for bi-encoder.
 
         Args:
             batch: Batch dictionary with tokens and class mappings.
@@ -1140,7 +1154,10 @@ class UniEncoderSpanDecoderProcessor(UniEncoderSpanProcessor):
 
             if self.config.full_decoder_context:
                 decoder_words_masks = self.prepare_word_mask(
-                    texts, decoder_tokenized_inputs, skip_first_words=prompt_lengths, token_level=True
+                    texts,
+                    decoder_tokenized_inputs,
+                    skip_first_words=prompt_lengths,
+                    token_level=True,
                 )
                 tokenized_inputs["decoder_words_mask"] = torch.tensor(decoder_words_masks)
 
@@ -1151,7 +1168,11 @@ class UniEncoderSpanDecoderProcessor(UniEncoderSpanProcessor):
             decoder_label_strings = ["other"]
 
         decoder_tokenized_input = self.decoder_tokenizer(
-            decoder_label_strings, return_tensors="pt", truncation=True, padding="longest", add_special_tokens=True
+            decoder_label_strings,
+            return_tensors="pt",
+            truncation=True,
+            padding="longest",
+            add_special_tokens=True,
         )
         decoder_input_ids = decoder_tokenized_input["input_ids"]
         decoder_attention_mask = decoder_tokenized_input["attention_mask"]
@@ -1258,17 +1279,17 @@ class UniEncoderSpanDecoderProcessor(UniEncoderSpanProcessor):
 class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoderTokenProcessor):
     """Processor for token-based NER with encoder-decoder architecture.
 
-    This processor combines token-level BIO-style classification with a decoder
+    This processor combines token_level BIO-style classification with a decoder
     that generates entity type labels autoregressively, enabling more flexible
-    prediction strategies for token-level NER tasks.
+    prediction strategies for token_level NER tasks.
 
     Inherits from:
         - UniEncoderSpanDecoderProcessor: Encoder-decoder architecture and decoder utilities
-        - UniEncoderTokenProcessor: Token-level BIO tagging for entities
+        - UniEncoderTokenProcessor: token_level BIO tagging for entities
     """
 
     def __init__(self, config, tokenizer, words_splitter, decoder_tokenizer):
-        """Initialize the token-level encoder-decoder processor.
+        """Initialize the token_level encoder-decoder processor.
 
         Args:
             config: Configuration object.
@@ -1280,9 +1301,9 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
         super().__init__(config, tokenizer, words_splitter, decoder_tokenizer)
 
     def preprocess_example(self, tokens, ner, classes_to_id):
-        """Preprocess a single example for token-level encoder-decoder prediction.
+        """Preprocess a single example for token_level encoder-decoder prediction.
 
-        Uses token-level preprocessing from UniEncoderTokenProcessor while
+        Uses token_level preprocessing from UniEncoderTokenProcessor while
         preparing for decoder-based label generation.
 
         Args:
@@ -1313,7 +1334,7 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
             id_to_classes: List of ID-to-class mappings.
 
         Returns:
-            Dictionary containing all batch data for token-level encoder-decoder
+            Dictionary containing all batch data for token_level encoder-decoder
             processing.
         """
         # Use token processor's batch dict creation
@@ -1322,7 +1343,7 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
     def create_labels(self, batch, blank=None):
         """Create labels for both token classification and decoder generation.
 
-        Creates both token-level BIO labels and decoder generation labels for
+        Creates both token_level BIO labels and decoder generation labels for
         entity types.
 
         Args:
@@ -1331,10 +1352,10 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
 
         Returns:
             Tuple containing:
-                - Token-level labels (BIO-style, shape: [batch_size, seq_len, num_classes, 3])
+                - token_level labels (BIO-style, shape: [batch_size, seq_len, num_classes, 3])
                 - Decoder generation labels (tokenized entity types) or None
         """
-        # Create token-level labels
+        # Create token_level labels
         token_labels = UniEncoderTokenProcessor.create_labels(self, batch)
 
         # Create decoder labels
@@ -1361,10 +1382,10 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
         return token_labels, decoder_tokenized_input
 
     def tokenize_and_prepare_labels(self, batch, prepare_labels, *args, **kwargs):
-        """Tokenize inputs and prepare labels for token-level encoder-decoder training.
+        """Tokenize inputs and prepare labels for token_level encoder-decoder training.
 
-        Combines token-level input processing with decoder inputs and prepares
-        both token-level BIO labels and decoder generation labels.
+        Combines token_level input processing with decoder inputs and prepares
+        both token_level BIO labels and decoder generation labels.
 
         Args:
             batch: Batch dictionary with tokens and class mappings.
@@ -1373,7 +1394,7 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
             **kwargs: Arbitrary keyword arguments.
 
         Returns:
-            Dictionary containing encoder inputs, decoder inputs, token-level labels,
+            Dictionary containing encoder inputs, decoder inputs, token_level labels,
             and decoder labels.
         """
         blank = None
@@ -1382,11 +1403,14 @@ class UniEncoderTokenDecoderProcessor(UniEncoderSpanDecoderProcessor, UniEncoder
 
         # Use span decoder's tokenize_inputs for encoder-decoder tokenization
         tokenized_input = UniEncoderSpanDecoderProcessor.tokenize_inputs(
-            self, batch["tokens"], batch["classes_to_id"], blank
+            self,
+            batch["tokens"],
+            batch["classes_to_id"],
+            blank,
         )
 
         if prepare_labels:
-            # Create both token-level and decoder labels
+            # Create both token_level and decoder labels
             token_labels, decoder_tokenized_input = self.create_labels(batch, blank=blank)
             tokenized_input["labels"] = token_labels
 
@@ -1426,11 +1450,11 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
 
     def batch_generate_class_mappings(
         self,
-        batch_list: List[Dict],
-        ner_negatives: Optional[List[str]] = None,
-        rel_negatives: Optional[List[str]] = None,
+        batch_list: list[dict],
+        ner_negatives: list[str] | None = None,
+        rel_negatives: list[str] | None = None,
         sampled_neg: int = 100,
-    ) -> Tuple[List[Dict[str, int]], List[Dict[int, str]], List[Dict[str, int]], List[Dict[int, str]]]:
+    ) -> tuple[list[dict[str, int]], list[dict[int, str]], list[dict[str, int]], list[dict[int, str]]]:
         """Generate class mappings for both entities and relations.
 
         Creates separate mappings for entity types and relation types with
@@ -1503,17 +1527,17 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
 
     def collate_raw_batch(
         self,
-        batch_list: List[Dict],
-        entity_types: Optional[List[Union[str, List[str]]]] = None,
-        relation_types: Optional[List[Union[str, List[str]]]] = None,
-        ner_negatives: Optional[List[str]] = None,
-        rel_negatives: Optional[List[str]] = None,
-        class_to_ids: Optional[Union[Dict[str, int], List[Dict[str, int]]]] = None,
-        id_to_classes: Optional[Union[Dict[int, str], List[Dict[int, str]]]] = None,
-        rel_class_to_ids: Optional[Union[Dict[str, int], List[Dict[str, int]]]] = None,
-        rel_id_to_classes: Optional[Union[Dict[int, str], List[Dict[int, str]]]] = None,
+        batch_list: list[dict],
+        entity_types: list[str | list[str]] | None = None,
+        relation_types: list[str | list[str]] | None = None,
+        ner_negatives: list[str] | None = None,
+        rel_negatives: list[str] | None = None,
+        class_to_ids: dict[str, int] | list[dict[str, int]] | None = None,
+        id_to_classes: dict[int, str] | list[dict[int, str]] | None = None,
+        rel_class_to_ids: dict[str, int] | list[dict[str, int]] | None = None,
+        rel_id_to_classes: dict[int, str] | list[dict[int, str]] | None = None,
         key="ner",
-    ) -> Dict:
+    ) -> dict:
         """Collate a raw batch with entity and relation label mappings.
 
         Args:
@@ -1535,7 +1559,9 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
         if class_to_ids is None and entity_types is None:
             # Dynamically infer per-example mappings
             class_to_ids, id_to_classes, rel_class_to_ids, rel_id_to_classes = self.batch_generate_class_mappings(
-                batch_list, ner_negatives, rel_negatives
+                batch_list,
+                ner_negatives,
+                rel_negatives,
             )
         elif class_to_ids is None:
             # Build mappings from entity_types
@@ -1568,7 +1594,11 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
         else:
             batch = [
                 self.preprocess_example(
-                    b["tokenized_text"], b[key], class_to_ids, b.get("relations", []), rel_class_to_ids
+                    b["tokenized_text"],
+                    b[key],
+                    class_to_ids,
+                    b.get("relations", []),
+                    rel_class_to_ids,
                 )
                 for b in batch_list
             ]
@@ -1706,7 +1736,7 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
     def create_relation_labels(self, batch, add_reversed_negatives=True, add_random_negatives=True, negative_ratio=2.0):
         """Create relation labels with negative pair sampling.
 
-        Overrides the span-based version to work with token-level entity representations.
+        Overrides the span-based version to work with token_level entity representations.
         Uses entities_id count instead of span_label for entity counting.
 
         Args:
@@ -1821,11 +1851,11 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
     def prepare_inputs(
         self,
         texts: Sequence[Sequence[str]],
-        entities: Union[Sequence[Sequence[str]], Dict[int, Sequence[str]], Sequence[str]],
-        blank: Optional[str] = None,
-        relations: Optional[Union[Sequence[Sequence[str]], Dict[int, Sequence[str]], Sequence[str]]] = None,
+        entities: Sequence[Sequence[str]] | dict[int, Sequence[str]] | Sequence[str],
+        blank: str | None = None,
+        relations: Sequence[Sequence[str]] | dict[int, Sequence[str]] | Sequence[str] | None = None,
         **kwargs,
-    ) -> Tuple[List[List[str]], List[int]]:
+    ) -> tuple[list[list[str]], list[int]]:
         """Prepare input texts with entity and relation type prompts.
 
         Extends the base prepare_inputs to include relation type tokens in the prompt.
@@ -1842,8 +1872,8 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
                 - List of input text sequences with prepended prompts
                 - List of prompt lengths for each example
         """
-        input_texts: List[List[str]] = []
-        prompt_lengths: List[int] = []
+        input_texts: list[list[str]] = []
+        prompt_lengths: list[int] = []
 
         for i, text in enumerate(texts):
             ents = self._select_entities(i, entities, blank)
@@ -1852,7 +1882,7 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
             rels = self._select_entities(i, relations, blank) if relations else []
             rels = self._maybe_remap_entities(rels)
 
-            prompt: List[str] = []
+            prompt: list[str] = []
             for ent in ents:
                 prompt += [self.ent_token, str(ent)]
             prompt.append(self.sep_token)
@@ -1908,7 +1938,10 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
             matrix, and relation labels.
         """
         tokenized_input = self.tokenize_inputs(
-            batch["tokens"], batch["classes_to_id"], blank=None, relations=batch["rel_class_to_ids"]
+            batch["tokens"],
+            batch["classes_to_id"],
+            blank=None,
+            relations=batch["rel_class_to_ids"],
         )
 
         if prepare_labels:
@@ -1923,14 +1956,14 @@ class RelationExtractionSpanProcessor(UniEncoderSpanProcessor):
 
 
 class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtractionSpanProcessor):
-    """Processor for joint entity and relation extraction using token-level NER.
+    """Processor for joint entity and relation extraction using token_level NER.
 
     Extends token-based NER processing to additionally handle relation extraction
     between entity pairs, supporting end-to-end joint training with BIO-style
     entity tagging.
 
     Inherits from:
-        - UniEncoderTokenProcessor: Token-level BIO tagging for entities
+        - UniEncoderTokenProcessor: token_level BIO tagging for entities
         - RelationExtractionSpanProcessor: Relation extraction utilities
     """
 
@@ -1948,7 +1981,7 @@ class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtract
     def preprocess_example(self, tokens, ner, classes_to_id, relations=None, rel_classes_to_id=None):
         """Preprocess a single example for joint entity and relation extraction.
 
-        Processes both entity annotations (for token-level BIO tagging) and
+        Processes both entity annotations (for token_level BIO tagging) and
         relation triplets, ensuring consistent indexing when entities are reordered.
 
         Args:
@@ -2047,7 +2080,7 @@ class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtract
 
         Returns:
             Dictionary containing all batch data for joint entity and relation
-            extraction with token-level entity labels.
+            extraction with token_level entity labels.
         """
         tokens = [el["tokens"] for el in batch]
         seq_length = torch.LongTensor([el["seq_length"] for el in batch]).unsqueeze(-1)
@@ -2098,16 +2131,19 @@ class RelationExtractionTokenProcessor(UniEncoderTokenProcessor, RelationExtract
             **kwargs: Arbitrary keyword arguments.
 
         Returns:
-            Dictionary containing tokenized inputs, token-level entity labels,
+            Dictionary containing tokenized inputs, token_level entity labels,
             relation adjacency matrix, and relation labels.
         """
         # Use relation-aware tokenize_inputs from RelationExtractionSpanProcessor
         tokenized_input = self.tokenize_inputs(
-            batch["tokens"], batch["classes_to_id"], blank=None, relations=batch["rel_class_to_ids"]
+            batch["tokens"],
+            batch["classes_to_id"],
+            blank=None,
+            relations=batch["rel_class_to_ids"],
         )
 
         if prepare_labels:
-            # Create token-level BIO labels (from UniEncoderTokenProcessor)
+            # Create token_level BIO labels (from UniEncoderTokenProcessor)
             labels = self.create_labels(batch)
             tokenized_input["labels"] = labels
 

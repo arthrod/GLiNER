@@ -135,8 +135,6 @@ _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
     ("model.token_loss_coef", float, False, 1.0, "Token loss coefficient"),
     ("model.span_loss_coef", float, False, 1.0, "Span loss coefficient"),
     ("model.encoder_config", (dict, type(None)), False, None, "Encoder config override"),
-    ("model.labels_encoder_config", (dict, type(None)), False, None, "Labels encoder config snapshot"),
-    ("model.labels_decoder_config", (dict, type(None)), False, None, "Labels decoder config snapshot"),
     ("model._attn_implementation", (str, type(None)), False, None, "Attention implementation"),
     ("model.vocab_size", int, False, -1, "Vocabulary size override"),
     # -- data --
@@ -187,9 +185,6 @@ _FIELD_SCHEMA: list[tuple[str, type | tuple[type, ...], bool, Any, str]] = [
     ("lora.target_modules", list, False, ["q_proj", "v_proj"], "LoRA target modules"),
     ("lora.task_type", str, False, "TOKEN_CLS", "PEFT task type"),
     ("lora.modules_to_save", (list, type(None)), False, None, "Modules to save"),
-    ("lora.init_lora_weights", bool, False, True, "Initialize LoRA weights"),
-    ("lora.use_rslora", bool, False, False, "Use rank-stabilized LoRA"),
-    ("lora.fan_in_fan_out", bool, False, False, "Fan in/out for Conv1D layers"),
     # -- environment --
     ("environment.push_to_hub", bool, False, False, "Push to HF Hub"),
     ("environment.hub_model_id", (str, type(None)), False, None, "HF Hub model id"),
@@ -446,20 +441,7 @@ def _check_extra_keys(
 #  CROSS-FIELD SEMANTIC CHECKS                                              #
 # ======================================================================== #
 
-_VALID_SPAN_MODES = {
-    "markerV0",
-    "markerV1",
-    "marker",
-    "query",
-    "mlp",
-    "cat",
-    "conv_conv",
-    "conv_max",
-    "conv_mean",
-    "conv_sum",
-    "conv_share",
-    "token_level",
-}
+_VALID_SPAN_MODES = {"markerV0", "token_level"}
 _VALID_SCHEDULERS = {
     "linear",
     "cosine",
@@ -472,11 +454,9 @@ _VALID_OPTIMIZERS = {"adamw_torch", "adamw_hf", "adafactor", "sgd"}
 _VALID_LOSS_REDUCTIONS = {"sum", "mean", "none"}
 _VALID_MASKING = {"none", "global"}
 _VALID_REPORT_TO = {"none", "wandb", "tensorboard", "all"}
-_VALID_SUBTOKEN_POOLING = {"first", "mean", "max"}
+_VALID_SUBTOKEN_POOLING = {"first", "mean"}
 _VALID_LORA_BIAS = {"none", "all", "lora_only"}
 _VALID_ATTN_IMPL = {"eager", "sdpa", "flash_attention_2"}
-_VALID_WORDS_SPLITTER = {"whitespace", "spacy", "stanza", "mecab", "jieba", "janome", "camel"}
-_VALID_DECODER_MODES = {"span", "prompt"}
 
 
 def semantic_checks(cfg: dict, result: ValidationResult) -> None:
@@ -503,16 +483,10 @@ def semantic_checks(cfg: dict, result: ValidationResult) -> None:
     _check_enum(cfg, result, "model.subtoken_pooling", _VALID_SUBTOKEN_POOLING)
     _check_enum(cfg, result, "lora.bias", _VALID_LORA_BIAS)
 
-    _check_enum(cfg, result, "model.words_splitter_type", _VALID_WORDS_SPLITTER)
-
     # Optional enums (only check if non-null)
     _, attn = _deep_get(cfg, "model._attn_implementation")
     if attn is not None:
         _check_enum(cfg, result, "model._attn_implementation", _VALID_ATTN_IMPL)
-
-    _, decoder_mode = _deep_get(cfg, "model.decoder_mode")
-    if decoder_mode is not None:
-        _check_enum(cfg, result, "model.decoder_mode", _VALID_DECODER_MODES)
 
     # Decoder fields require labels_decoder
     _, dec = _deep_get(cfg, "model.labels_decoder")
@@ -1031,7 +1005,6 @@ def _launch_training(
     # -- Seed --
     seed = cfg["run"]["seed"]
     torch.manual_seed(seed)
-    run_name = cfg["run"].get("name", "")
 
     # -- CUDA --
     cuda_devs = cfg["environment"].get("cuda_visible_devices")
@@ -1212,7 +1185,6 @@ def _apply_lora(model: Any, lora_cfg: dict) -> None:
         "SEQ_CLS": TaskType.SEQ_CLS,
         "CAUSAL_LM": TaskType.CAUSAL_LM,
         "SEQ_2_SEQ_LM": TaskType.SEQ_2_SEQ_LM,
-        "FEATURE_EXTRACTION": TaskType.FEATURE_EXTRACTION,
     }
     task_type = task_map.get(lora_cfg.get("task_type", "TOKEN_CLS"), TaskType.TOKEN_CLS)
 

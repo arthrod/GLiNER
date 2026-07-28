@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 TRAINER_SOURCE = Path(__file__).resolve().parents[1] / "gliner" / "training" / "trainer.py"
 MODEL_SOURCE = Path(__file__).resolve().parents[1] / "gliner" / "model.py"
 

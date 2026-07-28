@@ -25,13 +25,12 @@ class GLiNERBasePipeline(ABC):
 
     def __init__(
         self,
-        model_id: Optional[str] = None,
-        model: Optional[GLiNER] = None,
-        prompt: Optional[str] = None,
+        model_id: str | None = None,
+        model: GLiNER | None = None,
+        prompt: str | None = None,
         device="cuda:0",
     ):
-        """
-        Initializes the GLiNERBasePipeline.
+        """Initializes the GLiNERBasePipeline.
 
         Args:
             model_id (str): Identifier for the model to be loaded.
@@ -54,9 +53,8 @@ class GLiNERBasePipeline(ABC):
         self.prompt = prompt
 
     @abstractmethod
-    def prepare_texts(self, texts: List[str], *args, **kwargs):
-        """
-        Prepares texts for input to the model.
+    def prepare_texts(self, texts: list[str], *args, **kwargs):
+        """Prepares texts for input to the model.
 
         Args:
             texts (List[str]): List of input texts.
@@ -66,12 +64,10 @@ class GLiNERBasePipeline(ABC):
         Returns:
             Any: The processed texts ready for model input.
         """
-        pass
 
     @abstractmethod
-    def process_predictions(self, predictions: List[dict]):
-        """
-        Processes model predictions into the desired format.
+    def process_predictions(self, predictions: list[dict]):
+        """Processes model predictions into the desired format.
 
         Args:
             predictions (List[dict]): Raw predictions from the model.
@@ -79,12 +75,10 @@ class GLiNERBasePipeline(ABC):
         Returns:
             Any: Processed predictions in the desired format.
         """
-        pass
 
     @abstractmethod
-    def evaluate(self, dataset_id: str, labels: Optional[List[str]] = None, threshold: float = 0.5):
-        """
-        Evaluates the model on a given dataset.
+    def evaluate(self, dataset_id: str, labels: list[str] | None = None, threshold: float = 0.5):
+        """Evaluates the model on a given dataset.
 
         Args:
             dataset_id (str): Identifier for the evaluation dataset.
@@ -94,18 +88,16 @@ class GLiNERBasePipeline(ABC):
         Returns:
             Any: Evaluation results.
         """
-        pass
 
     def __call__(
         self,
-        texts: Union[str, List[str]],
-        labels: List[str] = ["match"],
+        texts: str | list[str],
+        labels: list[str] = ["match"],
         threshold: float = 0.5,
         batch_size: int = 8,
         **kwargs,
     ):
-        """
-        Runs the model on the provided texts and returns processed results.
+        """Runs the model on the provided texts and returns processed results.
 
         Args:
             texts (Union[str, List[str]]): Single or list of input texts.

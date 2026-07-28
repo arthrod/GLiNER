@@ -1,6 +1,8 @@
 from typing import Dict, Union
-from gliner import GLiNER
+
 import gradio as gr
+
+from gliner import GLiNER
 
 model = GLiNER.from_pretrained("model/", load_tokenizer=True)
 
@@ -101,8 +103,11 @@ examples = [
 
 
 def ner(
-    text, labels: str, threshold: float, nested_ner: bool
-) -> Dict[str, Union[str, int, float]]:
+    text,
+    labels: str,
+    threshold: float,
+    nested_ner: bool,
+) -> dict[str, str | int | float]:
     labels = labels.split(",")
     return {
         "text": text,
@@ -115,7 +120,10 @@ def ner(
                 "score": 0,
             }
             for entity in model.predict_entities(
-                text, labels, flat_ner=not nested_ner, threshold=threshold
+                text,
+                labels,
+                flat_ner=not nested_ner,
+                threshold=threshold,
             )
         ],
     }
@@ -131,7 +139,7 @@ with gr.Blocks(title="GLiNER-M-v2.1") as demo:
         * All GLiNER models: https://huggingface.co/models?library=gliner
         * Paper: https://arxiv.org/abs/2311.08526
         * Repository: https://github.com/urchade/GLiNER
-        """
+        """,
     )
     with gr.Accordion("How to run this model locally", open=False):
         gr.Markdown(
@@ -144,7 +152,7 @@ with gr.Blocks(title="GLiNER-M-v2.1") as demo:
          
             ## Usage
             Once you've downloaded the GLiNER library, you can import the GLiNER class. You can then load this model using `GLiNER.from_pretrained` and predict entities with `predict_entities`.
-            """
+            """,
         )
         gr.Code(
             '''
@@ -174,11 +182,13 @@ UEFA European Championship => competitions
 UEFA Nations League => competitions
 Champions League => competitions
 European Championship => competitions
-            """
+            """,
         )
 
     input_text = gr.Textbox(
-        value=examples[0][0], label="Text input", placeholder="Enter your text here"
+        value=examples[0][0],
+        label="Text input",
+        placeholder="Enter your text here",
     )
     with gr.Row() as row:
         labels = gr.Textbox(
@@ -214,19 +224,29 @@ European Championship => competitions
 
     # Submitting
     input_text.submit(
-        fn=ner, inputs=[input_text, labels, threshold, nested_ner], outputs=output
+        fn=ner,
+        inputs=[input_text, labels, threshold, nested_ner],
+        outputs=output,
     )
     labels.submit(
-        fn=ner, inputs=[input_text, labels, threshold, nested_ner], outputs=output
+        fn=ner,
+        inputs=[input_text, labels, threshold, nested_ner],
+        outputs=output,
     )
     threshold.release(
-        fn=ner, inputs=[input_text, labels, threshold, nested_ner], outputs=output
+        fn=ner,
+        inputs=[input_text, labels, threshold, nested_ner],
+        outputs=output,
     )
     submit_btn.click(
-        fn=ner, inputs=[input_text, labels, threshold, nested_ner], outputs=output
+        fn=ner,
+        inputs=[input_text, labels, threshold, nested_ner],
+        outputs=output,
     )
     nested_ner.change(
-        fn=ner, inputs=[input_text, labels, threshold, nested_ner], outputs=output
+        fn=ner,
+        inputs=[input_text, labels, threshold, nested_ner],
+        outputs=output,
     )
 
 demo.queue()

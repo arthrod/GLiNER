@@ -11,8 +11,7 @@ from .base import GLiNERBasePipeline
 
 
 class GLiNERSummarizer(GLiNERBasePipeline):
-    """
-    A class to use GLiNER for summarization inference and evaluation.
+    """A class to use GLiNER for summarization inference and evaluation.
 
     Attributes:
         device (str): Device to run the model on, e.g., 'cuda:0' or 'cpu'.
@@ -34,13 +33,12 @@ class GLiNERSummarizer(GLiNERBasePipeline):
 
     def __init__(
         self,
-        model_id: Optional[str] = None,
-        model: Optional[GLiNER] = None,
+        model_id: str | None = None,
+        model: GLiNER | None = None,
         device: str = "cuda:0",
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
     ):
-        """
-        Initializes the GLiNERSummarizer.
+        """Initializes the GLiNERSummarizer.
 
         Args:
             model_id (str, optional): Identifier for the model to be loaded. Defaults to None.
@@ -53,8 +51,7 @@ class GLiNERSummarizer(GLiNERBasePipeline):
         super().__init__(model_id=model_id, model=model, prompt=prompt, device=device)
 
     def process_predictions(self, predictions, **kwargs):
-        """
-        Processes predictions to extract the highest-scoring text chunk(s).
+        """Processes predictions to extract the highest-scoring text chunk(s).
 
         Args:
             predictions (list): List of predictions with scores.
@@ -74,9 +71,8 @@ class GLiNERSummarizer(GLiNERBasePipeline):
 
         return batch_predicted_labels
 
-    def prepare_texts(self, texts: List[str], **kwargs):
-        """
-        Prepares prompts for summarization by appending prompt to texts.
+    def prepare_texts(self, texts: list[str], **kwargs):
+        """Prepares prompts for summarization by appending prompt to texts.
 
         Args:
             texts (list): List of input texts.
@@ -94,8 +90,8 @@ class GLiNERSummarizer(GLiNERBasePipeline):
 
     def __call__(
         self,
-        texts: Union[str, List[str]],
-        labels: List[str] = ["summary"],
+        texts: str | list[str],
+        labels: list[str] = ["summary"],
         threshold: float = 0.25,
         batch_size: int = 8,
         **kwargs,
@@ -104,14 +100,13 @@ class GLiNERSummarizer(GLiNERBasePipeline):
 
     def evaluate(
         self,
-        dataset_id: Optional[str] = None,
-        dataset: Optional[Dataset] = None,
-        labels: Optional[List[str]] = None,
+        dataset_id: str | None = None,
+        dataset: Dataset | None = None,
+        labels: list[str] | None = None,
         threshold: float = 0.5,
         max_examples: float = -1,
     ):
-        """
-        Evaluates the model on a specified dataset and computes evaluation metrics.
+        """Evaluates the model on a specified dataset and computes evaluation metrics.
 
         Args:
             dataset_id (str, optional): Identifier for the dataset to load (e.g., from Hugging Face datasets).

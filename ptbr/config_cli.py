@@ -73,11 +73,9 @@ _GLINER_RULES: List[Tuple[str, type, bool, Any, Any]] = [
     ("max_width", int, False, 12, ("range", 1, 128)),
     # 1.3 BiEncoder
     ("labels_encoder", str, False, None, None),
-    ("labels_encoder_config", dict, False, None, None),
     # 1.4 Decoder
     ("labels_decoder", str, False, None, None),
-    ("decoder_mode", str, False, None, ("literals", {None, "span", "prompt"})),
-    ("labels_decoder_config", dict, False, None, None),
+    ("decoder_mode", str, False, "span", ("literals", {"span", "prompt"})),
     ("full_decoder_context", bool, False, True, ("literals", {True, False})),
     ("blank_entity_prob", float, False, 0.1, ("range", 0.0, 1.0)),
     ("decoder_loss_coef", float, False, 0.5, ("range", 0.0, 10.0)),
@@ -134,21 +132,19 @@ _GLINER_RULES: List[Tuple[str, type, bool, Any, Any]] = [
     ("neg_spans_ratio", float, False, 1.0, ("range", 0.0, 10.0)),
     # 1.12 Attention
     ("_attn_implementation", str, False, None, ("literals", {None, "eager", "sdpa", "flash_attention_2"})),
-    # 1.13 Encoder config snapshot
-    ("encoder_config", dict, False, None, None),
 ]
 
 _LORA_RULES: List[Tuple[str, type, bool, Any, Any]] = [
     ("r", int, False, 8, ("range", 1, 256)),
     ("lora_alpha", int, False, 16, ("range", 1, 512)),
-    ("lora_dropout", float, False, 0.05, ("range", 0.0, 0.9)),
-    ("target_modules", list, False, ["q_proj", "v_proj"], None),
+    ("lora_dropout", float, False, 0.1, ("range", 0.0, 0.9)),
+    ("target_modules", list, False, ["query_proj", "value_proj"], None),
     ("bias", str, False, "none", ("literals", {"none", "all", "lora_only"})),
     (
         "task_type",
         str,
         False,
-        "TOKEN_CLS",
+        "FEATURE_EXTRACTION",
         (
             "literals",
             {
@@ -223,7 +219,6 @@ class GLiNERConfigResult:
         full_or_lora: Whether this is a "full" or "lora" configuration.
         method: The resolved method string.
     """
-
     gliner_config: GLiNERConfig | None
     validated_gliner: Dict[str, Any]
     lora_config: Dict[str, Any] | None

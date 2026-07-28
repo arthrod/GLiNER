@@ -32,8 +32,8 @@ html_context = {"github_user": "urchade", "github_repo": "GLiNER"}
 html_static_path = ["_static"]
 
 source_suffix = {
-    '.rst': 'restructuredtext',
-    '.md': 'markdown',
+    ".rst": "restructuredtext",
+    ".md": "markdown",
 }
 
 # Autodoc settings
@@ -62,13 +62,16 @@ def run_apidoc(_):
     # Output path for API docs (inside docs/)
     output_path = os.path.join(DOCS_DIR, "api")
 
-    main([
-        "--force",
-        "--separate",
-        "--module-first",
-        "-o", output_path,
-        module_path,
-    ])
+    main(
+        [
+            "--force",
+            "--separate",
+            "--module-first",
+            "-o",
+            output_path,
+            module_path,
+        ],
+    )
 
 
 def setup(app):

@@ -1,14 +1,16 @@
-import pytest
+from unittest.mock import Mock
+
 import torch
+import pytest
+
 from gliner.decoding.decoder import (
     Span,
     SpanDecoder,
-    SpanGenerativeDecoder,
-    SpanRelexDecoder,
     TokenDecoder,
     BaseSpanDecoder,
+    SpanRelexDecoder,
+    SpanGenerativeDecoder,
 )
-from unittest.mock import Mock
 
 
 class TestSpanDecoder:
@@ -141,7 +143,11 @@ class TestSpanDecoder:
         id_to_classes = {1: "PERSON", 2: "LOCATION"}
 
         result = decoder.decode(
-            tokens=tokens, id_to_classes=id_to_classes, model_output=logits, threshold=0.5, flat_ner=True
+            tokens=tokens,
+            id_to_classes=id_to_classes,
+            model_output=logits,
+            threshold=0.5,
+            flat_ner=True,
         )
 
         # Should keep only the higher scoring span
@@ -161,7 +167,11 @@ class TestSpanDecoder:
         id_to_classes = {1: "PERSON", 2: "LOCATION"}
 
         result = decoder.decode(
-            tokens=tokens, id_to_classes=id_to_classes, model_output=logits, threshold=0.5, flat_ner=False
+            tokens=tokens,
+            id_to_classes=id_to_classes,
+            model_output=logits,
+            threshold=0.5,
+            flat_ner=False,
         )
 
         # Should keep both nested spans
@@ -327,7 +337,7 @@ class TestSpanGenerativeDecoder:
             [
                 [0, 5, -1],  # Two valid spans in first batch
                 [2, -1, -1],  # One valid span in second batch
-            ]
+            ],
         )
 
         gen_labels = ["L1", "L2", "L3"]  # 3 labels for 3 valid spans
@@ -411,7 +421,7 @@ class TestSpanRelexDecoder:
             [
                 [[0, 1], [1, 0], [-1, -1], [-1, -1]],  # Batch 0: 2 pairs
                 [[0, 0], [-1, -1], [-1, -1], [-1, -1]],  # Batch 1: 1 pair
-            ]
+            ],
         )
         logits.rel_logits = torch.randn(batch_size, max_pairs, num_relations)
         logits.rel_logits[0, 0, 0] = 5.0  # High confidence relation

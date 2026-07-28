@@ -31,8 +31,7 @@ class NormBasedInteraction(nn.Module):
         use_scorer: bool = False,
         dropout: float = 0.3,
     ):
-        """
-        Base class for norm-based KGE interactions.
+        """Base class for norm-based KGE interactions.
 
         Args:
             dim: Embedding dimension
@@ -54,8 +53,7 @@ class NormBasedInteraction(nn.Module):
             self.scorer = None
 
     def _score(self, x):
-        """
-        Score residual vector.
+        """Score residual vector.
 
         Args:
             x: (..., D) residual vector
@@ -112,8 +110,7 @@ class TransEInteraction(NormBasedInteraction):
 
 
 class TransHInteraction(NormBasedInteraction):
-    """
-    TransH – project entities to a relation-specific hyperplane.
+    """TransH – project entities to a relation-specific hyperplane.
 
     Learn mappings from base relation r to:
         r_tr = W_tr * r + b_tr  (translation)
@@ -142,8 +139,7 @@ class TransHInteraction(NormBasedInteraction):
 
 
 class TransFInteraction(NormBasedInteraction):
-    """
-    TransF – element-wise relation-specific scaling before translation.
+    """TransF – element-wise relation-specific scaling before translation.
 
     Learn mappings from base relation r to:
         r_vec = W_r * r + b_r
@@ -184,8 +180,7 @@ class TransFInteraction(NormBasedInteraction):
 
 
 class PairREInteraction(NormBasedInteraction):
-    """
-    PairRE – per-relation element-wise scaling of h & t.
+    """PairRE – per-relation element-wise scaling of h & t.
 
     Learn mappings from base relation r to:
         alpha = W_alpha * r + b_alpha
@@ -204,8 +199,7 @@ class PairREInteraction(NormBasedInteraction):
 
 
 class TripleREInteraction(NormBasedInteraction):
-    """
-    TripleRE – LineaRE + scalar γ per relation.
+    """TripleRE – LineaRE + scalar γ per relation.
 
     Learn mappings from base relation r to:
         alpha = W_alpha * r + b_alpha
@@ -260,9 +254,7 @@ class SimplEInteraction(nn.Module):
 
 
 class TuckERInteraction(nn.Module):
-    """
-    TuckER – global core tensor W (D_r × D_e × D_e).
-    """
+    """TuckER – global core tensor W (D_r × D_e × D_e)."""
 
     def __init__(self, d_e: int, d_r: int, dropout: float = 0.2):
         super().__init__()
@@ -416,8 +408,7 @@ class ConvKBInteraction(nn.Module):
         self.fc = nn.Linear(n_filters * dim, 1)
 
     def forward(self, h, r, t):
-        """
-        Score triples (h, r, t).
+        """Score triples (h, r, t).
 
         Args:
             h: Head entities (..., D)
@@ -500,8 +491,7 @@ class ConvEInteraction(nn.Module):
         self.fc = nn.Linear(hidden_size, dim)
 
     def forward(self, h, r, t):
-        """
-        Score triples (h, r, t).
+        """Score triples (h, r, t).
 
         Args:
             h: Head entities (..., D)
@@ -636,7 +626,14 @@ class TriplesScoreLayer(nn.Module):
             feat_drop = kwargs.get("feat_drop", 0.2)
             use_bias = kwargs.get("use_bias", True)
             self.interaction = ConvEInteraction(
-                dim, emb_dim1, n_filters, kernel_size, input_drop, hidden_drop, feat_drop, use_bias
+                dim,
+                emb_dim1,
+                n_filters,
+                kernel_size,
+                input_drop,
+                hidden_drop,
+                feat_drop,
+                use_bias,
             )
         elif interaction_mode == "ConvKB":
             n_filters = kwargs.get("n_filters", 32)
@@ -647,8 +644,7 @@ class TriplesScoreLayer(nn.Module):
             raise ValueError(f"Unknown interaction mode '{interaction_mode}'.")
 
     def validate_dimensions(self, dim: int):
-        """
-        Validate that the embedding dimension meets requirements for this interaction.
+        """Validate that the embedding dimension meets requirements for this interaction.
 
         Args:
             dim: The embedding dimension to validate
@@ -668,8 +664,7 @@ class TriplesScoreLayer(nn.Module):
                 raise ValueError(msg)
 
     def forward(self, h, r, t):
-        """
-        Score triples (h, r, t).
+        """Score triples (h, r, t).
 
         Args:
             h: Head entities (..., D)
@@ -682,8 +677,7 @@ class TriplesScoreLayer(nn.Module):
         return self.interaction(h, r, t)
 
     def forward_batched_relations(self, h, t, rel_embeddings):
-        """
-        Efficiently score entity pairs against all relation types.
+        """Efficiently score entity pairs against all relation types.
 
         Args:
             h: Head entities (B, N, D)
@@ -721,8 +715,7 @@ class TriplesScoreLayer(nn.Module):
         return scores
 
     def forward_single_relation(self, h, t, r):
-        """
-        Score entity pairs with a single relation type.
+        """Score entity pairs with a single relation type.
 
         Args:
             h: Head entities (B, N, D)

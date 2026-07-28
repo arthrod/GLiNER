@@ -1,0 +1,139 @@
+# ============================================================================
+# A01_span_markerV0_gliner_smallv25_lora_en.yaml
+# Uni-encoder span (markerV0) fine-tune with LoRA to preserve zero-shot behavior.
+# ============================================================================
+
+run:
+  name: "a-gliner-pii-span-smallv25-lora-en-v1"
+  description: "PII detection in spam-like text; span-based GLiNER (markerV0) with LoRA to preserve zero-shot."
+  tags: ["pii", "spam", "gliner", "markerV0", "lora", "zero-shot", "smallv25"]
+  seed: 42
+
+model:
+  # NOTE: when training.prev_path is set, your trainer loads from prev_path and
+  # this model section is mostly documentary unless you explicitly merge configs.
+  model_name: "microsoft/deberta-v3-small"  # fallback if prev_path is null
+  name: "gliner-pii-span-smallv25-lora-en"
+
+  labels_encoder: null
+  labels_decoder: null
+  decoder_mode: null
+  full_decoder_context: true
+  blank_entity_prob: 0.1
+  decoder_loss_coef: 0.5
+
+  relations_layer: null
+  triples_layer: null
+  embed_rel_token: true
+  rel_token_index: -1
+  rel_token: "<<REL>>"
+  adjacency_loss_coef: 1.0
+  relation_loss_coef: 1.0
+
+  span_mode: "markerV0"
+  max_width: 32
+  represent_spans: false
+  neg_spans_ratio: 1.0
+
+  hidden_size: 768
+  dropout: 0.30
+
+  fine_tune: true
+  subtoken_pooling: "first"
+
+  fuse_layers: false
+  post_fusion_schema: ""
+  num_post_fusion_layers: 1
+
+  num_rnn_layers: 1
+
+  max_len: 512
+  max_types: 64
+  max_neg_type_ratio: 2
+  words_splitter_type: "whitespace"
+
+  embed_ent_token: true
+
+  # CRITICAL: avoid silent zero-loss if tokenizer/backbone differs
+  class_token_index: -1
+  ent_token: "<<ENT>>"
+  sep_token: "<<SEP>>"
+  vocab_size: -1
+
+  token_loss_coef: 1.0
+  span_loss_coef: 1.0
+
+  encoder_config: null
+  _attn_implementation: null
+
+data:
+  root_dir: "gliner_logs/gliner-pii-span-smallv25-lora-en-v1"
+  train_data: "data/merged/pii_spam_mix_en_train.json"
+  val_data_dir: "data/merged/pii_spam_mix_en_val.json"
+
+training:
+  prev_path: "gliner-community/gliner_small-v2.5"
+
+  num_steps: 15000
+  scheduler_type: "cosine"
+  warmup_ratio: 0.05
+
+  train_batch_size: 32
+  eval_batch_size: 32
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+
+  optimizer: "adamw_torch"
+  lr_encoder: 5.0e-6
+  lr_others: 3.0e-5
+  weight_decay_encoder: 0.01
+  weight_decay_other: 0.01
+
+  # PII is imbalanced -> focal helps
+  loss_alpha: 0.70
+  loss_gamma: 2.0
+  loss_prob_margin: 0.0
+  label_smoothing: 0.0
+  loss_reduction: "sum"
+
+  negatives: 1.0
+  masking: "none"
+
+  eval_every: 1000
+  save_total_limit: 5
+  logging_steps: 50
+
+  bf16: true
+  fp16: false
+  use_cpu: false
+
+  dataloader_num_workers: 6
+  dataloader_pin_memory: true
+  dataloader_persistent_workers: false
+  dataloader_prefetch_factor: 2
+
+  freeze_components: null
+  compile_model: false
+
+lora:
+  enabled: true
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  # For max compatibility across backbones, "all-linear" is usually safest.
+  target_modules: ["all-linear"]
+  task_type: "TOKEN_CLS"
+  modules_to_save: null
+
+environment:
+  push_to_hub: true
+  hub_model_id: "YOUR_ORG/gliner-pii-span-smallv25-lora-en-v1"
+  hf_token: null
+
+  report_to: "wandb"
+  wandb_project: "gliner-pii"
+  wandb_entity: null
+  wandb_api_key: null
+
+  cuda_visible_devices: "0"

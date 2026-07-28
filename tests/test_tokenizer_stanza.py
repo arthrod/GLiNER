@@ -1,9 +1,8 @@
-import importlib.util, pytest
+import importlib.util
 
-if (
-    importlib.util.find_spec("stanza") is None
-    or importlib.util.find_spec("langdetect") is None
-):
+import pytest
+
+if importlib.util.find_spec("stanza") is None or importlib.util.find_spec("langdetect") is None:
     pytest.skip("stanza/langdetect not installed", allow_module_level=True)
 
 from gliner.data_processing.tokenizer import StanzaWordsSplitter

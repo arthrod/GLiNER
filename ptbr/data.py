@@ -15,11 +15,11 @@ from dataclasses import field, dataclass
 class GLiNERData:
     """Container for a GLiNER-compatible dataset."""
 
-    data: List[Dict[str, Any]]
-    labels: List[str] = field(default_factory=list)
-    label_embeddings: Optional[Any] = None
+    data: list[dict[str, Any]]
+    labels: list[str] = field(default_factory=list)
+    label_embeddings: Any | None = None
     source: str = ""
-    validation_errors: List[str] = field(default_factory=list)
+    validation_errors: list[str] = field(default_factory=list)
     is_valid: bool = False
 
 
@@ -28,21 +28,20 @@ def load_data(
     text_column: str = "tokenized_text",
     ner_column: str = "ner",
     split: str = "train",
-) -> List[Dict[str, Any]]:
-    """
-    Load dataset from a local JSON/JSONL file or a HuggingFace dataset repository and map columns to GLiNER's native format.
-    
+) -> list[dict[str, Any]]:
+    """Load dataset from a local JSON/JSONL file or a HuggingFace dataset repository and map columns to GLiNER's native format.
+
     If a local path is provided, the file is read as JSONL when it ends with ".jsonl" or as JSON otherwise. If the provided column names differ from GLiNER's native keys, the specified text_column and ner_column are remapped to "tokenized_text" and "ner" respectively; other fields are preserved. If a HuggingFace dataset identifier is provided, the specified split is loaded and the dataset columns are similarly remapped.
-    
+
     Parameters:
         file_or_repo (str): Local filesystem path or HuggingFace dataset identifier.
         text_column (str): Name of the column containing tokenized text in the source data (defaults to "tokenized_text").
         ner_column (str): Name of the column containing NER spans in the source data (defaults to "ner").
         split (str): Dataset split to load when using a HuggingFace dataset (defaults to "train").
-    
+
     Returns:
         List[Dict[str, Any]]: A list of records in GLiNER native format where each record contains at least the keys "tokenized_text" and "ner"; additional source fields are preserved.
-    
+
     Raises:
         ValueError: If the required text or ner columns are missing in the provided local file or dataset split.
     """
@@ -54,8 +53,6 @@ def load_data(
                 raw = json.load(f)
         if not isinstance(raw, list):
             raw = [raw]
-        if text_column == "tokenized_text" and ner_column == "ner":
-            return raw
         missing_columns = [
             col
             for col in (text_column, ner_column)
@@ -64,18 +61,14 @@ def load_data(
         if missing_columns:
             missing = ", ".join(repr(col) for col in missing_columns)
             available_columns = sorted(
-                {
-                    key
-                    for item in raw
-                    if isinstance(item, dict)
-                    for key in item
-                }
+                {key for item in raw if isinstance(item, dict) for key in item},
             )
             available = ", ".join(repr(col) for col in available_columns) or "<none>"
             raise ValueError(
-                f"Missing required column(s): {missing}. "
-                f"Available columns in local file: {available}"
+                f"Missing required column(s): {missing}. Available columns in local file: {available}",
             )
+        if text_column == "tokenized_text" and ner_column == "ner":
+            return raw
         data = []
         for item in raw:
             mapped = dict(item)
@@ -96,8 +89,7 @@ def load_data(
             missing = ", ".join(repr(col) for col in missing_columns)
             available = ", ".join(repr(col) for col in available_columns)
             raise ValueError(
-                f"Missing required column(s): {missing}. "
-                f"Available columns for split '{split}': {available}"
+                f"Missing required column(s): {missing}. Available columns for split '{split}': {available}",
             )
     data = []
     for item in dataset:
@@ -109,7 +101,7 @@ def load_data(
     return data
 
 
-def validate_data(data: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
+def validate_data(data: list[dict[str, Any]]) -> tuple[bool, list[str]]:
     """Validate that data conforms to GLiNER's native format.
 
     Checks the core fields required by all model variants (span, token,
@@ -185,7 +177,7 @@ def validate_data(data: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
                     elif head >= num_entities or tail >= num_entities:
                         errors.append(
                             f"[{i}].relations[{j}] index out of bounds "
-                            f"(head={head}, tail={tail}, num_entities={num_entities})"
+                            f"(head={head}, tail={tail}, num_entities={num_entities})",
                         )
                     if not isinstance(rel_type, str):
                         errors.append(f"[{i}].relations[{j}] relation type must be a string")
@@ -193,7 +185,7 @@ def validate_data(data: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
     return len(errors) == 0, errors
 
 
-def extract_labels(data: List[Dict[str, Any]], key: str = "ner") -> List[str]:
+def extract_labels(data: list[dict[str, Any]], key: str = "ner") -> list[str]:
     """Extract all unique labels from the dataset."""
     labels = set()
     for item in data:
@@ -214,7 +206,7 @@ def prepare(
     text_column: str = "tokenized_text",
     ner_column: str = "ner",
     validate: bool = True,
-    generate_label_embeddings: Optional[str] = None,
+    generate_label_embeddings: str | None = None,
     trust_remote_code: bool = False,
     split: str = "train",
 ) -> GLiNERData:
@@ -234,7 +226,7 @@ def prepare(
     """
     data = load_data(file_or_repo, text_column, ner_column, split)
     is_valid = False
-    errs: List[str] = []
+    errs: list[str] = []
     if validate:
         is_valid, errs = validate_data(data)
     labels = extract_labels(data)
@@ -249,7 +241,8 @@ def prepare(
         from gliner import GLiNER
 
         model = GLiNER.from_pretrained(
-            generate_label_embeddings, trust_remote_code=trust_remote_code
+            generate_label_embeddings,
+            trust_remote_code=trust_remote_code,
         )
         result.label_embeddings = model.encode_labels(labels)
 

@@ -109,15 +109,14 @@ def focal_loss_with_logits(
     # Apply reduction method
     if reduction == "none":
         return loss
-    elif reduction == "mean":
+    if reduction == "mean":
         # Normalize by the number of valid (non-ignored) elements
         return loss.sum() / valid_mask.sum()
-    elif reduction == "sum":
+    if reduction == "sum":
         return loss.sum()
-    else:
-        raise ValueError(
-            f"Invalid value for argument 'reduction': '{reduction}'. Supported reduction modes: 'none', 'mean', 'sum'"
-        )
+    raise ValueError(
+        f"Invalid value for argument 'reduction': '{reduction}'. Supported reduction modes: 'none', 'mean', 'sum'",
+    )
 
 
 def cross_entropy_loss(
@@ -167,7 +166,11 @@ def cross_entropy_loss(
     targets = targets.reshape(-1)
 
     loss = F.cross_entropy(
-        inputs, targets, ignore_index=ignore_index, label_smoothing=label_smoothing, reduction=reduction
+        inputs,
+        targets,
+        ignore_index=ignore_index,
+        label_smoothing=label_smoothing,
+        reduction=reduction,
     )
 
     return loss

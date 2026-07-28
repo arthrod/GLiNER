@@ -169,7 +169,11 @@ def get_for_one_path(path, model):
 
     # evaluate the model
     results, f1 = model.evaluate(
-        test_dataset, flat_ner=flat_ner, threshold=0.5, batch_size=12, entity_types=entity_types
+        test_dataset,
+        flat_ner=flat_ner,
+        threshold=0.5,
+        batch_size=12,
+        entity_types=entity_types,
     )
     return data_name, results, f1
 

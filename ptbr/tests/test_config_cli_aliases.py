@@ -51,9 +51,7 @@ def test_model_section_alias_is_accepted(tmp_path, monkeypatch):
 
     assert result.report.is_valid
     assert result.validated_gliner["model_name"] == "microsoft/deberta-v3-small"
-    assert any(
-        "alias for 'gliner_config'" in warning.message for warning in result.report.warnings
-    )
+    assert any("alias for 'gliner_config'" in warning.message for warning in result.report.warnings)
 
 
 def test_lora_section_alias_is_accepted_in_lora_mode(tmp_path, monkeypatch):
@@ -72,9 +70,7 @@ def test_lora_section_alias_is_accepted_in_lora_mode(tmp_path, monkeypatch):
     assert result.report.is_valid
     assert result.lora_config is not None
     assert result.lora_config["r"] == 16
-    assert any(
-        "alias for 'lora_config'" in warning.message for warning in result.report.warnings
-    )
+    assert any("alias for 'lora_config'" in warning.message for warning in result.report.warnings)
 
 
 def test_canonical_sections_take_precedence_over_aliases(tmp_path, monkeypatch):
@@ -97,10 +93,6 @@ def test_canonical_sections_take_precedence_over_aliases(tmp_path, monkeypatch):
     assert result.lora_config is not None
     assert result.lora_config["r"] == 12
     assert any(
-        "Both 'gliner_config' and 'model' sections found" in warning.message
-        for warning in result.report.warnings
+        "Both 'gliner_config' and 'model' sections found" in warning.message for warning in result.report.warnings
     )
-    assert any(
-        "Both 'lora_config' and 'lora' sections found" in warning.message
-        for warning in result.report.warnings
-    )
+    assert any("Both 'lora_config' and 'lora' sections found" in warning.message for warning in result.report.warnings)

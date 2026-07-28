@@ -11,8 +11,7 @@ from .base import GLiNERBasePipeline
 
 
 class GLiNEROpenExtractor(GLiNERBasePipeline):
-    """
-    A class to use GLiNER for open information extraction inference and evaluation.
+    """A class to use GLiNER for open information extraction inference and evaluation.
 
     Attributes:
         device (str): Device to run the model on, e.g., 'cuda:0' or 'cpu'.
@@ -34,13 +33,12 @@ class GLiNEROpenExtractor(GLiNERBasePipeline):
 
     def __init__(
         self,
-        model_id: Optional[str] = None,
-        model: Optional[GLiNER] = None,
+        model_id: str | None = None,
+        model: GLiNER | None = None,
         device: str = "cuda:0",
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
     ):
-        """
-        Initializes the GLiNEROpenExtractor.
+        """Initializes the GLiNEROpenExtractor.
 
         Args:
             model_id (str, optional): Identifier for the model to be loaded. Defaults to None.
@@ -53,8 +51,7 @@ class GLiNEROpenExtractor(GLiNERBasePipeline):
         super().__init__(model_id=model_id, model=model, prompt=prompt, device=device)
 
     def process_predictions(self, predictions, **kwargs):
-        """
-        Processes predictions to extract the highest-scoring label(s).
+        """Processes predictions to extract the highest-scoring label(s).
 
         Args:
             predictions (list): List of predictions with scores.
@@ -65,9 +62,8 @@ class GLiNEROpenExtractor(GLiNERBasePipeline):
         """
         return predictions
 
-    def prepare_texts(self, texts: List[str], **kwargs):
-        """
-        Prepares prompts for open-information extraction.
+    def prepare_texts(self, texts: list[str], **kwargs):
+        """Prepares prompts for open-information extraction.
 
         Args:
             texts (list): List of input texts.
@@ -85,14 +81,13 @@ class GLiNEROpenExtractor(GLiNERBasePipeline):
 
     def evaluate(
         self,
-        dataset_id: Optional[str] = None,
-        dataset: Optional[Dataset] = None,
-        labels: Optional[List[str]] = None,
+        dataset_id: str | None = None,
+        dataset: Dataset | None = None,
+        labels: list[str] | None = None,
         threshold: float = 0.5,
         max_examples: float = -1,
     ):
-        """
-        Evaluates the model on a specified dataset and computes evaluation metrics.
+        """Evaluates the model on a specified dataset and computes evaluation metrics.
 
         Args:
             dataset_id (str, optional): Identifier for the dataset to load (e.g., from Hugging Face datasets).

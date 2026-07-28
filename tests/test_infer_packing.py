@@ -2,17 +2,17 @@ import random
 from typing import List
 
 import numpy as np
-import pytest
 import torch
+import pytest
 
-from gliner.infer_packing import InferencePackingConfig, pack_requests
 from tests.utils_infer import (
-    DummyTokenizer,
     MockEncoder,
-    make_requests,
-    run_baseline,
+    DummyTokenizer,
     run_packed,
+    run_baseline,
+    make_requests,
 )
+from gliner.infer_packing import InferencePackingConfig, pack_requests
 
 random.seed(1337)
 np.random.seed(1337)
@@ -22,7 +22,7 @@ if torch.cuda.is_available():
     torch.backends.cudnn.deterministic = True
 
 
-def _device_params() -> List[str]:
+def _device_params() -> list[str]:
     devices = ["cpu"]
     if torch.cuda.is_available():
         devices.append("cuda")
@@ -195,4 +195,3 @@ def test_packed_determinism(model, tokenizer):
     for a, b in zip(first, second):
         diff = (a - b).abs()
         assert float(diff.max()) == 0.0
-

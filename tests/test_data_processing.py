@@ -1,11 +1,13 @@
-import pytest
-import warnings
 import random
-import torch
+import warnings
 from collections import defaultdict
 from unittest.mock import Mock
+
+import torch
+import pytest
 from transformers import AutoTokenizer
-from gliner.data_processing.utils import pad_2d_tensor, prepare_span_idx, prepare_word_mask, get_negatives, make_mapping
+
+from gliner.data_processing.utils import make_mapping, get_negatives, pad_2d_tensor, prepare_span_idx, prepare_word_mask
 
 
 class TestPad2DTensor:

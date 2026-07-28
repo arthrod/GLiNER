@@ -3,13 +3,14 @@
 
 from __future__ import annotations
 
-import argparse
-import pathlib
 import sys
-import textwrap
 import time
-from typing import List, Sequence
+import pathlib
+import argparse
+import textwrap
 import traceback
+from typing import List
+from collections.abc import Sequence
 
 import torch
 
@@ -19,8 +20,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from gliner import GLiNER, InferencePackingConfig
 
-
-DEFAULT_TEXTS: List[str] = [
+DEFAULT_TEXTS: list[str] = [
     "OpenAI launched GPT-4o in San Francisco, while Sam Altman discussed future plans on CNBC.",
     "NASA announced that the Artemis II mission will send astronauts around the Moon in 2025.",
     "Amazon acquired Whole Foods for $13.7 billion and expanded grocery delivery across the United States.",
@@ -68,7 +68,7 @@ Finally, political headlines dominated the world stage. In September 2022, Queen
 """
 DEFAULT_TEXTS.append(long_seq)
 
-DEFAULT_LABELS: List[str] = [
+DEFAULT_LABELS: list[str] = [
     "Person",
     "Organization",
     "Location",
@@ -140,7 +140,7 @@ def _format_prediction(example_id: int, text: str, entities: Sequence[dict]) -> 
             start = ent.get("start")
             end = ent.get("end")
             body_lines.append(
-                f"  - '{snippet}' ({label}, score={score:.2f}, span={start}:{end})"
+                f"  - '{snippet}' ({label}, score={score:.2f}, span={start}:{end})",
             )
     return "\n".join([header] + body_lines)
 
@@ -161,7 +161,7 @@ def _run_once(
     threshold: float,
     device: torch.device,
     packing_config: InferencePackingConfig | None,
-) -> tuple[List[List[dict]], float]:
+) -> tuple[list[list[dict]], float]:
     _sync_if_cuda(device)
     start = time.perf_counter()
     predictions = model.run(
@@ -184,8 +184,8 @@ def main() -> None:
     if args.streams_per_batch < 1:
         raise ValueError("--streams-per-batch must be >= 1")
 
-    texts: List[str] = list(DEFAULT_TEXTS)
-    labels: List[str] = list(DEFAULT_LABELS)
+    texts: list[str] = list(DEFAULT_TEXTS)
+    labels: list[str] = list(DEFAULT_LABELS)
 
     device = torch.device(args.device)
     try:
@@ -193,7 +193,7 @@ def main() -> None:
     except Exception as exc:  # pragma: no cover - network / I/O failures
         print(traceback.format_exc())
         raise SystemExit(
-            "Failed to load GLiNER model. Use --model with a local path or ensure network access."
+            "Failed to load GLiNER model. Use --model with a local path or ensure network access.",
         ) from exc
     model.to(device)
     model.eval()

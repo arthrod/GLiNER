@@ -56,7 +56,9 @@ class NumericalStabilityProcessor(LogitsProcessor):
             Stabilized logit scores of shape (batch_size, vocab_size).
         """
         scores = torch.where(
-            torch.isneginf(scores), torch.tensor(torch.finfo(scores.dtype).min).to(scores.device), scores
+            torch.isneginf(scores),
+            torch.tensor(torch.finfo(scores.dtype).min).to(scores.device),
+            scores,
         )
         scores = torch.clamp(scores, min=-1e9, max=1e9)
         return scores + self.epsilon
@@ -79,8 +81,8 @@ class DecoderTransformer(nn.Module):
         model_name: str,
         config: Any,
         from_pretrained: bool = False,
-        cache_dir: Optional[Union[str, Path]] = None,
-        trust_remote_code: Optional[bool] = None,
+        cache_dir: str | Path | None = None,
+        trust_remote_code: bool | None = None,
     ) -> None:
         """Initializes the decoder transformer.
 
@@ -166,8 +168,8 @@ class Decoder(nn.Module):
         self,
         config: Any,
         from_pretrained: bool = False,
-        cache_dir: Optional[Union[str, Path]] = None,
-        trust_remote_code: Optional[bool] = None,
+        cache_dir: str | Path | None = None,
+        trust_remote_code: bool | None = None,
     ) -> None:
         """Initializes the decoder.
 
@@ -210,13 +212,13 @@ class Decoder(nn.Module):
     def generate_from_embeds_custom(
         self,
         inputs_embeds: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
+        attention_mask: torch.Tensor | None = None,
         max_new_tokens: int = 32,
-        eos_token_id: Optional[int] = None,
-        pad_token_id: Optional[int] = None,
+        eos_token_id: int | None = None,
+        pad_token_id: int | None = None,
         temperature: float = 1.0,
         do_sample: bool = False,
-        labels_trie: Optional[LabelsTrie] = None,
+        labels_trie: LabelsTrie | None = None,
         **kwargs: Any,
     ) -> torch.LongTensor:
         """Custom generation implementation from embeddings with optional trie constraints.
@@ -312,7 +314,10 @@ class Decoder(nn.Module):
             )
 
             out = model(
-                input_ids=next_token, attention_mask=attention_mask, past_key_values=past_key_values, use_cache=True
+                input_ids=next_token,
+                attention_mask=attention_mask,
+                past_key_values=past_key_values,
+                use_cache=True,
             )
             past_key_values = out.past_key_values
             next_logits = out.logits[:, -1]
@@ -329,14 +334,14 @@ class Decoder(nn.Module):
     def generate_from_embeds(
         self,
         inputs_embeds: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
+        attention_mask: torch.Tensor | None = None,
         max_new_tokens: int = 32,
-        eos_token_id: Optional[int] = None,
-        pad_token_id: Optional[int] = None,
+        eos_token_id: int | None = None,
+        pad_token_id: int | None = None,
         temperature: float = 1.0,
         do_sample: bool = False,
         num_return_sequences: int = 1,
-        labels_trie: Optional[LabelsTrie] = None,
+        labels_trie: LabelsTrie | None = None,
         **kwargs: Any,
     ) -> torch.LongTensor:
         """Generation from embeddings using Hugging Face's generate API.
@@ -388,7 +393,7 @@ class Decoder(nn.Module):
         # Define prefix-constrained token function if trie is provided
         if labels_trie is not None:
 
-            def prefix_allowed_tokens(batch_idx: int, input_ids: torch.Tensor) -> List[int]:
+            def prefix_allowed_tokens(batch_idx: int, input_ids: torch.Tensor) -> list[int]:
                 """Callback function for constrained decoding.
 
                 Args:
@@ -423,7 +428,7 @@ class Decoder(nn.Module):
             logits_processor=LogitsProcessorList(
                 [
                     NumericalStabilityProcessor(),
-                ]
+                ],
             ),
             **kwargs,
         )
@@ -448,8 +453,7 @@ class Decoder(nn.Module):
         """
         if "inputs_embeds" in kwargs:
             return self.generate_from_embeds(*args, **kwargs)
-        else:
-            return self.decoder_layer.model.generate(*args, **kwargs)
+        return self.decoder_layer.model.generate(*args, **kwargs)
 
     def forward(self, *args: Any, **kwargs: Any) -> torch.Tensor:
         """Forward pass through the decoder.

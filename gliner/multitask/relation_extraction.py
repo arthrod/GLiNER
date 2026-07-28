@@ -11,8 +11,7 @@ from .base import GLiNERBasePipeline
 
 
 class GLiNERRelationExtractor(GLiNERBasePipeline):
-    """
-    A class to use GLiNER for relation extraction inference and evaluation.
+    """A class to use GLiNER for relation extraction inference and evaluation.
 
     Attributes:
         device (str): Device to run the model on, e.g., 'cuda:0' or 'cpu'.
@@ -34,16 +33,15 @@ class GLiNERRelationExtractor(GLiNERBasePipeline):
 
     def __init__(
         self,
-        model_id: Optional[str] = None,
-        model: Optional[GLiNER] = None,
+        model_id: str | None = None,
+        model: GLiNER | None = None,
         device: str = "cuda:0",
         ner_threshold: float = 0.5,
         rel_threshold: float = 0.5,
         return_index: bool = False,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
     ):
-        """
-        Initializes the GLiNERRelationExtractor.
+        """Initializes the GLiNERRelationExtractor.
 
         Args:
             model_id (str, optional): Identifier for the model to be loaded. Defaults to None.
@@ -61,9 +59,8 @@ class GLiNERRelationExtractor(GLiNERBasePipeline):
         self.rel_threshold = rel_threshold
         super().__init__(model_id=model_id, model=model, prompt=prompt, device=device)
 
-    def prepare_texts(self, texts: List[str], **kwargs):
-        """
-        Prepares prompts for relation extraction to texts.
+    def prepare_texts(self, texts: list[str], **kwargs):
+        """Prepares prompts for relation extraction to texts.
 
         Args:
             texts (list): List of input texts.
@@ -79,7 +76,7 @@ class GLiNERRelationExtractor(GLiNERBasePipeline):
             prompts.append(prompt)
         return prompts
 
-    def prepare_source_relation(self, ner_predictions: List[dict], relations: List[str]):
+    def prepare_source_relation(self, ner_predictions: list[dict], relations: list[str]):
         relation_labels = []
         for prediction in ner_predictions:
             curr_labels = []
@@ -128,10 +125,10 @@ class GLiNERRelationExtractor(GLiNERBasePipeline):
 
     def __call__(
         self,
-        texts: Union[str, List[str]],
-        relations: Optional[List[str]] = None,
-        entities: List[str] = ["named entity"],
-        relation_labels: Optional[List[List[str]]] = None,
+        texts: str | list[str],
+        relations: list[str] | None = None,
+        entities: list[str] = ["named entity"],
+        relation_labels: list[list[str]] | None = None,
         ner_threshold: float = 0.5,
         rel_threshold: float = 0.5,
         batch_size: int = 8,
@@ -156,14 +153,13 @@ class GLiNERRelationExtractor(GLiNERBasePipeline):
 
     def evaluate(
         self,
-        dataset_id: Optional[str] = None,
-        dataset: Optional[Dataset] = None,
-        labels: Optional[List[str]] = None,
+        dataset_id: str | None = None,
+        dataset: Dataset | None = None,
+        labels: list[str] | None = None,
         threshold: float = 0.5,
         max_examples: float = -1,
     ):
-        """
-        Evaluates the model on a specified dataset and computes evaluation metrics.
+        """Evaluates the model on a specified dataset and computes evaluation metrics.
 
         Args:
             dataset_id (str, optional): Identifier for the dataset to load (e.g., from Hugging Face datasets).
@@ -182,16 +178,14 @@ class GLiNERRelationExtractor(GLiNERBasePipeline):
 
 
 class GLiNERDocREDEvaluator(GLiNERRelationExtractor):
-    """
-    Evaluator class for document-level relation extraction tasks using the GLiNER framework.
+    """Evaluator class for document-level relation extraction tasks using the GLiNER framework.
 
     This class includes methods for preparing datasets, processing predictions, computing F1 scores,
     and evaluating the model's performance on document-level relation extraction tasks such as DocRED.
     """
 
     def prepare_dataset(self, raw_data: Dataset, text_column="sents", rel_column="labels", *args, **kwargs):
-        """
-        Prepares the dataset for evaluation by extracting labeled relations and corresponding text.
+        """Prepares the dataset for evaluation by extracting labeled relations and corresponding text.
 
         Args:
             raw_data (Dataset): A list of raw dataset examples where each example contains sentences,
@@ -247,9 +241,8 @@ class GLiNERDocREDEvaluator(GLiNERRelationExtractor):
 
         return texts_by_line, grouped_labels, true_labels
 
-    def process_results(self, predictions: List[dict]):
-        """
-        Processes model predictions into the standard "source <> relation <> target" format.
+    def process_results(self, predictions: list[dict]):
+        """Processes model predictions into the standard "source <> relation <> target" format.
 
         Args:
             predictions (list of dict): List of prediction dictionaries containing 'source', 'relation', and 'target'.
@@ -265,9 +258,8 @@ class GLiNERDocREDEvaluator(GLiNERRelationExtractor):
                 preds.append(result)
         return preds
 
-    def compute_f_score(self, predicts: List[str], true_labels: List[str]):
-        """
-        Computes precision, recall, F1 score, and other metrics for the relation extraction task.
+    def compute_f_score(self, predicts: list[str], true_labels: list[str]):
+        """Computes precision, recall, F1 score, and other metrics for the relation extraction task.
 
         Args:
             predicts (list of str): Predicted relation labels in "source <> relation <> target" format.
@@ -305,13 +297,12 @@ class GLiNERDocREDEvaluator(GLiNERRelationExtractor):
     def evaluate(
         self,
         dataset_id: str = "thunlp/docred",
-        dataset: Optional[Dataset] = None,
-        labels: Optional[List[str]] = None,
+        dataset: Dataset | None = None,
+        labels: list[str] | None = None,
         threshold: float = 0.5,
         max_examples: int = -1,
     ):
-        """
-        Evaluates the model on a specified dataset and computes evaluation metrics.
+        """Evaluates the model on a specified dataset and computes evaluation metrics.
 
         Args:
             dataset_id (str, optional): Identifier for the dataset to load (e.g., from Hugging Face datasets).
